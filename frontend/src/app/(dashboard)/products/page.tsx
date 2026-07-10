@@ -281,7 +281,7 @@ export default function ProductsPage() {
       {isModalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           {/* Modal Panel */}
-          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, width: "100%", maxWidth: 800, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, width: "100%", maxWidth: 640, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "90vh", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
             
             {/* Modal Header */}
             <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: C.card }}>
