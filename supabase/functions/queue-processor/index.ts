@@ -97,10 +97,29 @@ Deno.serve(async (req: Request) => {
 
   console.log(`Processing: [${platform}] ${platformId} — "${messageText?.substring(0, 50)}"`);
 
+  // ── Step 1.5: Fetch Profile Picture
+  let profilePic: string | undefined = undefined;
+  if (platform === "messenger" || platform === "instagram") {
+    try {
+      const { getMetaSettings } = await import("../_shared/supabase-client.ts");
+      const metaSettings = await getMetaSettings();
+      const token = metaSettings.meta_page_access_token;
+      if (token) {
+        const res = await fetch(`https://graph.facebook.com/v19.0/${platformId}?fields=profile_pic&access_token=${token}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile_pic) profilePic = data.profile_pic;
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch profile_pic:", err);
+    }
+  }
+
   // ── Step 2: Upsert customer
   let customer;
   try {
-    customer = await upsertCustomer(platform as Platform, platformId, customerName);
+    customer = await upsertCustomer(platform as Platform, platformId, customerName, profilePic);
   } catch (err) {
     console.error("upsertCustomer failed:", err);
     return errorResponse("Customer upsert failed", 500);

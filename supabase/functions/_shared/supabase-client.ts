@@ -97,25 +97,26 @@ export async function getAllOffers(): Promise<Offer[]> {
 export async function upsertCustomer(
   platform: Platform,
   platformId: string,
-  name?: string
+  name?: string,
+  profilePic?: string
 ): Promise<Customer> {
   const sb = getSupabaseClient();
 
+  const payload: any = {
+    platform,
+    platform_id: platformId,
+    is_deleted: false,
+    ai_reply_enabled: true,
+  };
+  if (name) payload.name = name;
+  if (profilePic) payload.profile_pic = profilePic;
+
   const { data, error } = await sb
     .from("customers")
-    .upsert(
-      {
-        platform,
-        platform_id: platformId,
-        name: name ?? null,
-        is_deleted: false, // reset soft-delete on new message
-        ai_reply_enabled: true, // reset on new message after delete
-      },
-      {
-        onConflict: "platform,platform_id",
-        ignoreDuplicates: false,
-      }
-    )
+    .upsert(payload, {
+      onConflict: "platform,platform_id",
+      ignoreDuplicates: false,
+    })
     .select()
     .single();
 
