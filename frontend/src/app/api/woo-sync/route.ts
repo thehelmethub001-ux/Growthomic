@@ -49,7 +49,9 @@ export async function POST() {
 
     for (const wp of wooProducts) {
       const images = wp.images?.map((img: any) => img.src) || [];
-      const stock = wp.stock_quantity || (wp.in_stock ? 10 : 0); // fallback if stock management is disabled
+      const stock = wp.manage_stock && wp.stock_quantity !== null 
+        ? wp.stock_quantity 
+        : (wp.stock_status === "instock" ? 10 : 0);
       const category = wp.categories?.[0]?.name || null;
       
       // Strip HTML tags from description
@@ -69,7 +71,7 @@ export async function POST() {
         woo_product_id: wp.id,
         name: wp.name,
         sku: wp.sku || null,
-        regular_price: parseFloat(wp.regular_price) || 0,
+        regular_price: parseFloat(wp.regular_price) || parseFloat(wp.price) || 0,
         sale_price: wp.sale_price ? parseFloat(wp.sale_price) : null,
         stock_quantity: stock,
         images: images,
