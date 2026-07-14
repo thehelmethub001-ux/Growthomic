@@ -68,7 +68,7 @@ export default function InboxPage() {
   const loadMsgs = async (id:string) => {
     const { data } = await sb.from("messages").select("*").eq("conversation_id",id).order("created_at",{ascending:true});
     if (data) setMsgs(data as Msg[]);
-    setTimeout(() => msgsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    setTimeout(() => msgsEndRef.current?.scrollIntoView({ behavior: "auto" }), 50);
   };
 
   const toggleAI = async (id:string, locked:boolean) => {
