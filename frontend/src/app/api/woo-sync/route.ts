@@ -52,7 +52,9 @@ export async function POST() {
       const stock = wp.manage_stock && wp.stock_quantity !== null 
         ? wp.stock_quantity 
         : (wp.stock_status === "instock" ? 10 : 0);
-      const category = wp.categories?.[0]?.name || null;
+      const category = wp.categories && wp.categories.length > 0 
+        ? wp.categories.map((c: any) => c.name).join(", ") 
+        : null;
       
       // Strip HTML tags from description
       const plainTextDesc = wp.short_description 
