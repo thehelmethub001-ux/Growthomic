@@ -31,7 +31,7 @@ export const C = {
 };
 
 export const pageWrap: React.CSSProperties = {
-  padding: "32px 36px 64px",
+  padding: "28px 36px 64px",
   maxWidth: 1280,
 };
 

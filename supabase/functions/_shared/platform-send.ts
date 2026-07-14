@@ -4,9 +4,21 @@
 import type { Platform } from "./types.ts";
 
 // ============================================================
-// Environment variables
+// Environment variables & DB config
 // ============================================================
-const META_ACCESS_TOKEN = () => Deno.env.get("META_PAGE_ACCESS_TOKEN")!;
+import { getSupabaseClient } from "./supabase-client.ts";
+import { decryptSecret } from "./encryption.ts";
+
+async function getMetaAccessToken(): Promise<string> {
+  const sb = getSupabaseClient();
+  const { data } = await sb.from("business_settings").select("meta_access_token").limit(1).single();
+  let token = data?.meta_access_token || Deno.env.get("META_PAGE_ACCESS_TOKEN")!;
+  if (token && token.includes(":")) {
+    token = await decryptSecret(token);
+  }
+  return token;
+}
+
 const WHATSAPP_PHONE_NUMBER_ID = () => Deno.env.get("WHATSAPP_PHONE_NUMBER_ID")!;
 
 // ============================================================
@@ -104,7 +116,7 @@ async function sendMessengerMessage(
   message: Record<string, unknown>
 ): Promise<void> {
   const res = await fetch(
-    `https://graph.facebook.com/v19.0/me/messages?access_token=${META_ACCESS_TOKEN()}`,
+    `https://graph.facebook.com/v19.0/me/messages?access_token=${await getMetaAccessToken()}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -131,7 +143,7 @@ async function sendInstagramMessage(
   message: Record<string, unknown>
 ): Promise<void> {
   const res = await fetch(
-    `https://graph.facebook.com/v19.0/me/messages?access_token=${META_ACCESS_TOKEN()}`,
+    `https://graph.facebook.com/v19.0/me/messages?access_token=${await getMetaAccessToken()}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -164,7 +176,7 @@ async function sendWhatsAppTextMessage(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${META_ACCESS_TOKEN()}`,
+        Authorization: `Bearer ${await getMetaAccessToken()}`,
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
@@ -196,7 +208,7 @@ async function sendWhatsAppMediaMessage(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${META_ACCESS_TOKEN()}`,
+        Authorization: `Bearer ${await getMetaAccessToken()}`,
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
@@ -230,7 +242,7 @@ export async function downloadMetaMedia(mediaId: string): Promise<{
   const metaRes = await fetch(
     `https://graph.facebook.com/v19.0/${mediaId}`,
     {
-      headers: { Authorization: `Bearer ${META_ACCESS_TOKEN()}` },
+      headers: { Authorization: `Bearer ${await getMetaAccessToken()}` },
     }
   );
   if (!metaRes.ok) throw new Error(`Failed to get media info for ${mediaId}`);

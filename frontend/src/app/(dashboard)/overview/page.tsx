@@ -1,41 +1,84 @@
 "use client";
 import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { C, pageWrap } from "@/lib/styles";
 import { MessageCircle, Brain, ShoppingBag, Banknote, ArrowUpRight, ArrowDownRight, AlertTriangle, HelpCircle, Bot } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-
-const chartData = [
-  { time:"08:00", messages:120 }, { time:"10:00", messages:210 },
-  { time:"12:00", messages:180 }, { time:"14:00", messages:350 },
-  { time:"16:00", messages:290 }, { time:"18:00", messages:450 },
-  { time:"20:00", messages:380 },
-];
+import { startOfDay, endOfDay, format } from "date-fns";
 
 const stagger: Variants = { hidden:{opacity:0}, show:{opacity:1,transition:{staggerChildren:0.08}} };
 const fadeUp: Variants = { hidden:{opacity:0,y:16}, show:{opacity:1,y:0,transition:{type:"spring",stiffness:280,damping:22}} };
 
 export default function OverviewPage() {
   const [loading, setLoading] = useState(true);
+  const [kpiData, setKpiData] = useState({ messages:0, handleRate:0, orders:0, revenue:0 });
+  const [queueCounts, setQueueCounts] = useState({ ai_failed:0, return:0, complaint:0 });
+  const [chartData, setChartData] = useState<{time:string; messages:number}[]>([]);
+  const sb = createClient();
 
-  useEffect(() => {
-    setTimeout(() => setLoading(false), 600);
-  }, []);
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const start = startOfDay(new Date()).toISOString();
+    const end = endOfDay(new Date()).toISOString();
+
+    try {
+      // 1. Messages today
+      const { count: msgCount } = await sb.from("messages").select("*", { count: "exact", head: true }).gte("created_at", start).lte("created_at", end);
+      
+      // 2. AI vs Human (Handle Rate)
+      const { count: aiCount } = await sb.from("messages").select("*", { count: "exact", head: true }).eq("role", "ai").gte("created_at", start).lte("created_at", end);
+      const { count: humanCount } = await sb.from("messages").select("*", { count: "exact", head: true }).eq("role", "human_agent").gte("created_at", start).lte("created_at", end);
+      const totalAgent = (aiCount||0) + (humanCount||0);
+      const handleRate = totalAgent > 0 ? Math.round(((aiCount||0) / totalAgent) * 100) : 0;
+
+      // 3. Orders today
+      const { count: ordCount } = await sb.from("orders").select("*", { count: "exact", head: true }).gte("created_at", start).lte("created_at", end);
+      
+      // 4. Revenue today
+      const { data: revData } = await sb.from("orders").select("total_amount").gte("created_at", start).lte("created_at", end).neq("status", "cancelled");
+      const rev = revData?.reduce((acc, o) => acc + (o.total_amount || 0), 0) || 0;
+
+      // 5. Human Queue Actions
+      const { data: qData } = await sb.from("human_queue").select("reason").eq("status", "pending");
+      const qc = { ai_failed:0, return:0, complaint:0 };
+      qData?.forEach(q => { if(q.reason in qc) qc[q.reason as keyof typeof qc]++; });
+
+      // 6. Chart data (2-hour intervals)
+      const { data: msgsToday } = await sb.from("messages").select("created_at").gte("created_at", start).lte("created_at", end);
+      const hourly = new Array(12).fill(0); // 12 intervals of 2 hours
+      msgsToday?.forEach(m => {
+        const hour = new Date(m.created_at).getHours();
+        hourly[Math.floor(hour / 2)]++;
+      });
+      const cData = hourly.map((count, i) => ({
+        time: `${String(i*2).padStart(2, "0")}:00`,
+        messages: count
+      }));
+
+      setKpiData({ messages: msgCount||0, handleRate, orders: ordCount||0, revenue: rev });
+      setQueueCounts(qc);
+      setChartData(cData);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
 
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 
   const kpis = [
-    { label:"Today's Messages",  value:"1,240",   delta:"+12%",    up:true,  icon:MessageCircle, color:"hsl(262,83%,68%)", bg:"hsla(262,83%,58%,0.1)", border:"hsla(262,83%,58%,0.25)" },
-    { label:"AI Handle Rate",    value:"98%",      delta:"+2.4%",   up:true,  icon:Brain,         color:"hsl(271,85%,72%)", bg:"hsla(271,85%,65%,0.1)", border:"hsla(271,85%,65%,0.25)" },
-    { label:"New Orders",        value:"45",       delta:"-4%",     up:false, icon:ShoppingBag,   color:"hsl(217,89%,65%)", bg:"hsla(217,89%,61%,0.1)", border:"hsla(217,89%,61%,0.25)" },
-    { label:"Revenue Today",     value:"৳84,500", delta:"+18%",    up:true,  icon:Banknote,      color:"hsl(152,60%,55%)", bg:"hsla(152,60%,55%,0.1)", border:"hsla(152,60%,55%,0.25)" },
+    { label:"Today's Messages",  value:kpiData.messages.toLocaleString(),   delta:"+0%",    up:true,  icon:MessageCircle, color:"hsl(262,83%,68%)", bg:"hsla(262,83%,58%,0.1)", border:"hsla(262,83%,58%,0.25)" },
+    { label:"AI Handle Rate",    value:`${kpiData.handleRate}%`,      delta:"+0%",   up:true,  icon:Brain,         color:"hsl(271,85%,72%)", bg:"hsla(271,85%,65%,0.1)", border:"hsla(271,85%,65%,0.25)" },
+    { label:"New Orders",        value:kpiData.orders.toLocaleString(),       delta:"-0%",     up:false, icon:ShoppingBag,   color:"hsl(217,89%,65%)", bg:"hsla(217,89%,61%,0.1)", border:"hsla(217,89%,61%,0.25)" },
+    { label:"Revenue Today",     value:`৳${kpiData.revenue.toLocaleString()}`, delta:"+0%",    up:true,  icon:Banknote,      color:"hsl(152,60%,55%)", bg:"hsla(152,60%,55%,0.1)", border:"hsla(152,60%,55%,0.25)" },
   ];
 
   const actions = [
-    { label:"AI Failed",      sub:"Needs manual reply",  count:2, icon:Bot,          color:"hsl(350,85%,70%)",  bg:"hsla(350,85%,60%,0.1)",  href:"/human-queue" },
-    { label:"Returns",        sub:"Pending approval",    count:3, icon:HelpCircle,    color:"hsl(38,90%,65%)",   bg:"hsla(38,90%,55%,0.1)",   href:"/orders" },
-    { label:"Complaints",     sub:"Urgent resolution",   count:1, icon:AlertTriangle, color:"hsl(217,89%,65%)",  bg:"hsla(217,89%,61%,0.1)",  href:"/inbox" },
+    { label:"AI Failed",      sub:"Needs manual reply",  count:queueCounts.ai_failed, icon:Bot,          color:"hsl(350,85%,70%)",  bg:"hsla(350,85%,60%,0.1)",  href:"/human-queue" },
+    { label:"Returns",        sub:"Pending approval",    count:queueCounts.return, icon:HelpCircle,    color:"hsl(38,90%,65%)",   bg:"hsla(38,90%,55%,0.1)",   href:"/orders" },
+    { label:"Complaints",     sub:"Urgent resolution",   count:queueCounts.complaint, icon:AlertTriangle, color:"hsl(217,89%,65%)",  bg:"hsla(217,89%,61%,0.1)",  href:"/inbox" },
   ];
 
   return (
@@ -95,6 +138,9 @@ export default function OverviewPage() {
             <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:3 }}>Messages processed today by hour</div>
           </div>
           <div style={{ height:260 }}>
+            {loading ? (
+               <div style={{ width:"100%", height:"100%", background:"var(--bg-elevated)", borderRadius:6, animation:"shimmer 1.5s infinite" }}/>
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top:10, right:10, left:-20, bottom:0 }}>
                 <defs>
@@ -114,6 +160,7 @@ export default function OverviewPage() {
                 <Area type="monotone" dataKey="messages" stroke="hsl(262,83%,58%)" strokeWidth={2.5} fillOpacity={1} fill="url(#colorMsgs)"/>
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
         </motion.div>
 
@@ -145,7 +192,7 @@ export default function OverviewPage() {
                     </div>
                   </div>
                   <div style={{ padding:"3px 9px", borderRadius:100, fontSize:12, fontWeight:700, background:a.bg, color:a.color, flexShrink:0 }}>
-                    {a.count}
+                    {loading ? "..." : a.count}
                   </div>
                 </a>
               );

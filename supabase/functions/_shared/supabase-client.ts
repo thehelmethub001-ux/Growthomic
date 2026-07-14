@@ -9,6 +9,7 @@ import type {
   LearnedResponse,
   Platform,
   Product,
+  Offer,
 } from "./types.ts";
 
 export function getSupabaseClient() {
@@ -27,6 +28,8 @@ export function getSupabaseClient() {
 // ============================================================
 // business_settings helpers
 // ============================================================
+import { decryptSecret } from "./encryption.ts";
+
 export async function getBusinessSettings(): Promise<BusinessSettings> {
   const sb = getSupabaseClient();
   const { data, error } = await sb
@@ -36,6 +39,12 @@ export async function getBusinessSettings(): Promise<BusinessSettings> {
     .single();
 
   if (error || !data) throw new Error("business_settings not found");
+
+  let geminiKey = data.gemini_api_key;
+  if (geminiKey && geminiKey.includes(":")) geminiKey = await decryptSecret(geminiKey);
+  
+  let openaiKey = data.openai_api_key;
+  if (openaiKey && openaiKey.includes(":")) openaiKey = await decryptSecret(openaiKey);
 
   return {
     id: data.id,
@@ -57,11 +66,29 @@ export async function getBusinessSettings(): Promise<BusinessSettings> {
     wooApiUrl: data.woo_api_url,
     wooConsumerKey: data.woo_consumer_key,
     wooConsumerSecret: data.woo_consumer_secret,
-    geminiApiKey: data.gemini_api_key,
-    openaiApiKey: data.openai_api_key,
+    geminiApiKey: geminiKey,
+    openaiApiKey: openaiKey,
     wooSyncEnabled: data.woo_sync_enabled ?? true,
     googleSheetsWebhookUrl: data.google_sheets_webhook_url,
   };
+}
+
+// ============================================================
+// Offers helpers
+// ============================================================
+export async function getAllOffers(): Promise<Offer[]> {
+  const sb = getSupabaseClient();
+  const { data, error } = await sb
+    .from("offers")
+    .select("*")
+    .eq("is_active", true)
+    .order("start_date", { ascending: false });
+
+  if (error) {
+    console.error("Failed to fetch offers:", error);
+    return [];
+  }
+  return data as Offer[];
 }
 
 // ============================================================
@@ -304,6 +331,22 @@ export async function textOnlyProductSearch(
   return (data ?? []).map(mapProduct);
 }
 
+export async function getAllActiveProducts(limit = 8): Promise<Product[]> {
+  const sb = getSupabaseClient();
+  const { data, error } = await sb
+    .from("products")
+    .select("*")
+    .eq("is_active", true)
+    .order("name", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error("getAllActiveProducts error:", error);
+    return [];
+  }
+  return (data ?? []).map(mapProduct);
+}
+
 export async function getProductById(id: string): Promise<Product | null> {
   const sb = getSupabaseClient();
   const { data } = await sb.from("products").select("*").eq("id", id).single();
@@ -368,7 +411,7 @@ export async function getProductVideo(
 // ============================================================
 export async function addToHumanQueue(
   conversationId: string,
-  reason: "return" | "ai_failed" | "complaint",
+  reason: string,
   note?: string
 ): Promise<void> {
   const sb = getSupabaseClient();

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, skeletonStyle } from "@/lib/styles";
-import { Bot, Save, AlertCircle, CheckCircle2, Zap, RefreshCw } from "lucide-react";
+import { Bot, Save, CheckCircle2, AlertCircle, Zap, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -14,6 +14,9 @@ type Settings = {
   custom_prompt?:string|null;
   gemini_api_key?:string|null;
   openai_api_key?:string|null;
+  meta_verify_token?:string|null;
+  meta_app_secret?:string|null;
+  meta_access_token?:string|null;
 };
 
 const LBL: React.CSSProperties = {
@@ -35,16 +38,23 @@ export default function AISettingsPage() {
 
   const fetchSettings = async () => {
     setLoading(true);
-    const { data } = await supabase.from("business_settings").select("*").limit(1).single();
-    if (data) setSettings(data as Settings);
-    else setSettings({ id:"1", business_name:"Growthomic", description:"", ai_reply_mode:"full_auto", reply_language:"bn", reply_tone:"friendly", follow_up_enabled:true, follow_up_delay_minutes:60, restricted_topics:[] });
+    try {
+      const { data, error } = await supabase.from("business_settings").select("*").limit(1).single();
+      if (data && !error) {
+        setSettings(data as Settings);
+      } else {
+        setSettings({ id:"1", business_name:"Growthomic", description:"", ai_reply_mode:"full_auto", reply_language:"bn", reply_tone:"friendly", follow_up_enabled:true, follow_up_delay_minutes:60, restricted_topics:[] });
+      }
+    } catch {
+      setSettings({ id:"1", business_name:"Growthomic", description:"", ai_reply_mode:"full_auto", reply_language:"bn", reply_tone:"friendly", follow_up_enabled:true, follow_up_delay_minutes:60, restricted_topics:[] });
+    }
     setLoading(false);
   };
 
   const handleSave = async () => {
     if (!settings) return;
     setSaving(true);
-    const { error } = await supabase.from("business_settings").update(settings).eq("id",settings.id);
+    const { error } = await supabase.from("business_settings").update(settings).eq("id", settings.id);
     setSaving(false);
     if (!error) toast.success("Settings saved successfully!");
     else toast.error("Failed to save settings");
@@ -209,6 +219,45 @@ export default function AISettingsPage() {
             <p style={{ fontSize:11, color:C.textMuted, marginTop:7 }}>Comma-separated. The AI will politely decline these topics.</p>
           </div>
         </motion.div>
+        {/* Meta App Configuration */}
+        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.4}} style={{...CARD, borderColor: "rgba(245, 158, 11, 0.2)"}}>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:22 }}>
+            <div style={{ width:38, height:38, borderRadius:11, background:"rgba(245, 158, 11, 0.1)", border:"1px solid rgba(245, 158, 11, 0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Zap size={19} color="#f59e0b"/>
+            </div>
+            <div>
+              <h2 style={{ fontSize:14, fontWeight:700, color:C.textPrimary, letterSpacing:"-0.02em" }}>Meta Developer App (Facebook / Instagram)</h2>
+              <p style={{ fontSize:12, color:C.textMuted, marginTop:2 }}>Connect your page to Growthomic to receive messages via Webhook.</p>
+            </div>
+          </div>
+          
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ background: C.surface, padding: 16, borderRadius: 12, border: `1px solid rgba(255,255,255,0.05)`, fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
+              <strong>Webhook Callback URL:</strong><br/>
+              <code style={{ background: "rgba(0,0,0,0.3)", padding: "4px 8px", borderRadius: 6, display: "inline-block", marginTop: 4, marginBottom: 8, color: "#34d399", userSelect: "all" }}>
+                https://pfzsursjuchrgawzsluu.supabase.co/functions/v1/webhook-meta?platform=facebook
+              </code><br/>
+              Copy this URL and paste it into your Meta App's Webhook settings.
+            </div>
+
+            <div>
+              <label style={LBL}>Verify Token (For Webhook Setup)</label>
+              <input style={inputStyle} value={settings.meta_verify_token||""} onChange={e=>setSettings({...settings,meta_verify_token:e.target.value})} placeholder="e.g. growthomic_secret_token_123"/>
+            </div>
+            
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+              <div>
+                <label style={LBL}>App Secret (For Security Verification)</label>
+                <input type="password" style={inputStyle} value={settings.meta_app_secret||""} onChange={e=>setSettings({...settings,meta_app_secret:e.target.value})} placeholder="Your Meta App Secret"/>
+              </div>
+              <div>
+                <label style={LBL}>Page Access Token (For Sending Replies)</label>
+                <input type="password" style={inputStyle} value={settings.meta_access_token||""} onChange={e=>setSettings({...settings,meta_access_token:e.target.value})} placeholder="EAA..."/>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
       </motion.div>
     </div>
   );

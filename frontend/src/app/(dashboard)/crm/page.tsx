@@ -6,15 +6,6 @@ import { Search, Star, Users } from "lucide-react";
 
 type Customer = { id:string; name:string|null; platform:string; platform_id:string; spam_score:number; is_vip:boolean; is_spam:boolean; ai_reply_enabled:boolean; created_at:string };
 
-const DUMMY:Customer[] = [
-  { id:"1", name:"Rahim Islam",   platform:"messenger", platform_id:"fb_001", spam_score:0,  is_vip:true,  is_spam:false, ai_reply_enabled:true,  created_at:new Date().toISOString() },
-  { id:"2", name:"Karim Shop",    platform:"instagram", platform_id:"ig_002", spam_score:10, is_vip:false, is_spam:false, ai_reply_enabled:true,  created_at:new Date().toISOString() },
-  { id:"3", name:"Sadia Akter",   platform:"whatsapp",  platform_id:"wa_003", spam_score:0,  is_vip:true,  is_spam:false, ai_reply_enabled:true,  created_at:new Date().toISOString() },
-  { id:"4", name:"Jalal Uddin",   platform:"messenger", platform_id:"fb_004", spam_score:75, is_vip:false, is_spam:true,  ai_reply_enabled:false, created_at:new Date().toISOString() },
-  { id:"5", name:"Nasrin Begum",  platform:"instagram", platform_id:"ig_005", spam_score:45, is_vip:false, is_spam:false, ai_reply_enabled:true,  created_at:new Date().toISOString() },
-  { id:"6", name:"Imran Hossain", platform:"whatsapp",  platform_id:"wa_006", spam_score:5,  is_vip:false, is_spam:false, ai_reply_enabled:true,  created_at:new Date().toISOString() },
-];
-
 const PLT_COLOR:Record<string,string> = { messenger:"hsl(217,89%,65%)", instagram:"hsl(330,75%,65%)", whatsapp:"hsl(142,65%,55%)" };
 
 export default function CRMPage() {
@@ -28,8 +19,7 @@ export default function CRMPage() {
     (async () => {
       setLoading(true);
       const { data } = await sb.from("customers").select("*").order("created_at",{ascending:false});
-      if (data && data.length > 0) setCustomers(data as Customer[]);
-      else setCustomers(DUMMY);
+      if (data) setCustomers(data as Customer[]);
       setLoading(false);
     })();
   }, []);
@@ -42,6 +32,11 @@ export default function CRMPage() {
   const toggleVIP = async (id:string, v:boolean) => {
     await sb.from("customers").update({is_vip:!v}).eq("id",id);
     setCustomers(cs => cs.map(c => c.id===id ? {...c,is_vip:!v} : c));
+  };
+
+  const toggleAIReply = async (id:string, current:boolean) => {
+    await sb.from("customers").update({ai_reply_enabled:!current}).eq("id",id);
+    setCustomers(cs => cs.map(c => c.id===id ? {...c,ai_reply_enabled:!current} : c));
   };
 
   return (
@@ -105,7 +100,7 @@ export default function CRMPage() {
             )) : shown.length === 0 ? (
               <tr><td colSpan={6} style={{ padding:"60px", textAlign:"center", color:"var(--text-muted)" }}>
                 <Users size={40} style={{ opacity:0.1, display:"block", margin:"0 auto 10px" }}/>
-                No customers found
+                No customers found in database
               </td></tr>
             ) : shown.map(c => (
               <tr key={c.id}>
@@ -140,9 +135,11 @@ export default function CRMPage() {
                   }
                 </td>
                 <td style={{ ...tdStyle, textAlign:"center" }}>
-                  <span style={{ padding:"2px 9px", borderRadius:100, fontSize:11, fontWeight:700, background:c.ai_reply_enabled?"hsla(152,60%,50%,0.1)":"hsla(350,85%,60%,0.1)", color:c.ai_reply_enabled?"hsl(152,60%,60%)":"hsl(350,85%,70%)" }}>
-                    {c.ai_reply_enabled ? "On" : "Off"}
-                  </span>
+                  <button onClick={() => toggleAIReply(c.id, c.ai_reply_enabled)} style={{ border:"none", cursor:"pointer", background:"none", padding:0 }}>
+                    <span style={{ padding:"4px 12px", borderRadius:100, fontSize:11, fontWeight:700, background:c.ai_reply_enabled?"hsla(152,60%,50%,0.1)":"hsla(350,85%,60%,0.1)", color:c.ai_reply_enabled?"hsl(152,60%,60%)":"hsl(350,85%,70%)", transition:"all 0.2s" }}>
+                      {c.ai_reply_enabled ? "On" : "Off"}
+                    </span>
+                  </button>
                 </td>
                 <td style={{ ...tdStyle, textAlign:"center" }}>
                   <button onClick={()=>toggleVIP(c.id,c.is_vip)} style={{ background:"none", border:"none", cursor:"pointer", display:"inline-flex", alignItems:"center", padding:4, borderRadius:6 }}>

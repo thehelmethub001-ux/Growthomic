@@ -174,14 +174,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Page Content Wrapper */}
-        <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+        <div style={{ flex:1, display:"flex", flexDirection:"column", minHeight:0, overflow:"hidden" }}>
           {/* Scrollable Page Content */}
           <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", minHeight:0 }}>
             <motion.div
               key={pathname}
-              initial={{ opacity:0, y:10 }}
-              animate={{ opacity:1, y:0 }}
-              transition={{ duration:0.22, ease:"easeOut" }}
+              initial={{ opacity:0 }}
+              animate={{ opacity:1 }}
+              transition={{ duration:0.18, ease:"easeOut" }}
               style={{ minHeight:"100%" }}
             >
               {children}

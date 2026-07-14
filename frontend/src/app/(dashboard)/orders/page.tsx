@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, skeletonStyle, thStyle, tdStyle } from "@/lib/styles";
+import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, btnSecondary, skeletonStyle, thStyle, tdStyle } from "@/lib/styles";
 import { CheckCircle2, RefreshCcw, Search, ShoppingCart } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -31,6 +31,8 @@ export default function OrdersPage() {
   const [syncId, setSyncId] = useState<string|null>(null);
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [updating, setUpdating] = useState(false);
   const sb = createClient();
 
   useEffect(() => { load(); }, [filter]);
@@ -89,6 +91,37 @@ export default function OrdersPage() {
     } else {
       toast.info("Auto-sync paused. Orders will be saved locally.");
     }
+  };
+
+  const saveOrder = async () => {
+    if (!editOrder) return;
+    setUpdating(true);
+    
+    // If it's a dummy order (starts with ord-), just show success and close
+    if (editOrder.id.startsWith("ord-")) {
+      setTimeout(() => {
+        setOrders(orders.map(o => o.id === editOrder.id ? { ...o, ...editOrder } : o));
+        setEditOrder(null);
+        setUpdating(false);
+        toast.success("Order updated (Dummy)");
+      }, 500);
+      return;
+    }
+
+    const { error } = await sb.from("orders").update({ 
+      status: editOrder.status,
+      total_amount: editOrder.total_amount,
+      payment_method: editOrder.payment_method
+    }).eq("id", editOrder.id);
+    
+    if (error) {
+      toast.error("Failed to update order");
+    } else {
+      toast.success("Order updated!");
+      setOrders(orders.map(o => o.id === editOrder.id ? { ...o, status: editOrder.status } : o));
+      setEditOrder(null);
+    }
+    setUpdating(false);
   };
 
   const shown = orders.filter(o=>!search||(o.customers.name||"").toLowerCase().includes(search.toLowerCase()));
@@ -151,7 +184,7 @@ export default function OrdersPage() {
           <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:0 }}>
             <thead>
               <tr>
-                {["Order","Customer","Items","Amount","Status","WooSync"].map(h=>(
+                {["Order","Customer","Items","Amount","Status","WooSync","Action"].map(h=>(
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
               </tr>
@@ -159,12 +192,12 @@ export default function OrdersPage() {
             <tbody>
               {loading ? (
                 [...Array(5)].map((_,i)=>(
-                  <tr key={i}><td colSpan={6} style={{padding:"8px 16px"}}>
+                  <tr key={i}><td colSpan={7} style={{padding:"8px 16px"}}>
                     <div style={{...skeletonStyle,height:24}}/>
                   </td></tr>
                 ))
               ) : shown.length===0 ? (
-                <tr><td colSpan={6} style={{padding:"60px 16px",textAlign:"center",color:C.textMuted}}>
+                <tr><td colSpan={7} style={{padding:"60px 16px",textAlign:"center",color:C.textMuted}}>
                   <ShoppingCart size={44} style={{opacity:0.1,margin:"0 auto 12px",display:"block"}}/>
                   No orders found
                 </td></tr>
@@ -209,6 +242,9 @@ export default function OrdersPage() {
                         <span style={{padding:"2px 8px",borderRadius:100,fontSize:10,fontWeight:700,background:"rgba(245,158,11,0.12)",color:"#fbbf24"}}>Pending</span>
                       )}
                     </td>
+                    <td style={tdStyle}>
+                      <button onClick={() => setEditOrder(o)} style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${C.border}`, color: C.textPrimary, padding: "5px 12px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "background 0.2s" }} onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"} onMouseOut={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}>Edit</button>
+                    </td>
                   </tr>
                 );
               })}
@@ -216,6 +252,55 @@ export default function OrdersPage() {
           </table>
         </div>
       </div>
+      
+      {editOrder && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: C.card, padding: 24, borderRadius: 16, width: 340, border: `1px solid ${C.border}`, boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: C.textPrimary }}>Edit Order #{editOrder.id.slice(0,8)}</h2>
+            
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Customer details</label>
+            <div style={{ padding: "10px 14px", background: C.surface, borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, marginBottom: 16, fontSize: 12, color: C.textMuted }}>
+              <strong style={{color: C.textPrimary}}>{editOrder.customers.name || "Unknown"}</strong><br/>
+              Via: {editOrder.customers.platform}
+            </div>
+
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Total Amount (৳)</label>
+            <input 
+              type="number"
+              value={editOrder.total_amount}
+              onChange={(e) => setEditOrder({ ...editOrder, total_amount: Number(e.target.value) })}
+              style={{ ...inputStyle, width: "100%", marginBottom: 16, padding: "10px 14px" }}
+            />
+
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Payment Method</label>
+            <input 
+              type="text"
+              value={editOrder.payment_method}
+              onChange={(e) => setEditOrder({ ...editOrder, payment_method: e.target.value })}
+              style={{ ...inputStyle, width: "100%", marginBottom: 16, padding: "10px 14px", textTransform: "uppercase" }}
+            />
+
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Order Status</label>
+            <select 
+              value={editOrder.status}
+              onChange={(e) => setEditOrder({ ...editOrder, status: e.target.value })}
+              style={{ ...inputStyle, width: "100%", marginBottom: 24, padding: "10px 14px" }}
+            >
+              {TABS.filter(t => t !== "all" && t !== "failed").map(t => (
+                <option key={t} value={t} style={{ background: C.card }}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+              ))}
+            </select>
+            
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button style={{ ...btnSecondary, padding: "8px 16px" }} onClick={() => setEditOrder(null)}>Cancel</button>
+              <button style={{ ...btnPrimary, padding: "8px 16px" }} onClick={saveOrder} disabled={updating}>
+                {updating ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`@keyframes spin{to{transform:rotate(360deg)}} tr:hover td{background:rgba(255,255,255,0.015)}`}</style>
     </div>
   );

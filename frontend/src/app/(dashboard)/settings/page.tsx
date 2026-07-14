@@ -15,6 +15,9 @@ export default function SettingsPage() {
   const [wooKey, setWooKey] = useState("");
   const [wooSecret, setWooSecret] = useState("");
   const [sheetUrl, setSheetUrl] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [facebook, setFacebook] = useState("");
   
   const sb = createClient();
   const webhookUrl = "https://your-project-id.supabase.co/functions/v1/webhook-meta";
@@ -27,6 +30,9 @@ export default function SettingsPage() {
         setWooKey(data.woo_consumer_key || "");
         setWooSecret(data.woo_consumer_secret || "");
         setSheetUrl(data.google_sheets_webhook_url || "");
+        setWhatsapp(data.whatsapp_number || "");
+        setInstagram(data.instagram_url || "");
+        setFacebook(data.facebook_url || "");
       }
       setLoading(false);
     }
@@ -43,6 +49,9 @@ export default function SettingsPage() {
         woo_consumer_key: wooKey,
         woo_consumer_secret: wooSecret,
         google_sheets_webhook_url: sheetUrl,
+        whatsapp_number: whatsapp,
+        instagram_url: instagram,
+        facebook_url: facebook,
       }).eq("id", existing.id);
       if (error) toast.error("Failed to save settings");
       else toast.success("Settings saved!");
@@ -89,6 +98,36 @@ export default function SettingsPage() {
             <div>
               <label style={{ display:"block", fontSize:10, fontWeight:800, color:C.textMuted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Google Sheets Webhook URL (Make.com, Zapier, Apps Script)</label>
               <input style={inputStyle} value={sheetUrl} onChange={e => setSheetUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec" type="url"/>
+            </div>
+          </div>
+        </div>
+
+        {/* Social Media Links */}
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:28, position:"relative", overflow:"hidden" }}>
+          <div style={{ position:"absolute", top:0, left:0, bottom:0, width:4, background:"#e1306c" }}/>
+          
+          <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:24, paddingLeft:8 }}>
+            <div style={{ width:38, height:38, borderRadius:12, background:"rgba(225,48,108,0.1)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <MessageCircle size={20} color="#e1306c"/>
+            </div>
+            <div>
+              <h2 style={{ fontSize:16, fontWeight:800, color:C.textPrimary }}>Social Media & Contact</h2>
+              <p style={{ fontSize:12, color:C.textMuted, marginTop:2, fontWeight:500 }}>Add your business contact numbers and social links</p>
+            </div>
+          </div>
+
+          <div style={{ display:"flex", flexDirection:"column", gap:16, paddingLeft:8 }}>
+            <div>
+              <label style={{ display:"block", fontSize:10, fontWeight:800, color:C.textMuted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>WhatsApp Number</label>
+              <input style={inputStyle} value={whatsapp} onChange={e => setWhatsapp(e.target.value)} placeholder="+8801700000000" type="text"/>
+            </div>
+            <div>
+              <label style={{ display:"block", fontSize:10, fontWeight:800, color:C.textMuted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Instagram URL</label>
+              <input style={inputStyle} value={instagram} onChange={e => setInstagram(e.target.value)} placeholder="https://instagram.com/yourpage" type="url"/>
+            </div>
+            <div>
+              <label style={{ display:"block", fontSize:10, fontWeight:800, color:C.textMuted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Facebook URL</label>
+              <input style={inputStyle} value={facebook} onChange={e => setFacebook(e.target.value)} placeholder="https://facebook.com/yourpage" type="url"/>
             </div>
           </div>
         </div>

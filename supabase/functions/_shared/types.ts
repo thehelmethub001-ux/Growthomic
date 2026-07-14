@@ -108,6 +108,21 @@ export interface Product {
 }
 
 // ============================================================
+// Offer (from DB)
+// ============================================================
+export interface Offer {
+  id: string;
+  name: string;
+  description: string;
+  discount_type: "percentage" | "fixed_amount";
+  discount_value: number;
+  min_order_amount?: number;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+}
+
+// ============================================================
 // Customer (from DB)
 // ============================================================
 export interface Customer {
@@ -176,6 +191,7 @@ export interface AIResult {
   productImageUrl?: string;
   sendVideo?: boolean;
   videoUrl?: string;
+  imageOnly?: boolean; // if true, skip text reply and ONLY send the image
 }
 
 // ============================================================

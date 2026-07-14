@@ -1,16 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle } from "@/lib/styles";
 import { Plus, Tag, Zap, Clock, CheckCircle2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
-type Offer = { id:number; title:string; description:string; discount:string; status:"active"|"scheduled"|"ended"; platform:string; reach:number; starts:string };
-
-const DUMMY:Offer[] = [
-  { id:1, title:"Eid Special 20% Off",     description:"Flat 20% discount on all products for Eid",        discount:"20%",  status:"active",    platform:"All",        reach:1420, starts:"July 10" },
-  { id:2, title:"New Arrival Flash Sale",  description:"First 50 buyers get free delivery",                 discount:"Free Delivery", status:"scheduled", platform:"Messenger",  reach:0,    starts:"July 15" },
-  { id:3, title:"Ramadan Discount Bundle", description:"Bundle offer for Ramadan — buy 2 get 1 free",       discount:"Buy 2 Get 1",   status:"ended",     platform:"Instagram",  reach:2100, starts:"March 30" },
-];
+type Offer = { id:string; title:string; description:string; discount:string; status:"active"|"scheduled"|"ended"; platform:string; reach:number; starts:string; created_at:string };
 
 const STATUS_STYLE: Record<string,{color:string;bg:string;icon:React.ReactNode}> = {
   active:    { color:"hsl(152,60%,60%)", bg:"hsla(152,60%,50%,0.1)", icon:<CheckCircle2 size={11}/> },
@@ -21,8 +17,41 @@ const STATUS_STYLE: Record<string,{color:string;bg:string;icon:React.ReactNode}>
 export default function OffersPage() {
   const [tab, setTab] = useState<"all"|"active"|"scheduled"|"ended">("all");
   const [showModal, setShowModal] = useState(false);
-  const [offers] = useState<Offer[]>(DUMMY);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ title:"", description:"", discount:"", platform:"All", starts:"" });
+  const sb = createClient();
+
+  useEffect(() => { loadOffers(); }, []);
+
+  const loadOffers = async () => {
+    setLoading(true);
+    const { data } = await sb.from("offers").select("*").order("created_at", { ascending: false });
+    if (data) setOffers(data as Offer[]);
+    setLoading(false);
+  };
+
+  const handleCreate = async () => {
+    if (!form.title || !form.discount) { toast.error("Title and Discount are required"); return; }
+    setSaving(true);
+    const { data, error } = await sb.from("offers").insert([form]).select().single();
+    if (error) {
+      toast.error("Failed to create offer");
+    } else if (data) {
+      toast.success("Offer created!");
+      setOffers([data as Offer, ...offers]);
+      setShowModal(false);
+      setForm({ title:"", description:"", discount:"", platform:"All", starts:"" });
+    }
+    setSaving(false);
+  };
+
+  const changeStatus = async (id: string, currentStatus: string) => {
+    const nextStatus = currentStatus === "active" ? "ended" : currentStatus === "ended" ? "scheduled" : "active";
+    await sb.from("offers").update({ status: nextStatus }).eq("id", id);
+    setOffers(offers.map(o => o.id === id ? { ...o, status: nextStatus as any } : o));
+  };
 
   const shown = tab === "all" ? offers : offers.filter(o => o.status === tab);
 
@@ -47,7 +76,7 @@ export default function OffersPage() {
         {[
           { label:"Active Campaigns",  value:offers.filter(o=>o.status==="active").length,    color:"hsl(152,60%,60%)", bg:"hsla(152,60%,50%,0.08)" },
           { label:"Scheduled",         value:offers.filter(o=>o.status==="scheduled").length,  color:"hsl(38,90%,65%)",  bg:"hsla(38,90%,55%,0.08)" },
-          { label:"Total Reach",       value:`${offers.reduce((a,o)=>a+o.reach,0).toLocaleString()}`, color:"var(--primary-light)", bg:"hsla(262,83%,58%,0.08)" },
+          { label:"Total Reach",       value:`${offers.reduce((a,o)=>a+(o.reach||0),0).toLocaleString()}`, color:"var(--primary-light)", bg:"hsla(262,83%,58%,0.08)" },
         ].map(s => (
           <div key={s.label} style={{ background:s.bg, borderRadius:12, padding:"16px 20px", border:`1px solid ${s.bg.replace("0.08","0.2")}` }}>
             <div style={{ fontSize:24, fontWeight:700, color:s.color }}>{s.value}</div>
@@ -68,46 +97,54 @@ export default function OffersPage() {
       </div>
 
       {/* Offer Cards */}
-      <motion.div layout style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:14 }}>
-        <AnimatePresence>
-          {shown.map(offer => {
-            const st = STATUS_STYLE[offer.status];
-            return (
-              <motion.div key={offer.id} layout initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }} whileHover={{ y:-2 }}
-                style={{ background:"var(--bg-card)", border:`1px solid ${C.border}`, borderRadius:14, padding:20, position:"relative", overflow:"hidden" }}>
-                <div style={{ position:"absolute", top:0, left:"20%", right:"20%", height:1, background:`linear-gradient(90deg,transparent,${st.color},transparent)` }}/>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-                  <div style={{ width:38, height:38, borderRadius:10, background:`${st.color}22`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                    <Tag size={17} color={st.color}/>
+      {loading ? (
+        <div style={{ color: C.textMuted, padding: 20 }}>Loading offers...</div>
+      ) : shown.length === 0 ? (
+        <div style={{ color: C.textMuted, padding: 20, textAlign: "center", background: C.card, borderRadius: 12, border: `1px dashed ${C.border}` }}>
+          No offers found. Create one above!
+        </div>
+      ) : (
+        <motion.div layout style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:14 }}>
+          <AnimatePresence>
+            {shown.map(offer => {
+              const st = STATUS_STYLE[offer.status] || STATUS_STYLE.ended;
+              return (
+                <motion.div key={offer.id} layout initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }} whileHover={{ y:-2 }}
+                  style={{ background:"var(--bg-card)", border:`1px solid ${C.border}`, borderRadius:14, padding:20, position:"relative", overflow:"hidden" }}>
+                  <div style={{ position:"absolute", top:0, left:"20%", right:"20%", height:1, background:`linear-gradient(90deg,transparent,${st.color},transparent)` }}/>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+                    <div style={{ width:38, height:38, borderRadius:10, background:`${st.color}22`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      <Tag size={17} color={st.color}/>
+                    </div>
+                    <button onClick={() => changeStatus(offer.id, offer.status)} style={{ display:"flex", alignItems:"center", gap:4, padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:st.bg, color:st.color, border:"none", cursor:"pointer" }}>
+                      {st.icon} {offer.status.charAt(0).toUpperCase()+offer.status.slice(1)}
+                    </button>
                   </div>
-                  <span style={{ display:"flex", alignItems:"center", gap:4, padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:st.bg, color:st.color }}>
-                    {st.icon} {offer.status.charAt(0).toUpperCase()+offer.status.slice(1)}
-                  </span>
-                </div>
 
-                <div style={{ fontSize:14, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.02em", marginBottom:6 }}>{offer.title}</div>
-                <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:14, lineHeight:1.5 }}>{offer.description}</div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.02em", marginBottom:6 }}>{offer.title}</div>
+                  <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:14, lineHeight:1.5 }}>{offer.description}</div>
 
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14 }}>
-                  <span style={{ padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:700, background:"hsla(262,83%,58%,0.1)", color:"var(--primary-light)" }}>
-                    <Zap size={9} style={{ marginRight:3, display:"inline" }}/>{offer.discount}
-                  </span>
-                  <span style={{ padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:"var(--bg-elevated)", color:"var(--text-secondary)" }}>
-                    {offer.platform}
-                  </span>
-                </div>
-
-                <div style={{ display:"flex", justifyContent:"space-between", borderTop:`1px solid ${C.borderWhite}`, paddingTop:12 }}>
-                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>
-                    <span style={{ fontWeight:600, color:"var(--text-secondary)" }}>{offer.reach.toLocaleString()}</span> customers reached
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14 }}>
+                    <span style={{ padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:700, background:"hsla(262,83%,58%,0.1)", color:"var(--primary-light)" }}>
+                      <Zap size={9} style={{ marginRight:3, display:"inline" }}/>{offer.discount}
+                    </span>
+                    <span style={{ padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:"var(--bg-elevated)", color:"var(--text-secondary)" }}>
+                      {offer.platform}
+                    </span>
                   </div>
-                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>Since {offer.starts}</div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-      </motion.div>
+
+                  <div style={{ display:"flex", justifyContent:"space-between", borderTop:`1px solid ${C.borderWhite}`, paddingTop:12 }}>
+                    <div style={{ fontSize:11, color:"var(--text-muted)" }}>
+                      <span style={{ fontWeight:600, color:"var(--text-secondary)" }}>{(offer.reach||0).toLocaleString()}</span> customers reached
+                    </div>
+                    <div style={{ fontSize:11, color:"var(--text-muted)" }}>Since {offer.starts || "N/A"}</div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </motion.div>
+      )}
 
       {/* Create Modal */}
       <AnimatePresence>
@@ -139,7 +176,9 @@ export default function OffersPage() {
               </div>
               <div style={{ display:"flex", gap:10 }}>
                 <button onClick={()=>setShowModal(false)} style={{ flex:1, padding:"10px", borderRadius:10, border:`1px solid ${C.border}`, background:"none", color:"var(--text-muted)", cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>Cancel</button>
-                <button onClick={()=>setShowModal(false)} style={{ flex:2, padding:"10px", borderRadius:10, border:"none", background:"linear-gradient(135deg,var(--primary),var(--accent))", color:"#fff", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>Create Offer</button>
+                <button onClick={handleCreate} disabled={saving} style={{ flex:2, padding:"10px", borderRadius:10, border:"none", background:"linear-gradient(135deg,var(--primary),var(--accent))", color:"#fff", cursor:saving?"not-allowed":"pointer", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>
+                  {saving ? "Creating..." : "Create Offer"}
+                </button>
               </div>
             </motion.div>
           </motion.div>

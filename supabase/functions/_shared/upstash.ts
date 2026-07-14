@@ -98,7 +98,10 @@ export async function incrementSpamRateCounter(customerId: string): Promise<numb
 // UPSTASH QSTASH — HTTP job queue
 // ============================================================
 
-const QSTASH_URL = "https://qstash.upstash.io/v2";
+const QSTASH_URL = () => {
+  const base = (Deno.env.get("QSTASH_URL") || "https://qstash.upstash.io").replace(/\/$/, "");
+  return base.includes("/v2") ? base : `${base}/v2`;
+};
 const QSTASH_TOKEN = () => Deno.env.get("QSTASH_TOKEN")!;
 
 interface QStashPublishOptions {
@@ -131,7 +134,7 @@ export async function qstashPublish(opts: QStashPublishOptions): Promise<QStashP
     headers["Upstash-Delay"] = `${opts.delaySeconds}s`;
   }
 
-  const res = await fetch(`${QSTASH_URL}/publish/${encodeURIComponent(opts.url)}`, {
+  const res = await fetch(`${QSTASH_URL()}/publish/${opts.url}`, {
     method: "POST",
     headers,
     body: JSON.stringify(opts.body),

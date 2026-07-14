@@ -6,7 +6,7 @@ import { CheckCircle2, MessageSquare, UserRoundX } from "lucide-react";
 import { format } from "date-fns";
 
 type QItem = { id:string; reason:string; priority:number; status:string; note:string|null; created_at:string; conversations:{ id:string; customers:{ id:string; name:string|null; platform:string; platform_id:string } } };
-const rColors:Record<string,[string,string]> = { return:["hsl(38,90%,65%)","hsla(38,90%,55%,0.12)"], ai_failed:["hsl(350,85%,70%)","hsla(350,85%,60%,0.12)"], user_requested:["var(--primary-light)","hsla(262,83%,58%,0.12)"] };
+const rColors:Record<string,[string,string]> = { return:["hsl(38,90%,65%)","hsla(38,90%,55%,0.12)"], ai_failed:["hsl(350,85%,70%)","hsla(350,85%,60%,0.12)"], user_requested:["var(--primary-light)","hsla(262,83%,58%,0.12)"], complaint:["hsl(0,85%,65%)","hsla(0,85%,55%,0.12)"], order_status:["hsl(200,90%,60%)","hsla(200,90%,50%,0.12)"] };
 
 export default function HumanQueuePage() {
   const [queue, setQueue] = useState<QItem[]>([]);
@@ -86,7 +86,7 @@ export default function HumanQueuePage() {
                   <td style={tdStyle}><div style={{fontSize:12,color:C.textMuted,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.note||"—"}</div></td>
                   <td style={{...tdStyle,textAlign:"right"}}>
                     <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
-                      <a href="/inbox" style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:600,background:C.elevated,color:C.textSecondary,border:`1px solid ${C.border}`}}>
+                      <a href={`/inbox?chat=${item.conversations.id}`} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:600,background:C.elevated,color:C.textSecondary,border:`1px solid ${C.border}`}}>
                         <MessageSquare size={12}/> Chat
                       </a>
                       {filter==="pending"&&(
