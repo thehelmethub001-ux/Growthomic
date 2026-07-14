@@ -24,6 +24,7 @@ export default function InboxPage() {
   const [search, setSearch] = useState("");
   const sb = createClient();
   const msgsEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { loadConvs(); }, [filter, platformFilter]);
 
@@ -45,7 +46,7 @@ export default function InboxPage() {
       const channel = sb.channel(`msgs-${selId}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selId}` }, payload => {
           setMsgs(prev => [...prev, payload.new as Msg]);
-          setTimeout(() => msgsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+          setTimeout(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, 100);
         })
         .subscribe();
         
@@ -68,7 +69,7 @@ export default function InboxPage() {
   const loadMsgs = async (id:string) => {
     const { data } = await sb.from("messages").select("*").eq("conversation_id",id).order("created_at",{ascending:true});
     if (data) setMsgs(data as Msg[]);
-    setTimeout(() => msgsEndRef.current?.scrollIntoView({ behavior: "auto" }), 50);
+    setTimeout(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, 50);
   };
 
   const toggleAI = async (id:string, locked:boolean) => {
@@ -221,7 +222,7 @@ export default function InboxPage() {
               const tempId = "temp-" + Date.now();
               setMsgs(prev => [...prev, { id: tempId, role: "human_agent", content: text, media_type: null, created_at: new Date().toISOString() }]);
               input.value = "";
-              setTimeout(() => msgsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+              setTimeout(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, 100);
               
               try {
                 // We directly insert into the messages table for human agent
