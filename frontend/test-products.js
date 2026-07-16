@@ -1,5 +1,5 @@
 const fs = require('fs');
-const envStr = fs.readFileSync('.env.development.local', 'utf8');
+const envStr = fs.readFileSync('.env.local', 'utf8');
 const env = {};
 envStr.split('\n').forEach(line => {
   if (line.includes('=')) {

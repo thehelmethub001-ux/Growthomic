@@ -6,10 +6,7 @@ export async function GET() {
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   
-  const { data } = await supabase.from("business_settings").select("gemini_api_key, openai_api_key").limit(1).single();
+  const { data } = await supabase.from("products").select("name, description, woo_product_id").limit(10);
   
-  return NextResponse.json({ 
-    hasGemini: !!data?.gemini_api_key, 
-    hasOpenAI: !!data?.openai_api_key 
-  });
+  return NextResponse.json({ products: data });
 }
