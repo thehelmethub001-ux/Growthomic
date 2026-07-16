@@ -6,7 +6,7 @@ import { MessageSquare, Pause, Play, Search, User, Clock, Star } from "lucide-re
 import { format } from "date-fns";
 
 type Conv = { id:string; platform:string; status:string; is_locked_for_ai:boolean; updated_at:string; customers:{id:string; name:string|null;platform_id:string;spam_score?:number;is_vip?:boolean;profile_pic?:string|null} };
-type Msg  = { id:string; role:string; content:string|null; media_type:string|null; media_url:string|null; created_at:string };
+type Msg  = { id:string; role:string; content:string|null; media_type:string|null; media_url?:string|null; created_at:string };
 
 const pColors: Record<string,[string,string]> = {
   messenger: ["hsla(217,89%,61%,0.12)","hsl(217,89%,65%)"],
