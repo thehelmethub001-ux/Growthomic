@@ -7,7 +7,7 @@ export type ConversationStatus =
   | "human_queue"
   | "spam_queue"
   | "ai_failed";
-export type HumanQueueReason = "return" | "ai_failed" | "complaint";
+export type HumanQueueReason = "return" | "ai_failed" | "complaint" | "order_status";
 export type MessageRole = "customer" | "ai" | "human_agent";
 export type WooSyncStatus = "pending" | "synced" | "failed";
 export type FollowUpJobStatus =
@@ -188,7 +188,8 @@ export interface AIResult {
     totalAmount: number;
   };
   sendProductImage?: boolean;
-  productImageUrl?: string;
+  productImageUrl?: string;    // single image (legacy)
+  productImageUrls?: string[]; // multiple images support
   sendVideo?: boolean;
   videoUrl?: string;
   imageOnly?: boolean; // if true, skip text reply and ONLY send the image

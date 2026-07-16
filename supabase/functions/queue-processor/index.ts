@@ -35,6 +35,7 @@ import {
   upsertConversation,
   upsertCustomer,
   getBusinessSettings,
+  getSupabaseClient,
 } from "../_shared/supabase-client.ts";
 import { runSpamGuard } from "../_shared/spamguard.ts";
 import { runAI } from "../_shared/gemini.ts";
@@ -104,7 +105,7 @@ Deno.serve(async (req: Request) => {
     try {
       const { getMetaSettings } = await import("../_shared/supabase-client.ts");
       const metaSettings = await getMetaSettings();
-      const token = metaSettings.meta_page_access_token;
+      const token = metaSettings.meta_access_token;
       if (token) {
         const res = await fetch(`https://graph.facebook.com/v19.0/${platformId}?fields=first_name,last_name,profile_pic&access_token=${token}`);
         if (res.ok) {
@@ -164,11 +165,27 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // ── Debounce (Batching)
+    // Wait 3 seconds to allow rapid consecutive messages to be saved to DB
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
     // ── Step 4: Distributed conversation lock (30s)
     const lockAcquired = await acquireConversationLock(conversation.id);
     if (!lockAcquired) {
       console.log(`Could not acquire conversation lock for ${conversation.id} — concurrent processing`);
-      return jsonResponse({ status: "concurrent_skip" });
+      // Return 429 so QStash retries this message automatically
+      return new Response(JSON.stringify({ status: "concurrent_skip_retry" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    // ── Step 4.5: Check if already answered by a batched run
+    const latestHistory = await getConversationHistory(conversation.id, 1);
+    if (latestHistory.length > 0 && latestHistory[0].role !== "customer") {
+      console.log(`Conversation ${conversation.id} already answered by previous batch`);
+      await releaseConversationLock(conversation.id);
+      return jsonResponse({ status: "already_answered" });
     }
 
     // ── Step 5: Check messaging window
@@ -260,9 +277,40 @@ Deno.serve(async (req: Request) => {
       await sendTextMessage(platform as Platform, platformId, aiResult.reply);
     }
 
-    // ── Send product image if flagged
-    if (aiResult.sendProductImage && aiResult.productImageUrl) {
-      await sendImageMessage(platform as Platform, platformId, aiResult.productImageUrl);
+    // ── Send product image(s) if flagged
+    if (aiResult.sendProductImage) {
+      const urls: string[] = [];
+      
+      // Collect all image URLs (multi-image takes priority over single)
+      if (aiResult.productImageUrls && aiResult.productImageUrls.length > 0) {
+        urls.push(...aiResult.productImageUrls);
+      } else if (aiResult.productImageUrl) {
+        urls.push(aiResult.productImageUrl);
+      }
+
+      // Send each image
+      for (const imgUrl of urls) {
+        try {
+          await sendImageMessage(platform as Platform, platformId, imgUrl);
+        } catch (imgErr) {
+          console.error("Failed to send image:", imgUrl, imgErr);
+        }
+      }
+
+      // Save a hidden context message so AI knows which product was shown
+      // This enables the 'price after image' context carry-forward
+      if (aiResult.detectedProductId) {
+        const { getProductById } = await import("../_shared/supabase-client.ts");
+        const shownProduct = await getProductById(aiResult.detectedProductId);
+        if (shownProduct) {
+          const contextNote = `[PRODUCT_CONTEXT: ID=${shownProduct.id} | Name=${shownProduct.name} | Price=৳${shownProduct.salePrice ?? shownProduct.regularPrice} | Category=${shownProduct.category ?? "-"}]`;
+          await saveMessage({
+            conversationId: conversation.id,
+            role: "ai",
+            content: contextNote,
+          });
+        }
+      }
     }
 
     // ── Send video if flagged
@@ -311,6 +359,17 @@ Deno.serve(async (req: Request) => {
 
       // 2. WooCommerce Sync Control
       if (settings.wooSyncEnabled) {
+        // Fetch woo_product_id for each item
+        const sb = getSupabaseClient();
+        for (const item of orderData.items) {
+          if (item.productId) {
+            const { data: pData } = await sb.from("products").select("woo_product_id").eq("id", item.productId).maybeSingle();
+            if (pData && pData.woo_product_id) {
+              item.wooProductId = pData.woo_product_id;
+            }
+          }
+        }
+
         // Push to WooCommerce
         const wooResult = await pushOrderToWooCommerce({
           items: orderData.items,

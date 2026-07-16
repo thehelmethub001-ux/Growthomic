@@ -6,11 +6,12 @@ import { CheckCircle2, RefreshCcw, Search, ShoppingCart } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
-type OrderItem = { name:string; qty:number; unitPrice:number };
+type OrderItem = { name:string; qty:number; unitPrice:number; productId?:string };
 type Order = {
   id:string; total_amount:number; payment_method:string; status:string;
   woo_order_id:number|null; woo_sync_status:string; created_at:string; items:OrderItem[];
   customers:{ name:string|null; platform:string; platform_id:string };
+  delivery_address?:string;
 };
 
 const TABS = ["all","new","confirmed","shipped","delivered","returned","cancelled","failed"];
@@ -33,6 +34,7 @@ export default function OrdersPage() {
   const [syncingAll, setSyncingAll] = useState(false);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [expandedOrder, setExpandedOrder] = useState<string|null>(null);
   const sb = createClient();
 
   useEffect(() => { load(); }, [filter]);
@@ -214,10 +216,33 @@ export default function OrdersPage() {
                       <div style={{fontSize:11,color:C.textMuted,textTransform:"capitalize"}}>{o.customers.platform}</div>
                     </td>
                     <td style={tdStyle}>
-                      <div style={{fontSize:13}}>{o.items.length} item(s)</div>
-                      <div style={{fontSize:11,color:C.textMuted,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        {o.items.map(i=>`${i.qty}×${i.name}`).join(", ")}
+                      <div 
+                        onClick={() => setExpandedOrder(expandedOrder === o.id ? null : o.id)}
+                        style={{cursor:"pointer"}}
+                      >
+                        <div style={{fontSize:13,fontWeight:600,color:C.textPrimary}}>{o.items.length} item(s)</div>
+                        <div style={{fontSize:11,color:C.brandLight,marginTop:2}}>
+                          {expandedOrder === o.id ? "▲ collapse" : "▼ details"}
+                        </div>
                       </div>
+                      {expandedOrder === o.id && (
+                        <div style={{marginTop:8,background:"rgba(124,92,252,0.06)",borderRadius:8,padding:"8px 10px",border:"1px solid rgba(124,92,252,0.15)"}}>
+                          {o.items.map((item, idx) => (
+                            <div key={idx} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",borderBottom:idx<o.items.length-1?"1px solid rgba(255,255,255,0.05)":"none"}}>
+                              <div>
+                                <div style={{fontSize:12,fontWeight:600,color:C.textPrimary}}>{item.name}</div>
+                                <div style={{fontSize:11,color:C.textMuted}}>Qty: {item.qty}</div>
+                              </div>
+                              <div style={{fontSize:12,fontWeight:700,color:"#34d399"}}>৳{(item.unitPrice * item.qty).toLocaleString()}</div>
+                            </div>
+                          ))}
+                          {o.delivery_address && (
+                            <div style={{marginTop:6,fontSize:11,color:C.textMuted}}>
+                              📍 {o.delivery_address}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td style={tdStyle}>
                       <div style={{fontWeight:700,color:C.textPrimary,fontSize:14}}>৳{o.total_amount.toLocaleString()}</div>
@@ -263,6 +288,28 @@ export default function OrdersPage() {
               <strong style={{color: C.textPrimary}}>{editOrder.customers.name || "Unknown"}</strong><br/>
               Via: {editOrder.customers.platform}
             </div>
+
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Items Ordered</label>
+            <div style={{ padding: "10px 14px", background: C.surface, borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, marginBottom: 16 }}>
+              {editOrder.items.map((item, idx) => (
+                <div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:idx<editOrder.items.length-1?"1px solid rgba(255,255,255,0.05)":"none"}}>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:600,color:C.textPrimary}}>{item.name}</div>
+                    <div style={{fontSize:11,color:C.textMuted}}>Qty: {item.qty} × ৳{item.unitPrice.toLocaleString()}</div>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:700,color:"#34d399"}}>৳{(item.qty * item.unitPrice).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+
+            {editOrder.delivery_address && (
+              <>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Delivery Address</label>
+                <div style={{ padding: "10px 14px", background: C.surface, borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, marginBottom: 16, fontSize: 12, color: C.textPrimary }}>
+                  {editOrder.delivery_address}
+                </div>
+              </>
+            )}
 
             <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Total Amount (৳)</label>
             <input 

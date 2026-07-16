@@ -12,6 +12,7 @@ import {
   textOnlyProductSearch,
   getAllOffers,
   getAllActiveProducts,
+  getAllInStockProducts,
 } from "./supabase-client.ts";
 import type { AIResult, BusinessSettings, LearnedResponse, MessageIntent, Product, Offer } from "./types.ts";
 
@@ -85,7 +86,9 @@ function buildSystemPrompt(settings: BusinessSettings, ragContext: string, ragLe
 9. Restricted topics — কখনো আলোচনা করবে না: ${restrictedTopicsList}
 10. অর্ডার স্ট্যাটাস জানতে চাইলে বলবে: "অর্ডার স্ট্যাটাস চেক করার জন্য আমাদের একজন সাপোর্ট এক্সিকিউটিভ একটু পরেই আপনাকে রিপ্লাই দিচ্ছেন।" এবং intent = "order_status" দেবে।
 11. কাস্টমার রাগান্বিত বা অভিযোগ করলে খুব বিনয়ী হবে এবং intent = "complaint" দেবে।
-12. কাস্টমার ছবি পাঠালে সেটা analyze করে আমাদের কোনো product এর সাথে মিলে কিনা দেখবে।
+12. কাস্টমার ছবি পাঠালে — সেটা Gemini Vision দিয়ে analyze করে PRODUCT KNOWLEDGE BASE-এর সাথে মিলিয়ে দেখবে। যদি কোনো product-এর সাথে মেলে, সেই product-এর ID "detectedProductId"-এ সেট করবে এবং বলবে কোন product মনে হচ্ছে এবং এর দাম কত।
+13. **Formatting:** বড় প্যারাগ্রাফ পরিহার করবে। প্রোডাক্টের নাম, দাম এবং অন্যান্য তথ্য লেখার সময় সঠিক স্পেসিং এবং নতুন লাইন (Line Breaks) ব্যবহার করবে যাতে কাস্টমার খুব সহজে পড়তে পারে।
+14. **Context Carry-forward:** Conversation history-তে যদি দেখো "[PRODUCT_CONTEXT:" দিয়ে কোনো line আছে, সেটা মানে আগে সেই product-এর ছবি পাঠানো হয়েছিল। কাস্টমার যদি "এর দাম কত?" বা "এটা নিতে চাই" বলে, তাহলে সেই product-এর তথ্য ব্যবহার করবে।
 
 ══════════════════════════════════════
 💬 ভাষা ও টোন নিয়ম:
@@ -138,13 +141,18 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
 - কাস্টমার কিনতে চাইলে, product এর "Required Order Fields" অনুযায়ী তথ্য নাও।
 - সব required field না পাওয়া পর্যন্ত অর্ডার confirm করবে না।
 - কাস্টমার সব তথ্য দিলে orderData field-এ সব কিছু সঠিকভাবে ভরবে।
+  (ফরম্যাট: { "items": [{"productId": "id", "name": "নাম", "qty": 1, "unitPrice": 1500}], "totalAmount": 1500, "deliveryAddress": "ঠিকানা ও মোবাইল নাম্বার" })
 
 ══════════════════════════════════════
 📸 ছবি পাঠানোর নিয়ম:
 ══════════════════════════════════════
-- কাস্টমার যদি EXPLICITLY ছবি চায় (যেমন: "ছবি দাও", "দেখতে কেমন", "photo pathao") তাহলে "sendProductImage": true এবং detectedProductId সেট করবে।
+- কাস্টমার যদি EXPLICITLY একটি পণ্যের ছবি চায় (যেমন: "ছবি দাও", "দেখতে কেমন", "photo pathao") তাহলে:
+  - একটি পণ্যের জন্য: "sendProductImage": true, "detectedProductId": "<ID>"
+  - IMAGE ONLY MODE: শুধু ছবি চাইলে — "imageOnly": true, "reply": "", "sendProductImage": true
+- কাস্টমার যদি একাধিক পণ্যের ছবি চায় (যেমন: "সব হেলমেটের ছবি দাও", "সবগুলো দেখাও"):
+  - "sendProductImage": true, "productImageUrls": ["url1", "url2", ...] (KNOWLEDGE BASE থেকে image URL)
+  - imageOnly মোডে reply ফাঁকা রাখবে
 - শুধু দাম বা তথ্য জানতে চাইলে ছবি পাঠাবে না।
-- IMAGE ONLY MODE: শুধু ছবি চাইলে — "imageOnly": true, "reply": "" (খালি), "sendProductImage": true সেট করবে।
 
 ══════════════════════════════════════
 📋 OUTPUT FORMAT (JSON — কোনো markdown নয়):
@@ -156,7 +164,8 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
   "imageOnly": false,
   "orderData": null,
   "sendProductImage": false,
-  "productImageUrl": "product data থেকে image URL অথবা null",
+  "productImageUrl": "একটি product-এর image URL অথবা null",
+  "productImageUrls": null,
   "sendVideo": false,
   "videoUrl": null
 }`;
@@ -258,11 +267,33 @@ export async function runAI(params: {
     }).join("\n")
     : "";
 
+  // 2.6 Extract current batch from history
+  let batchStartIndex = history.length;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role !== "customer") {
+      batchStartIndex = i + 1;
+      break;
+    }
+  }
+  if (batchStartIndex === history.length) {
+    batchStartIndex = 0;
+  }
+  const previousHistory = history.slice(0, batchStartIndex);
+  const currentBatch = history.slice(batchStartIndex);
+
+  // Combine text from the current batch, fallback to params.messageText
+  const combinedText = currentBatch.map(m => m.content).filter(Boolean).join("\n").trim();
+  let effectiveText = combinedText || messageText;
+
+  // Find the latest image/voice in the batch
+  const latestMediaMsg = [...currentBatch].reverse().find(m => m.media_url);
+  const batchMediaType = latestMediaMsg?.media_type || mediaType;
+  const batchMediaUrl = latestMediaMsg?.media_url || mediaUrl;
+
   // 3. Transcribe voice if needed
-  let effectiveText = messageText;
-  if (mediaType === "voice" && mediaUrl) {
+  if (batchMediaType === "voice" && batchMediaUrl) {
     try {
-      effectiveText = await transcribeVoice(mediaUrl, "audio/ogg", settings.openaiApiKey ?? undefined);
+      effectiveText = await transcribeVoice(batchMediaUrl, "audio/ogg", settings.openaiApiKey ?? undefined);
     } catch (err) {
       console.error("Whisper transcription failed:", err);
       effectiveText = "[Voice message — could not transcribe]";
@@ -274,19 +305,28 @@ export async function runAI(params: {
   let learnedResponses: LearnedResponse[] = [];
   
   // If user sent an image, we need a larger catalog context because text search on "what is this?" is useless
-  const isImage = mediaType === "image";
-  const searchLimit = isImage ? 15 : 8; 
+  const isImage = batchMediaType === "image";
+  const searchLimit = isImage ? 20 : 12;  // Increased limit so AI gets more product context
 
-  if (effectiveText && effectiveText.trim().length > 0) {
+  let searchText = effectiveText?.trim() || "";
+  if (!searchText && isImage) {
+    // If image has no caption, use the last text message sent by the customer as context
+    const lastCustomerText = [...history].reverse().find(h => h.role === "customer" && h.content?.trim().length > 0);
+    if (lastCustomerText && lastCustomerText.content) {
+      searchText = lastCustomerText.content.trim();
+    }
+  }
+
+  if (searchText && searchText.length > 0) {
     if (settings.openaiApiKey) {
       try {
-        const embedding = await generateEmbedding(effectiveText, settings.openaiApiKey);
-        ragProducts = await hybridProductSearch(embedding, effectiveText, searchLimit);
+        const embedding = await generateEmbedding(searchText, settings.openaiApiKey);
+        ragProducts = await hybridProductSearch(embedding, searchText, searchLimit);
         learnedResponses = await hybridKnowledgeSearch(embedding, 3);
       } catch (err) {
         console.error("RAG embedding error — falling back to text-only:", err);
         try {
-          ragProducts = await textOnlyProductSearch(effectiveText, searchLimit);
+          ragProducts = await textOnlyProductSearch(searchText, searchLimit);
         } catch (textErr) {
           console.error("Text-only search also failed:", textErr);
         }
@@ -294,41 +334,52 @@ export async function runAI(params: {
     } else {
       console.log("No OpenAI key — using text-only product search");
       try {
-        ragProducts = await textOnlyProductSearch(effectiveText, searchLimit);
+        ragProducts = await textOnlyProductSearch(searchText, searchLimit);
       } catch (textErr) {
         console.error("Text-only search failed:", textErr);
       }
     }
   }
 
-  // 4.5. Fallback & Image Enrichment: 
-  // If no products found, OR if it's an image (where text search is unreliable), load more active products
-  if (ragProducts.length === 0 || isImage) {
-    console.log("Loading catalog fallback (empty search or image detected)");
+  // 4.5: ALWAYS load ALL in-stock products so AI knows every available product.
+  // Out-of-stock products are noted separately for reference.
+  {
     try {
-      const fallbackProducts = await getAllActiveProducts(isImage ? 20 : 10);
-      // Merge uniquely
+      const allInStock = await getAllInStockProducts(); // ALL in-stock — no limit
       const existingIds = new Set(ragProducts.map(p => p.id));
-      for (const fp of fallbackProducts) {
-        if (!existingIds.has(fp.id)) {
-          ragProducts.push(fp);
-          existingIds.add(fp.id);
+      // Put search results first (most relevant), then fill in remaining in-stock products
+      for (const p of allInStock) {
+        if (!existingIds.has(p.id)) {
+          ragProducts.push(p);
+          existingIds.add(p.id);
         }
       }
     } catch (e) {
-      console.error("Failed to load full catalog fallback:", e);
+      console.error("Failed to load all in-stock products:", e);
+      // Fallback to limited set
+      try {
+        const fallback = await getAllActiveProducts(isImage ? 25 : 20);
+        const existingIds = new Set(ragProducts.map(p => p.id));
+        for (const fp of fallback) {
+          if (!existingIds.has(fp.id)) ragProducts.push(fp);
+        }
+      } catch (e2) {
+        console.error("Fallback also failed:", e2);
+      }
     }
   }
 
-  // 5. Build RAG context string — include ALL product fields so AI has complete info
-  const ragContext = ragProducts
+  // 5. Build TWO-TIER RAG context:
+  //    Tier 1: In-stock products — full details (price, stock, image, ordering info)
+  //    Tier 2: Out-of-stock products — compact list only (so AI knows they exist but can't order)
+  const inStockProducts = ragProducts.filter(p => p.stockQuantity > 0);
+  const outOfStockProducts = ragProducts.filter(p => p.stockQuantity <= 0);
+
+  const inStockContext = inStockProducts
     .map((p) => {
       const price = p.salePrice
         ? `বিক্রয় মূল্য: ৳${p.salePrice} (নিয়মিত মূল্য: ৳${p.regularPrice})`
         : `মূল্য: ৳${p.regularPrice}`;
-      const stock = p.stockQuantity > 0
-        ? `স্টক আছে: ${p.stockQuantity} টি`
-        : "❌ স্টক শেষ (অর্ডার নেওয়া যাবে না)";
 
       const qna = p.qnaPairs.length > 0
         ? p.qnaPairs.map((q) => `  প্রশ্ন: ${q.question}\n  উত্তর: ${q.answer}`).join("\n")
@@ -338,19 +389,15 @@ export async function runAI(params: {
         ? p.requiredOrderFields.map((f) => `  - ${f.fieldName}: ${f.question}`).join("\n")
         : "  শুধু ডেলিভারি ঠিকানা লাগবে";
 
-      const imageInfo = p.images.length > 0
-        ? `ছবির URL: ${p.images[0]}`
-        : "ছবি নেই";
+      const imageInfo = p.images.length > 0 ? `ছবির URL: ${p.images[0]}` : "ছবি নেই";
 
       return [
-        `▶ পণ্যের নাম: ${p.name}`,
+        `▶ [✅ স্টক আছে] ${p.name}`,
         `  ID: ${p.id}`,
         `  ক্যাটাগরি: ${p.category ?? "উল্লেখ নেই"}`,
-        `  SKU: ${p.sku ?? "নেই"}`,
         `  ${price}`,
-        `  ${stock}`,
+        `  স্টক: ${p.stockQuantity} টি`,
         `  বিবরণ: ${p.description ?? "কোনো বিবরণ নেই"}`,
-        `  রিটার্ন পলিসি: ${p.returnConditions ?? "স্ট্যান্ডার্ড পলিসি প্রযোজ্য"}`,
         `  ${imageInfo}`,
         `  অর্ডার করতে যা জানতে হবে:`,
         orderFields,
@@ -358,7 +405,17 @@ export async function runAI(params: {
         qna,
       ].join("\n");
     })
-    .join("\n\n" + "─".repeat(50) + "\n\n");
+    .join("\n\n" + "─".repeat(40) + "\n\n");
+
+  // Out-of-stock: compact one-liner each
+  const outOfStockContext = outOfStockProducts.length > 0
+    ? `\n\n══ ❌ স্টক শেষ (অর্ডার নেওয়া যাবে না) ══\n` +
+      outOfStockProducts.map(p =>
+        `• ${p.name} | ক্যাটাগরি: ${p.category ?? "–"} | মূল্য: ৳${p.salePrice ?? p.regularPrice}`
+      ).join("\n")
+    : "";
+
+  const ragContext = inStockContext + outOfStockContext;
 
   const ragLearned = learnedResponses
     .filter(lr => (lr.similarity ?? 0) > 0.75) // Only highly relevant learned responses
@@ -368,11 +425,17 @@ export async function runAI(params: {
   // 6. Build Gemini messages array
   const systemPrompt = buildSystemPrompt(settings, ragContext, ragLearned, offersContext);
 
-  // Convert history to Gemini format
-  const historyContents = history.map((msg) => ({
-    role: msg.role === "customer" ? "user" : "model",
-    parts: [{ text: msg.content ?? "" }],
-  }));
+  // Convert history to Gemini format (compressing consecutive messages of the same role to avoid Gemini 400 Bad Request)
+  const historyContents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
+  for (const msg of previousHistory) {
+    const role = msg.role === "customer" ? "user" : "model";
+    const text = msg.content || "[Media message]";
+    if (historyContents.length > 0 && historyContents[historyContents.length - 1].role === role) {
+      historyContents[historyContents.length - 1].parts[0].text += "\n" + text;
+    } else {
+      historyContents.push({ role, parts: [{ text }] });
+    }
+  }
 
   // Current message (may include image for Gemini Vision)
   const currentParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
@@ -382,16 +445,27 @@ export async function runAI(params: {
   }
 
   // Image vision: download and pass to Gemini
-  if (mediaType === "image" && mediaUrl) {
+  if (batchMediaType === "image" && batchMediaUrl) {
     try {
-      const imgRes = await fetch(mediaUrl);
+      const imgRes = await fetch(batchMediaUrl);
       const imgBytes = await imgRes.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(imgBytes)));
+      const bytes = new Uint8Array(imgBytes);
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
       const mimeType = imgRes.headers.get("content-type") ?? "image/jpeg";
       currentParts.push({ inlineData: { mimeType, data: base64 } });
-      if (!effectiveText) {
-        currentParts.push({ text: "Customer sent an image. Analyze and respond." });
-      }
+      // Explicit vision prompt: match against catalog
+      currentParts.push({ 
+        text: `Customer sent an image. TASK:
+1. Analyze this image carefully.
+2. Compare with PRODUCT KNOWLEDGE BASE above.
+3. If it matches a product, set detectedProductId to that product's ID and tell customer the product name and price.
+4. If it doesn't match any product, say we don't have that product but suggest similar ones from the catalog.
+5. Reply in Bengali.` 
+      });
     } catch (err) {
       console.error("Failed to load image for Gemini Vision:", err);
     }
@@ -435,11 +509,15 @@ export async function runAI(params: {
     }
 
     const geminiJson = await geminiRes.json();
-    const rawText = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+    let rawText = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
     
+    // Sanitize markdown JSON blocks that Gemini sometimes outputs despite responseMimeType
+    rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+
     try {
       aiResult = JSON.parse(rawText);
     } catch {
+      console.warn("JSON Parse failed for rawText:", rawText);
       aiResult = { reply: rawText, intent: "unknown" };
     }
   } catch (error) {
@@ -465,15 +543,26 @@ export async function runAI(params: {
 
   // 10. Enrich with product image ONLY IF the AI decided to send an image
   if (aiResult.sendProductImage) {
-    if (aiResult.detectedProductId && !aiResult.productImageUrl) {
-      // If AI wants to send an image and provided product ID but no URL, fetch from DB
+    // Case A: Single product image
+    if (aiResult.detectedProductId && !aiResult.productImageUrls?.length) {
       const product = await getProductById(aiResult.detectedProductId);
       if (product?.images?.[0]) {
         aiResult.productImageUrl = product.images[0];
+        // Also set productImageUrls for consistency
+        aiResult.productImageUrls = product.images.slice(0, 3); // max 3 images per product
       }
-    } else if (!aiResult.productImageUrl && ragProducts.length > 0 && ragProducts[0].images?.[0]) {
-      // AI said to send image but didn't provide URL or product ID - find best match from RAG results
-      aiResult.productImageUrl = ragProducts[0].images[0];
+    }
+    // Case B: Multiple product images (AI returned productImageUrls directly with image URLs from the prompt)
+    // productImageUrls may already be set by AI from the knowledge base context — validate they look like URLs
+    if (aiResult.productImageUrls?.length) {
+      aiResult.productImageUrls = aiResult.productImageUrls
+        .filter((url: string) => url && url.startsWith("http"))
+        .slice(0, 8); // Cap at 8 images to avoid flooding
+    }
+    // If still no images found, log
+    if (!aiResult.productImageUrl && !aiResult.productImageUrls?.length) {
+      console.log("AI requested image but couldn't find image URLs. Skipping.");
+      aiResult.sendProductImage = false;
     }
   }
 

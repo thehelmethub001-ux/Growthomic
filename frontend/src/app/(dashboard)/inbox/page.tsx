@@ -203,6 +203,9 @@ export default function InboxPage() {
                     <b>{m.role==="ai"?"🤖 AI":m.role==="human_agent"?"👨‍💻 Agent":"Customer"}</b>
                     <span>{format(new Date(m.created_at),"h:mm a")}</span>
                   </div>
+                  {m.media_url && m.media_type === "image" && (
+                    <img src={m.media_url} alt="attachment" style={{ maxWidth: "100%", borderRadius: 8, marginBottom: 8, border: `1px solid ${C.borderWhite}` }} />
+                  )}
                   <p style={{ margin:0, whiteSpace:"pre-wrap" }}>{m.content}</p>
                 </div>
               </div>

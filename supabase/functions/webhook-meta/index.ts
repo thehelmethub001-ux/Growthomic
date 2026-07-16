@@ -16,24 +16,8 @@ import type { Platform, QueuePayload } from "../_shared/types.ts";
 // ============================================================
 const QUEUE_PROCESSOR_URL = () => Deno.env.get("QUEUE_PROCESSOR_URL")!;
 
-import { getSupabaseClient } from "../_shared/supabase-client.ts";
+import { getSupabaseClient, getMetaSettings } from "../_shared/supabase-client.ts";
 import { decryptSecret } from "../_shared/encryption.ts";
-
-async function getMetaSettings() {
-  const sb = getSupabaseClient();
-  const { data } = await sb.from("business_settings").select("meta_verify_token, meta_app_secret").limit(1).single();
-  
-  if (data) {
-    // Only decrypt if the value looks encrypted (contains `:` separator used by AES-GCM format)
-    if (data.meta_verify_token && data.meta_verify_token.includes(":")) {
-      data.meta_verify_token = await decryptSecret(data.meta_verify_token);
-    }
-    if (data.meta_app_secret && data.meta_app_secret.includes(":")) {
-      data.meta_app_secret = await decryptSecret(data.meta_app_secret);
-    }
-  }
-  return data || {};
-}
 
 // ============================================================
 // HMAC-SHA256 signature verification

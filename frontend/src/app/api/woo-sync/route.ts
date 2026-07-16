@@ -28,26 +28,38 @@ export async function POST() {
     // Basic Auth for WooCommerce
     const authString = Buffer.from(`${settings.woo_consumer_key}:${settings.woo_consumer_secret}`).toString("base64");
 
-    const response = await fetch(`${wooApiEndpoint}?per_page=100`, {
-      method: "GET",
-      headers: {
-        Authorization: `Basic ${authString}`,
-        "Content-Type": "application/json"
+    let allWooProducts: any[] = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await fetch(`${wooApiEndpoint}?per_page=100&page=${page}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Basic ${authString}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("WooCommerce fetch error:", errText);
+        return NextResponse.json({ error: "Failed to fetch products from WooCommerce" }, { status: 400 });
       }
-    });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("WooCommerce fetch error:", errText);
-      return NextResponse.json({ error: "Failed to fetch products from WooCommerce" }, { status: 400 });
+      const productsPage = await response.json();
+      if (productsPage.length > 0) {
+        allWooProducts = allWooProducts.concat(productsPage);
+        page++;
+      } else {
+        hasMore = false;
+      }
     }
-
-    const wooProducts = await response.json();
 
     // 3. Transform and Upsert to Supabase
     let syncedCount = 0;
 
-    for (const wp of wooProducts) {
+    for (const wp of allWooProducts) {
       const images = wp.images?.map((img: any) => img.src) || [];
       const stock = wp.manage_stock && wp.stock_quantity !== null 
         ? wp.stock_quantity 
@@ -57,9 +69,17 @@ export async function POST() {
         : null;
       
       // Strip HTML tags from description
-      const plainTextDesc = wp.short_description 
+      let plainTextDesc = wp.short_description 
         ? wp.short_description.replace(/<[^>]*>?/gm, '') 
         : wp.description?.replace(/<[^>]*>?/gm, '') || "";
+        
+      // Append Attributes (Sizes, Colors, etc.) so AI knows about variations
+      if (wp.attributes && wp.attributes.length > 0) {
+        const attrStrings = wp.attributes.map((attr: any) => `${attr.name}: ${attr.options?.join(", ")}`);
+        if (attrStrings.length > 0) {
+          plainTextDesc += `\n[Available Options -> ${attrStrings.join(" | ")}]`;
+        }
+      }
 
       // We use woo_product_id to uniquely identify items
       // Check if product already exists

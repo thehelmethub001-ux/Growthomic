@@ -230,6 +230,29 @@ export async function updateCustomerAnswers(
     .eq("id", conversationId);
 }
 
+export async function getMetaSettings() {
+  const sb = getSupabaseClient();
+  const { data } = await sb
+    .from("business_settings")
+    .select("meta_access_token, meta_verify_token, meta_app_secret")
+    .limit(1)
+    .single();
+
+  if (data) {
+    const { decryptSecret } = await import("./encryption.ts");
+    if (data.meta_access_token && data.meta_access_token.includes(":")) {
+      data.meta_access_token = await decryptSecret(data.meta_access_token);
+    }
+    if (data.meta_verify_token && data.meta_verify_token.includes(":")) {
+      data.meta_verify_token = await decryptSecret(data.meta_verify_token);
+    }
+    if (data.meta_app_secret && data.meta_app_secret.includes(":")) {
+      data.meta_app_secret = await decryptSecret(data.meta_app_secret);
+    }
+  }
+  return data || {};
+}
+
 function mapConversation(data: Record<string, unknown>): Conversation {
   return {
     id: data.id as string,
@@ -256,6 +279,16 @@ export async function saveMessage(params: {
   platformMessageId?: string;
 }): Promise<void> {
   const sb = getSupabaseClient();
+  
+  if (params.platformMessageId) {
+    const { data: existing } = await sb
+      .from("messages")
+      .select("id")
+      .eq("platform_message_id", params.platformMessageId)
+      .single();
+    if (existing) return; // Already saved
+  }
+
   await sb.from("messages").insert({
     conversation_id: params.conversationId,
     role: params.role,
@@ -269,12 +302,18 @@ export async function saveMessage(params: {
 export async function getConversationHistory(
   conversationId: string,
   limit = 20
-): Promise<Array<{ role: string; content: string | null }>> {
+): Promise<Array<{ role: string; content: string | null; media_type: string | null; media_url: string | null; created_at: string }>> {
   const sb = getSupabaseClient();
-  const { data } = await sb.rpc("get_conversation_context", {
-    p_conversation_id: conversationId,
-    message_limit: limit,
-  });
+  const { data, error } = await sb.from("messages")
+    .select("role, content, media_type, media_url, created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+    
+  if (error) {
+    console.error("Error fetching history:", error);
+    return [];
+  }
   return (data ?? []).reverse(); // oldest first for AI context
 }
 
@@ -325,6 +364,87 @@ export async function textOnlyProductSearch(
   matchCount = 5
 ): Promise<Product[]> {
   const sb = getSupabaseClient();
+
+  // Basic dictionary for Banglish to Bengali translation
+  const synonyms: Record<string, string[]> = {
+    "helmet": ["হেলমেট", "হেলমেটের"],
+    "light": ["লাইট", "আলো"],
+    "horn": ["হর্ন"],
+    "cover": ["কভার"],
+    "bag": ["ব্যাগ"],
+    "sticker": ["স্টিকার"],
+    "lock": ["লক", "তালা"],
+    "glove": ["গ্লাভস", "হাতমোজা"],
+    "gloves": ["গ্লাভস", "হাতমোজা"],
+    "visor": ["ভাইজর"],
+    "indicator": ["ইন্ডিকেটর", "সিগন্যাল"],
+    "mount": ["মাউন্ট"]
+  };
+
+  // 1. Extract words
+  let words = queryText
+    .toLowerCase()
+    .replace(/[^\w\s\u0980-\u09FF]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3);
+
+  // Expand with synonyms
+  const expandedWords = new Set<string>();
+  for (const w of words) {
+    expandedWords.add(w);
+    if (synonyms[w]) {
+      synonyms[w].forEach(s => expandedWords.add(s));
+    }
+  }
+  words = Array.from(expandedWords);
+
+  if (words.length > 0) {
+    // 2. Build OR condition to fetch ANY potential match
+    const orConditions = words
+      .map((w) => `name.ilike.%${w}%,description.ilike.%${w}%,category.ilike.%${w}%`)
+      .join(",");
+
+    const { data, error } = await sb
+      .from("products")
+      .select("*")
+      .eq("is_active", true)
+      .or(orConditions)
+      .limit(200);
+
+    if (!error && data && data.length > 0) {
+      // 3. Score them locally
+      const scored = data.map((p) => {
+        let score = 0;
+        const name = (p.name || "").toLowerCase();
+        const desc = (p.description || "").toLowerCase();
+        const cat = (p.category || "").toLowerCase();
+
+        for (const w of words) {
+          if (name.includes(w)) score += 5; // highest weight to name
+          else if (cat.includes(w)) score += 3; // category is important
+          else if (desc.includes(w)) score += 1;
+        }
+
+        // Give slight boost to products that have stock
+        if (p.stock_quantity > 0) score += 0.5;
+
+        return { product: p, score };
+      });
+
+      // 4. Sort by score descending and take top matches
+      const bestMatches = scored
+        .filter((s) => s.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, matchCount)
+        .map((s) => mapProduct(s.product));
+
+      if (bestMatches.length > 0) {
+        return bestMatches;
+      }
+    }
+  }
+
+  // Fallback to naive RPC if nothing else worked
   const { data } = await sb.rpc("text_only_product_search", {
     query_text: queryText,
     match_count: matchCount,
@@ -332,20 +452,62 @@ export async function textOnlyProductSearch(
   return (data ?? []).map(mapProduct);
 }
 
-export async function getAllActiveProducts(limit = 8): Promise<Product[]> {
+// ============================================================
+// Get ALL in-stock products (no limit) — for full catalog context
+// ============================================================
+export async function getAllInStockProducts(): Promise<Product[]> {
   const sb = getSupabaseClient();
   const { data, error } = await sb
     .from("products")
     .select("*")
     .eq("is_active", true)
-    .order("name", { ascending: true })
-    .limit(limit);
+    .gt("stock_quantity", 0)
+    .order("category", { ascending: true })
+    .order("name", { ascending: true });
 
   if (error) {
-    console.error("getAllActiveProducts error:", error);
+    console.error("getAllInStockProducts error:", error);
     return [];
   }
   return (data ?? []).map(mapProduct);
+}
+
+export async function getAllActiveProducts(limit = 15): Promise<Product[]> {
+  const sb = getSupabaseClient();
+  // First fetch in-stock products, then out-of-stock — so AI always sees available items first
+  const { data: inStock, error: e1 } = await sb
+    .from("products")
+    .select("*")
+    .eq("is_active", true)
+    .gt("stock_quantity", 0)
+    .order("name", { ascending: true })
+    .limit(limit);
+
+  if (e1) {
+    console.error("getAllActiveProducts (inStock) error:", e1);
+  }
+
+  if (inStock && inStock.length >= limit) {
+    return inStock.map(mapProduct);
+  }
+
+  // If not enough in-stock, pad with out-of-stock products
+  const remaining = limit - (inStock?.length ?? 0);
+  const { data: outStock, error: e2 } = await sb
+    .from("products")
+    .select("*")
+    .eq("is_active", true)
+    .eq("stock_quantity", 0)
+    .order("name", { ascending: true })
+    .limit(remaining);
+
+  if (e2) console.error("getAllActiveProducts (outStock) error:", e2);
+
+  const combined = [...(inStock ?? []), ...(outStock ?? [])];
+  if (combined.length === 0) {
+    return [];
+  }
+  return combined.map(mapProduct);
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
