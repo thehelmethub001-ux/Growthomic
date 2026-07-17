@@ -6,7 +6,12 @@ export async function GET() {
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   
-  const { data } = await supabase.from("products").select("name, description, woo_product_id").limit(10);
+  const { count: productCount } = await supabase.from("products").select("*", { count: "exact", head: true });
+  const { count: embeddingCount } = await supabase.from("product_embeddings").select("*", { count: "exact", head: true });
   
-  return NextResponse.json({ products: data });
+  return NextResponse.json({ 
+    productCount, 
+    embeddingCount,
+    message: embeddingCount === 0 ? "No embeddings found. Did the sync trigger the edge function?" : "Embeddings exist."
+  });
 }
