@@ -16,6 +16,7 @@
 //   9. Schedule follow-up job via QStash
 
 import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
+import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import {
   acquireConversationLock,
   qstashPublish,
@@ -74,8 +75,8 @@ Deno.serve(async (req: Request) => {
   // ── Step 1: Verify QStash signature
   const isValidQStash = await verifyQStashSignature(req.clone());
   if (!isValidQStash) {
-    console.error("Invalid QStash signature - BYPASSING FOR TESTING");
-    // return errorResponse("Unauthorized", 401);
+    console.error("Invalid QStash signature — rejecting request");
+    return errorResponse("Unauthorized", 401);
   }
 
   // Parse payload
@@ -90,11 +91,11 @@ Deno.serve(async (req: Request) => {
     platform,
     platformId,
     customerName,
-    text: messageText,
     mediaType,
     mediaUrl,
     platformMessageId,
   } = payload;
+  let messageText = payload.text;
 
   console.log(`Processing: [${platform}] ${platformId} — "${messageText?.substring(0, 50)}"`);
 
@@ -206,6 +207,101 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ status: "spam_blocked" });
     }
 
+    // ── Step 6.5: Image Embedding Match (New Vector Search)
+    let preMatchedProductId: string | undefined = undefined;
+    let candidateProducts: { id: string; name: string; imageUrl: string }[] | undefined = undefined;
+    if (mediaType === "image" && mediaUrl) {
+      try {
+        console.log("Image received, executing vector similarity search...");
+        let res: Response;
+        if (platform === "whatsapp") {
+          const { downloadMetaMedia, getMetaAccessToken } = await import("../_shared/platform-send.ts");
+          const metaRes = await downloadMetaMedia(mediaUrl);
+          res = await fetch(metaRes.url, { headers: { Authorization: `Bearer ${await getMetaAccessToken()}` } });
+        } else {
+          res = await fetch(mediaUrl);
+        }
+        const buffer = await res.arrayBuffer();
+        const base64 = encodeBase64(buffer);
+        let mimeType = res.headers.get("content-type") || "image/jpeg";
+        if (!mimeType.startsWith("image/")) mimeType = "image/jpeg";
+
+        const sb = getSupabaseClient();
+        const { data: matchData, error: matchErr } = await sb.functions.invoke("image-match", {
+          body: { base64, mimeType, threshold: 0.45, matchCount: 6 }
+        });
+
+        if (matchErr) throw matchErr;
+        
+        if (matchData?.success && matchData.matches?.length > 0) {
+          const topMatch = matchData.matches[0];
+          let isConfident = false;
+          if (topMatch.similarity >= 0.75) {
+            if (matchData.matches.length > 1) {
+              const secondMatch = matchData.matches[1];
+              // Mirrors and visors can have very similar embeddings (margin > 0.10). 
+              // We must use a large margin (0.20) to ensure we don't confidently pick the wrong generic item.
+              if (topMatch.similarity - secondMatch.similarity >= 0.20) {
+                isConfident = true;
+              } else {
+                console.log(`Ambiguous: Top match (${topMatch.similarity}) is too close to second match (${secondMatch.similarity})`);
+              }
+            } else {
+              isConfident = true;
+            }
+          }
+
+          if (isConfident) {
+             console.log(`Confirmed image match: ${topMatch.id} (Score: ${topMatch.similarity})`);
+             preMatchedProductId = topMatch.id;
+             messageText = `[SYSTEM_INSTRUCTION: The customer just sent a photo of the following product:
+Product Name: ${topMatch.name}
+Product ID: ${topMatch.id}
+Price: ৳${topMatch.sale_price || topMatch.regular_price}
+
+Act like a real human shopkeeper who just saw the customer pointing at a helmet in the shop. 
+CRITICAL RULE: Do NOT say anything like "your sent picture matched with our product". That sounds like a robot.
+Start your response naturally with something like: "জি স্যার, এই মডেলটি তো আমাদের স্টকে এভেইলেবল আছে!"
+ALWAYS address the customer as "স্যার" (Sir). Keep it very conversational and friendly.] ` + (messageText || "");
+          } else {
+             // 0.70 to 0.85 range - ask for confirmation
+             console.log(`Ambiguous matches found. Top score: ${topMatch.similarity}`);
+             const optionsText = matchData.matches.map((m: any, i: number) => `- ${m.name} (Price: ৳${m.sale_price || m.regular_price}, Image URL: ${m.images?.[0] || 'None'})`).join("\n");
+             
+             // Extract candidate products (up to 6) to pass to Gemini Vision for flawless visual disambiguation
+             candidateProducts = matchData.matches.slice(0, 6).map((m: any) => ({
+                id: m.id,
+                name: m.name,
+                imageUrl: m.images?.[0]
+             })).filter((c: any) => c.imageUrl);
+             
+             const instruction = `[SYSTEM_INSTRUCTION: 
+কাস্টমার একটি ছবি পাঠিয়েছে যে প্রোডাক্টটির আমাদের কাছে কয়েকটি ভ্যারিয়েন্ট/মডেল আছে:
+${optionsText}
+
+⚠️ CRITICAL RULE: কখনোই বলবে না "আপনার পাঠানো ছবির সাথে আমাদের কয়েকটি পণ্যের মিল পাওয়া গেছে" বা এরকম কোনো রোবোটিক কথা!
+একদম স্বাভাবিক মানুষের মতো বলবে: "স্যার, এই প্রোডাক্টটির আমাদের কাছে এই কয়েকটি ভ্যারিয়েন্ট/মডেল আছে:"
+এরপর ন্যাচারালি অপশনগুলোর নাম ও দাম লিস্ট করে বলবে। 
+সবশেষে জিজ্ঞেস করবে: "আপনি কোনটি নিতে চাচ্ছেন?"
+If the customer asks to see pictures of them, you MUST use the provided Image URLs to send them.]`;
+
+             messageText = instruction + "\n" + (messageText || "");
+
+             // Save the context persistently in the user's message so AI remembers the image URLs in the next turns
+             if (platformMessageId) {
+               await sb.from("messages").update({
+                 content: (payload.text || "") + "\n\n[HIDDEN_AMBIGUOUS_CONTEXT:\n" + optionsText + "\n]"
+               }).eq("platform_message_id", platformMessageId);
+             }
+          }
+        } else {
+          console.log("No confident matches found from image embedding, falling back to Vision LLM...");
+        }
+      } catch (imgErr) {
+        console.error("Image vector search failed, falling back to Vision LLM:", imgErr);
+      }
+    }
+
     // ── Step 7: AI Engine
     let aiResult;
     try {
@@ -215,6 +311,9 @@ Deno.serve(async (req: Request) => {
         messageText,
         mediaType,
         mediaUrl,
+        preMatchedProductId,
+        candidateProducts,
+        platform
       });
     } catch (aiErr) {
       console.error("AI engine failed:", aiErr);

@@ -205,16 +205,18 @@ Deno.serve(async (req: Request) => {
     const appSecret = settings.meta_app_secret || Deno.env.get("META_APP_SECRET");
 
     // 1. HMAC signature verification
-    // NOTE: Temporarily logging only — re-enable blocking after pipeline is confirmed working
     const signature = req.headers.get("x-hub-signature-256");
     if (appSecret && signature) {
       const isValid = await verifyMetaSignature(rawBody, signature, appSecret);
       if (!isValid) {
-        console.warn("HMAC mismatch (non-blocking) — signature:", signature?.substring(0, 20), "appSecret len:", appSecret.length);
-        // TODO: change to return errorResponse("Invalid signature", 401) after confirming pipeline
+        console.warn("HMAC mismatch — rejecting request");
+        return errorResponse("Invalid signature", 401);
       }
-    } else {
-      console.warn("HMAC check skipped — appSecret:", !!appSecret, "signature:", !!signature);
+    } else if (appSecret && !signature) {
+      // App secret configured but Meta sent no signature — log warning
+      // Uncomment below to hard-block once Meta webhook is fully confirmed working:
+      // return errorResponse("Missing signature", 401);
+      console.warn("HMAC check skipped — no signature header from Meta");
     }
 
     // 2. Parse body

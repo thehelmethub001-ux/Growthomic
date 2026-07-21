@@ -255,9 +255,10 @@ export async function runAI(params: {
   mediaType?: "image" | "voice" | "video";
   mediaUrl?: string;
   platform?: string;
+  preMatchedProductId?: string;
   candidateProducts?: { id: string; name: string; imageUrl: string }[];
 }): Promise<AIResult> {
-  const { conversationId, messageText, mediaType, mediaUrl, platform, candidateProducts } = params;
+  const { conversationId, messageText, mediaType, mediaUrl, platform, preMatchedProductId, candidateProducts } = params;
 
   // 1. Load business settings
   const settings = await getBusinessSettings();
@@ -637,6 +638,12 @@ export async function runAI(params: {
       console.log("AI requested image but couldn't find image URLs. Skipping.");
       aiResult.sendProductImage = false;
     }
+  }
+
+  // 11. If image vector search already confirmed the product before Gemini, use it
+  // This ensures detectedProductId is always set when image matching was confident
+  if (preMatchedProductId && !aiResult.detectedProductId) {
+    aiResult.detectedProductId = preMatchedProductId;
   }
 
   return aiResult;
