@@ -89,6 +89,30 @@ export async function POST() {
         .eq("woo_product_id", wp.id)
         .maybeSingle();
 
+      let variationsData = [];
+      if (wp.type === "variable" && wp.variations && wp.variations.length > 0) {
+        try {
+          const varRes = await fetch(
+            `${settings.woo_api_url}/wp-json/wc/v3/products/${wp.id}/variations?consumer_key=${settings.woo_consumer_key}&consumer_secret=${settings.woo_consumer_secret}&per_page=100`
+          );
+          if (varRes.ok) {
+            const varJson = await varRes.json();
+            variationsData = varJson.map((v: any) => ({
+              id: v.id,
+              price: parseFloat(v.sale_price) || parseFloat(v.regular_price) || parseFloat(v.price) || 0,
+              stock: v.manage_stock ? v.stock_quantity : (v.stock_status === "instock" ? 10 : 0),
+              image_url: v.image?.src || null,
+              attributes: v.attributes?.reduce((acc: any, attr: any) => {
+                acc[attr.name] = attr.option;
+                return acc;
+              }, {}) || {}
+            }));
+          }
+        } catch (err) {
+          console.error("Failed to fetch variations for product:", wp.id, err);
+        }
+      }
+
       const payload = {
         woo_product_id: wp.id,
         name: wp.name,
@@ -99,7 +123,8 @@ export async function POST() {
         images: images,
         category: category,
         description: plainTextDesc,
-        is_active: wp.status === "publish"
+        is_active: wp.status === "publish",
+        variations: variationsData
       };
 
       if (existing) {
@@ -109,6 +134,16 @@ export async function POST() {
       }
       syncedCount++;
     }
+
+    // 4. Trigger Vector Embedding Generation asynchronously
+    // Fire and forget - don't wait for it to complete so we don't hold up the API response
+    const embedFnUrl = `${supabaseUrl}/functions/v1/embed-products`;
+    fetch(embedFnUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${supabaseServiceKey}`
+      }
+    }).catch(err => console.error("Failed to trigger embed-products:", err));
 
     return NextResponse.json({ success: true, count: syncedCount });
 

@@ -105,6 +105,7 @@ export interface Product {
   requiredOrderFields: Array<{ fieldName: string; question: string }>;
   relatedProductIds: string[];
   wooProductId?: number;
+  variations?: any[];
 }
 
 // ============================================================

@@ -86,16 +86,20 @@ function buildSystemPrompt(settings: BusinessSettings, ragContext: string, ragLe
 9. Restricted topics — কখনো আলোচনা করবে না: ${restrictedTopicsList}
 10. অর্ডার স্ট্যাটাস জানতে চাইলে বলবে: "অর্ডার স্ট্যাটাস চেক করার জন্য আমাদের একজন সাপোর্ট এক্সিকিউটিভ একটু পরেই আপনাকে রিপ্লাই দিচ্ছেন।" এবং intent = "order_status" দেবে।
 11. কাস্টমার রাগান্বিত বা অভিযোগ করলে খুব বিনয়ী হবে এবং intent = "complaint" দেবে।
-12. কাস্টমার ছবি পাঠালে — সেটা Gemini Vision দিয়ে analyze করে PRODUCT KNOWLEDGE BASE-এর সাথে মিলিয়ে দেখবে। যদি কোনো product-এর সাথে মেলে, সেই product-এর ID "detectedProductId"-এ সেট করবে এবং বলবে কোন product মনে হচ্ছে এবং এর দাম কত।
+12. কাস্টমার ছবি পাঠালে — সেটা Gemini Vision দিয়ে analyze করে PRODUCT KNOWLEDGE BASE-এর সাথে মিলিয়ে দেখবে। 
+⚠️ CRITICAL RULE: কখনোই রোবটের মতো "আপনার পাঠানো ছবির সাথে আমাদের প্রোডাক্টের মিল খুঁজে পাচ্ছি" বা "ছবিটির সাথে এই পণ্যটি মিলেছে" - এরকম কথা বলবে না!
+একদম মানুষের মতো স্বাভাবিকভাবে বলবে, যেমন: "স্যার, এই হেলমেটটি তো আমাদের স্টকে আছে!" বা "এই মডেলটার দাম পড়বে..."। কোনো product-এর সাথে মিলে গেলে সেই product-এর ID "detectedProductId"-এ সেট করবে।
 13. **Formatting:** বড় প্যারাগ্রাফ পরিহার করবে। প্রোডাক্টের নাম, দাম এবং অন্যান্য তথ্য লেখার সময় সঠিক স্পেসিং এবং নতুন লাইন (Line Breaks) ব্যবহার করবে যাতে কাস্টমার খুব সহজে পড়তে পারে।
 14. **Context Carry-forward:** Conversation history-তে যদি দেখো "[PRODUCT_CONTEXT:" দিয়ে কোনো line আছে, সেটা মানে আগে সেই product-এর ছবি পাঠানো হয়েছিল। কাস্টমার যদি "এর দাম কত?" বা "এটা নিতে চাই" বলে, তাহলে সেই product-এর তথ্য ব্যবহার করবে।
+15. **Ambiguous Context:** যদি Conversation history-তে "[HIDDEN_AMBIGUOUS_CONTEXT:" দেখো, তার মানে কাস্টমার আগে এমন ছবি দিয়েছিল যার সাথে একাধিক প্রোডাক্টের মিল ছিল। কাস্টমার যদি সেই প্রোডাক্টগুলোর ছবি দেখতে চায়, তাহলে সেখানে দেওয়া Image URL গুলো ব্যবহার করে productImageUrls-এ পাঠাবে।
 
 ══════════════════════════════════════
 💬 ভাষা ও টোন নিয়ম:
 ══════════════════════════════════════
 - সবসময় বিশুদ্ধ বাংলায় লিখবে। ইংরেজি বা বাংলিশ ব্যবহার করবে না।
 - টোন: ${settings.replyTone}
-- কাস্টমার যদি শুধু "hi", "hello" বা "আস্সালামু আলাইকুম" লেখে: "স্যার/ম্যাম, কোন পণ্যটা সম্পর্কে জানতে চাচ্ছেন?" জিজ্ঞেস করবে।
+- কাস্টমারকে সর্বদা "স্যার" (Sir) বলে সম্বোধন করবে, কখনোই "ভাই" (Brother) বা অন্য কিছু বলবে না।
+- কাস্টমার যদি শুধু "hi", "hello" বা "আস্সালামু আলাইকুম" লেখে: "স্যার, কোন পণ্যটা সম্পর্কে জানতে চাচ্ছেন?" জিজ্ঞেস করবে।
 - স্বাভাবিকভাবে, মানুষের মতো কথা বলবে। রোবোটিক বা তালিকা-ভিত্তিক উত্তর এড়াবে।
 
 ══════════════════════════════════════
@@ -146,8 +150,9 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
 ══════════════════════════════════════
 📸 ছবি পাঠানোর নিয়ম:
 ══════════════════════════════════════
-- কাস্টমার যদি EXPLICITLY একটি পণ্যের ছবি চায় (যেমন: "ছবি দাও", "দেখতে কেমন", "photo pathao") তাহলে:
-  - একটি পণ্যের জন্য: "sendProductImage": true, "detectedProductId": "<ID>"
+- কাস্টমার যদি EXPLICITLY একটি পণ্যের বা নির্দিষ্ট ভ্যারিয়েশনের (কালার/সাইজ) ছবি চায় (যেমন: "লাল রঙের ছবি দাও", "দেখতে কেমন", "photo pathao") তাহলে:
+  - নির্দিষ্ট কালারের ভ্যারিয়েশন চাইলে: KNOWLEDGE BASE-এ ভ্যারিয়েশনের URL থাকলে "sendProductImage": true এবং "productImageUrl": "ভ্যারিয়েশনের URL" দেবে।
+  - সাধারণ পণ্যের জন্য: "sendProductImage": true, "detectedProductId": "<ID>"
   - IMAGE ONLY MODE: শুধু ছবি চাইলে — "imageOnly": true, "reply": "", "sendProductImage": true
 - কাস্টমার যদি একাধিক পণ্যের ছবি চায় (যেমন: "সব হেলমেটের ছবি দাও", "সবগুলো দেখাও"):
   - "sendProductImage": true, "productImageUrls": ["url1", "url2", ...] (KNOWLEDGE BASE থেকে image URL)
@@ -201,10 +206,11 @@ export async function generateEmbedding(text: string, openaiKey?: string): Promi
 // ============================================================
 // Transcribe voice message with OpenAI Whisper
 // ============================================================
-export async function transcribeVoice(audioUrl: string, mimeType: string, openaiKey?: string): Promise<string> {
+export async function transcribeVoice(audioUrl: string, mimeType: string, openaiKey?: string, audioToken?: string): Promise<string> {
   const key = openaiKey || Deno.env.get("OPENAI_API_KEY")!;
   // Download audio
-  const audioRes = await fetch(audioUrl);
+  const headers = audioToken ? { Authorization: `Bearer ${audioToken}` } : undefined;
+  const audioRes = await fetch(audioUrl, { headers });
   const audioBlob = await audioRes.blob();
 
   const form = new FormData();
@@ -248,8 +254,10 @@ export async function runAI(params: {
   messageText?: string;
   mediaType?: "image" | "voice" | "video";
   mediaUrl?: string;
+  platform?: string;
+  candidateProducts?: { id: string; name: string; imageUrl: string }[];
 }): Promise<AIResult> {
-  const { conversationId, messageText, mediaType, mediaUrl } = params;
+  const { conversationId, messageText, mediaType, mediaUrl, platform, candidateProducts } = params;
 
   // 1. Load business settings
   const settings = await getBusinessSettings();
@@ -293,7 +301,19 @@ export async function runAI(params: {
   // 3. Transcribe voice if needed
   if (batchMediaType === "voice" && batchMediaUrl) {
     try {
-      effectiveText = await transcribeVoice(batchMediaUrl, "audio/ogg", settings.openaiApiKey ?? undefined);
+      let finalAudioUrl = batchMediaUrl;
+      let finalAudioMimeType = "audio/ogg";
+      let audioToken: string | undefined = undefined;
+
+      if (platform === "whatsapp") {
+        const { downloadMetaMedia, getMetaAccessToken } = await import("./platform-send.ts");
+        const metaRes = await downloadMetaMedia(batchMediaUrl);
+        finalAudioUrl = metaRes.url;
+        finalAudioMimeType = metaRes.mimeType;
+        audioToken = await getMetaAccessToken();
+      }
+
+      effectiveText = await transcribeVoice(finalAudioUrl, finalAudioMimeType, settings.openaiApiKey ?? undefined, audioToken);
     } catch (err) {
       console.error("Whisper transcription failed:", err);
       effectiveText = "[Voice message — could not transcribe]";
@@ -389,6 +409,14 @@ export async function runAI(params: {
         ? p.requiredOrderFields.map((f) => `  - ${f.fieldName}: ${f.question}`).join("\n")
         : "  শুধু ডেলিভারি ঠিকানা লাগবে";
 
+      let variationInfo = "";
+      if (p.variations && p.variations.length > 0) {
+        variationInfo = "  ভ্যারিয়েশনসমূহ:\n" + p.variations.map((v: any) => {
+          const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
+          return `    - ${attrs} (URL: ${v.image_url || "ছবি নেই"})`;
+        }).join("\n");
+      }
+
       const imageInfo = p.images.length > 0 ? `ছবির URL: ${p.images[0]}` : "ছবি নেই";
 
       return [
@@ -399,6 +427,7 @@ export async function runAI(params: {
         `  স্টক: ${p.stockQuantity} টি`,
         `  বিবরণ: ${p.description ?? "কোনো বিবরণ নেই"}`,
         `  ${imageInfo}`,
+        variationInfo ? variationInfo : "",
         `  অর্ডার করতে যা জানতে হবে:`,
         orderFields,
         `  সাধারণ প্রশ্ন ও উত্তর:`,
@@ -447,7 +476,48 @@ export async function runAI(params: {
   // Image vision: download and pass to Gemini
   if (batchMediaType === "image" && batchMediaUrl) {
     try {
-      const imgRes = await fetch(batchMediaUrl);
+      // 1. If candidateProducts are provided, fetch them in parallel to give Gemini visual references
+      if (candidateProducts && candidateProducts.length > 0) {
+        currentParts.push({ text: "--- REFERENCE PRODUCTS FOR VISUAL COMPARISON ---\n" });
+        
+        const candidatePromises = candidateProducts.map(async (candidate) => {
+          try {
+            const res = await fetch(candidate.imageUrl);
+            const buf = await res.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            let binary = "";
+            for (let i = 0; i < bytes.byteLength; i++) {
+              binary += String.fromCharCode(bytes[i]);
+            }
+            return {
+              id: candidate.id,
+              name: candidate.name,
+              mimeType: res.headers.get("content-type") ?? "image/jpeg",
+              base64: btoa(binary)
+            };
+          } catch (e) {
+            console.error(`Failed to load reference image for ${candidate.id}`, e);
+            return null;
+          }
+        });
+        
+        const resolvedCandidates = (await Promise.all(candidatePromises)).filter(c => c !== null);
+        
+        for (const c of resolvedCandidates) {
+          currentParts.push({ text: `Product ID: ${c.id} | Name: ${c.name}` });
+          currentParts.push({ inlineData: { mimeType: c.mimeType, data: c.base64 } });
+        }
+      }
+
+      // 2. Fetch the customer's actual image
+      let imgRes: Response;
+      if (platform === "whatsapp") {
+        const { downloadMetaMedia, getMetaAccessToken } = await import("./platform-send.ts");
+        const metaRes = await downloadMetaMedia(batchMediaUrl);
+        imgRes = await fetch(metaRes.url, { headers: { Authorization: `Bearer ${await getMetaAccessToken()}` } });
+      } else {
+        imgRes = await fetch(batchMediaUrl);
+      }
       const imgBytes = await imgRes.arrayBuffer();
       const bytes = new Uint8Array(imgBytes);
       let binary = "";
@@ -456,14 +526,17 @@ export async function runAI(params: {
       }
       const base64 = btoa(binary);
       const mimeType = imgRes.headers.get("content-type") ?? "image/jpeg";
+      
+      currentParts.push({ text: "\n--- CUSTOMER'S UPLOADED PHOTO ---\n" });
       currentParts.push({ inlineData: { mimeType, data: base64 } });
+
       // Explicit vision prompt: match against catalog
       currentParts.push({ 
         text: `Customer sent an image. TASK:
-1. Analyze this image carefully.
-2. Compare with PRODUCT KNOWLEDGE BASE above.
-3. If it matches a product, set detectedProductId to that product's ID and tell customer the product name and price.
-4. If it doesn't match any product, say we don't have that product but suggest similar ones from the catalog.
+1. Analyze the CUSTOMER'S UPLOADED PHOTO carefully.
+2. If REFERENCE PRODUCTS are provided above, visually compare the customer's photo against EACH reference product photo (check shape, color, graphics, visor).
+3. If it perfectly matches one of the reference photos, set detectedProductId to that product's ID and tell the customer the product name and price.
+4. If it doesn't match any product exactly, say we don't have that exact product but suggest similar ones from the catalog.
 5. Reply in Bengali.` 
       });
     } catch (err) {
