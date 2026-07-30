@@ -83,7 +83,9 @@ export default function InboxPage() {
             if (exists) return prev;
             return [...prev, payload.new as Msg];
           });
-          setTimeout(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, 100);
+          setTimeout(() => {
+            if (msgsEndRef.current) msgsEndRef.current.scrollIntoView({ behavior: "smooth" });
+          }, 100);
         })
         .subscribe();
         
@@ -96,7 +98,14 @@ export default function InboxPage() {
   const loadMsgs = async (id:string) => {
     const { data } = await sb.from("messages").select("*").eq("conversation_id",id).order("created_at",{ascending:true});
     if (data) setMsgs(data as Msg[]);
-    setTimeout(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, 50);
+    // Use longer delay to ensure DOM renders all messages before scrolling
+    setTimeout(() => {
+      if (msgsEndRef.current) {
+        msgsEndRef.current.scrollIntoView({ behavior: "instant" });
+      } else if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+    }, 150);
   };
 
   const toggleAI = async (id:string, locked:boolean) => {
@@ -214,7 +223,7 @@ export default function InboxPage() {
             </button>
           </div>
 
-          <div style={{ flex:1, overflowY:"auto", padding:"20px 24px", display:"flex", flexDirection:"column", gap:10 }}>
+          <div ref={chatContainerRef} style={{ flex:1, overflowY:"auto", padding:"20px 24px", display:"flex", flexDirection:"column", gap:10 }}>
             {msgs.length === 0 && <div style={{ textAlign:"center", color:C.textMuted, marginTop:20 }}>No messages yet.</div>}
             {msgs.map(m => (
               <div key={m.id} style={{ display:"flex", justifyContent:m.role==="customer"?"flex-start":"flex-end" }}>
