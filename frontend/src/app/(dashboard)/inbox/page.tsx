@@ -25,24 +25,20 @@ export default function InboxPage() {
   const sb = createClient();
   const msgsEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  // Auto scroll to bottom whenever messages list updates or active chat changes
-  const scrollToBottom = (behavior: ScrollBehavior = "instant") => {
-    requestAnimationFrame(() => {
-      if (msgsEndRef.current) {
-        msgsEndRef.current.scrollIntoView({ behavior, block: "end" });
-      } else if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-      }
-    });
+  // Direct and rock-solid auto-scroll to bottom of chat container
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   };
 
   useEffect(() => {
     if (msgs.length > 0) {
-      scrollToBottom("instant");
-      // Double trigger to account for slow image/media rendering
-      const t1 = setTimeout(() => scrollToBottom("instant"), 100);
-      const t2 = setTimeout(() => scrollToBottom("instant"), 300);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+      scrollToBottom();
+      const t1 = setTimeout(scrollToBottom, 50);
+      const t2 = setTimeout(scrollToBottom, 150);
+      const t3 = setTimeout(scrollToBottom, 400);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
     }
   }, [msgs, selId]);
 
@@ -94,7 +90,7 @@ export default function InboxPage() {
             if (prev.some(m => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
-          setTimeout(() => scrollToBottom("smooth"), 50);
+          setTimeout(scrollToBottom, 50);
         })
         .subscribe();
         
@@ -243,7 +239,7 @@ export default function InboxPage() {
                     <span>{format(new Date(m.created_at),"h:mm a")}</span>
                   </div>
                   {m.media_url && m.media_type === "image" && (
-                    <img src={m.media_url} alt="attachment" onLoad={() => scrollToBottom("instant")} style={{ maxWidth: "100%", borderRadius: 8, marginBottom: 8, border: `1px solid ${C.borderWhite}` }} />
+                    <img src={m.media_url} alt="attachment" onLoad={scrollToBottom} style={{ maxWidth: "100%", borderRadius: 8, marginBottom: 8, border: `1px solid ${C.borderWhite}` }} />
                   )}
                   <p style={{ margin:0, whiteSpace:"pre-wrap" }}>{m.content}</p>
                 </div>
