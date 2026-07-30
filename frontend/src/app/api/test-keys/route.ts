@@ -9,9 +9,23 @@ export async function GET() {
   const { count: productCount } = await supabase.from("products").select("*", { count: "exact", head: true });
   const { count: embeddingCount } = await supabase.from("product_embeddings").select("*", { count: "exact", head: true });
   
+  // Trigger embed-products and wait for response
+  const embedFnUrl = `${supabaseUrl}/functions/v1/embed-products`;
+  const embedRes = await fetch(embedFnUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      "Content-Type": "application/json"
+    }
+  });
+  
+  const embedText = await embedRes.text();
+  
   return NextResponse.json({ 
     productCount, 
     embeddingCount,
+    embedFnStatus: embedRes.status,
+    embedFnResponse: embedText,
     message: embeddingCount === 0 ? "No embeddings found. Did the sync trigger the edge function?" : "Embeddings exist."
   });
 }

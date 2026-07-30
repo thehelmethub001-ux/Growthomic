@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { C, inputStyle, skeletonStyle } from "@/lib/styles";
 import { MessageSquare, Pause, Play, Search, User, Clock, Star } from "lucide-react";
@@ -25,8 +25,19 @@ export default function InboxPage() {
   const sb = createClient();
   const msgsEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  // ── loadConvs must be declared BEFORE the useEffects that call it
+  const loadConvs = useCallback(async () => {
+    setLoading(true);
+    let q = sb.from("conversations").select("id,platform,status,is_locked_for_ai,updated_at,customers(id,name,platform_id,spam_score,is_vip,profile_pic)").order("updated_at",{ascending:false});
+    if (filter !== "all") q = q.eq("status", filter);
+    if (platformFilter !== "all") q = q.eq("platform", platformFilter);
+    const { data } = await q;
+    if (data) setConvs(data as unknown as Conv[]);
+    setLoading(false);
+  }, [filter, platformFilter]);
 
-  useEffect(() => { loadConvs(); }, [filter, platformFilter]);
+  // Load conversations when filter changes
+  useEffect(() => { loadConvs(); }, [loadConvs]);
 
   // Read ?chat= parameter on mount
   useEffect(() => {
@@ -34,18 +45,44 @@ export default function InboxPage() {
     const chatParam = params.get("chat");
     if (chatParam) {
       setSelId(chatParam);
-      // Optional: clear the param from URL without reloading so it doesn't stick around
       window.history.replaceState({}, '', '/inbox');
     }
   }, []);
-  
+
+  // ── Real-time: conversations list (new messages bump updated_at → re-sort sidebar)
+  useEffect(() => {
+    const convChannel = sb.channel("convs-realtime")
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'conversations',
+      }, () => {
+        loadConvs();
+      })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+      }, () => {
+        loadConvs();
+      })
+      .subscribe();
+
+    return () => { sb.removeChannel(convChannel); };
+  }, [loadConvs]);
+
+  // ── Real-time: messages in selected conversation
   useEffect(() => { 
     if (selId) {
       loadMsgs(selId);
       
       const channel = sb.channel(`msgs-${selId}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selId}` }, payload => {
-          setMsgs(prev => [...prev, payload.new as Msg]);
+          setMsgs(prev => {
+            const exists = prev.find(m => m.id === (payload.new as Msg).id);
+            if (exists) return prev;
+            return [...prev, payload.new as Msg];
+          });
           setTimeout(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, 100);
         })
         .subscribe();
@@ -55,16 +92,6 @@ export default function InboxPage() {
       setMsgs([]);
     }
   }, [selId]);
-
-  const loadConvs = async () => {
-    setLoading(true);
-    let q = sb.from("conversations").select("id,platform,status,is_locked_for_ai,updated_at,customers(id,name,platform_id,spam_score,is_vip,profile_pic)").order("updated_at",{ascending:false});
-    if (filter !== "all") q = q.eq("status", filter);
-    if (platformFilter !== "all") q = q.eq("platform", platformFilter);
-    const { data } = await q;
-    if (data) setConvs(data as unknown as Conv[]);
-    setLoading(false);
-  };
 
   const loadMsgs = async (id:string) => {
     const { data } = await sb.from("messages").select("*").eq("conversation_id",id).order("created_at",{ascending:true});
