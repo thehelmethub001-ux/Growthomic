@@ -25,22 +25,27 @@ export default function InboxPage() {
   const sb = createClient();
   const msgsEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  // Direct and rock-solid auto-scroll to bottom of chat container
-  const scrollToBottom = () => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  };
+  // Direct and bulletproof auto-scroll to bottom of chat container
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight + 10000;
+      }
+      if (msgsEndRef.current) {
+        msgsEndRef.current.scrollIntoView({ behavior: "instant", block: "end", inline: "nearest" });
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (msgs.length > 0) {
       scrollToBottom();
       const t1 = setTimeout(scrollToBottom, 50);
       const t2 = setTimeout(scrollToBottom, 150);
-      const t3 = setTimeout(scrollToBottom, 400);
+      const t3 = setTimeout(scrollToBottom, 350);
       return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
     }
-  }, [msgs, selId]);
+  }, [msgs, selId, scrollToBottom]);
 
   const loadConvs = useCallback(async () => {
     let q = sb.from("conversations").select("id,platform,status,is_locked_for_ai,updated_at,customers(id,name,platform_id,spam_score,is_vip,profile_pic)").order("updated_at",{ascending:false});
@@ -104,6 +109,11 @@ export default function InboxPage() {
     const { data } = await sb.from("messages").select("*").eq("conversation_id",id).order("created_at",{ascending:true});
     if (data) {
       setMsgs(data as Msg[]);
+      requestAnimationFrame(() => {
+        scrollToBottom();
+        setTimeout(scrollToBottom, 50);
+        setTimeout(scrollToBottom, 200);
+      });
     }
   };
 
