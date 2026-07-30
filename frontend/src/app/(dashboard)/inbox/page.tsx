@@ -25,9 +25,28 @@ export default function InboxPage() {
   const sb = createClient();
   const msgsEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  // ── loadConvs must be declared BEFORE the useEffects that call it
+  // Auto scroll to bottom whenever messages list updates or active chat changes
+  const scrollToBottom = (behavior: ScrollBehavior = "instant") => {
+    requestAnimationFrame(() => {
+      if (msgsEndRef.current) {
+        msgsEndRef.current.scrollIntoView({ behavior, block: "end" });
+      } else if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (msgs.length > 0) {
+      scrollToBottom("instant");
+      // Double trigger to account for slow image/media rendering
+      const t1 = setTimeout(() => scrollToBottom("instant"), 100);
+      const t2 = setTimeout(() => scrollToBottom("instant"), 300);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
+  }, [msgs, selId]);
+
   const loadConvs = useCallback(async () => {
-    setLoading(true);
     let q = sb.from("conversations").select("id,platform,status,is_locked_for_ai,updated_at,customers(id,name,platform_id,spam_score,is_vip,profile_pic)").order("updated_at",{ascending:false});
     if (filter !== "all") q = q.eq("status", filter);
     if (platformFilter !== "all") q = q.eq("platform", platformFilter);
@@ -36,7 +55,7 @@ export default function InboxPage() {
     setLoading(false);
   }, [filter, platformFilter]);
 
-  // Load conversations when filter changes
+  // Load conversations initial & on filter change
   useEffect(() => { loadConvs(); }, [loadConvs]);
 
   // Read ?chat= parameter on mount
@@ -49,21 +68,13 @@ export default function InboxPage() {
     }
   }, []);
 
-  // ── Real-time: conversations list (new messages bump updated_at → re-sort sidebar)
+  // ── Real-time: conversations list
   useEffect(() => {
-    const convChannel = sb.channel("convs-realtime")
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'conversations',
-      }, () => {
+    const convChannel = sb.channel("global-inbox-changes")
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
         loadConvs();
       })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-      }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
         loadConvs();
       })
       .subscribe();
@@ -76,20 +87,18 @@ export default function InboxPage() {
     if (selId) {
       loadMsgs(selId);
       
-      const channel = sb.channel(`msgs-${selId}`)
+      const channel = sb.channel(`chat-msgs-${selId}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selId}` }, payload => {
+          const newMsg = payload.new as Msg;
           setMsgs(prev => {
-            const exists = prev.find(m => m.id === (payload.new as Msg).id);
-            if (exists) return prev;
-            return [...prev, payload.new as Msg];
+            if (prev.some(m => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
           });
-          setTimeout(() => {
-            if (msgsEndRef.current) msgsEndRef.current.scrollIntoView({ behavior: "smooth" });
-          }, 100);
+          setTimeout(() => scrollToBottom("smooth"), 50);
         })
         .subscribe();
         
-      return () => { sb.removeChannel(channel); }
+      return () => { sb.removeChannel(channel); };
     } else {
       setMsgs([]);
     }
@@ -97,15 +106,9 @@ export default function InboxPage() {
 
   const loadMsgs = async (id:string) => {
     const { data } = await sb.from("messages").select("*").eq("conversation_id",id).order("created_at",{ascending:true});
-    if (data) setMsgs(data as Msg[]);
-    // Use longer delay to ensure DOM renders all messages before scrolling
-    setTimeout(() => {
-      if (msgsEndRef.current) {
-        msgsEndRef.current.scrollIntoView({ behavior: "instant" });
-      } else if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-      }
-    }, 150);
+    if (data) {
+      setMsgs(data as Msg[]);
+    }
   };
 
   const toggleAI = async (id:string, locked:boolean) => {
@@ -240,7 +243,7 @@ export default function InboxPage() {
                     <span>{format(new Date(m.created_at),"h:mm a")}</span>
                   </div>
                   {m.media_url && m.media_type === "image" && (
-                    <img src={m.media_url} alt="attachment" style={{ maxWidth: "100%", borderRadius: 8, marginBottom: 8, border: `1px solid ${C.borderWhite}` }} />
+                    <img src={m.media_url} alt="attachment" onLoad={() => scrollToBottom("instant")} style={{ maxWidth: "100%", borderRadius: 8, marginBottom: 8, border: `1px solid ${C.borderWhite}` }} />
                   )}
                   <p style={{ margin:0, whiteSpace:"pre-wrap" }}>{m.content}</p>
                 </div>
