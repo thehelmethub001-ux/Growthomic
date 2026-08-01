@@ -49,6 +49,7 @@ export interface QueuePayload {
   mediaUrl?: string;
   timestamp: number;
   pageId?: string; // FB/IG page ID or WA phone number ID
+  replyToMid?: string; // platform message ID that the customer is replying to
 }
 
 // ============================================================

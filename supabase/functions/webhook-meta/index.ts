@@ -107,6 +107,13 @@ function parseMessengerEvent(
       }
     }
 
+    // Capture reply_to reference — when customer replies to a specific message
+    // Facebook sends: message.reply_to = { mid: "mid.xxx..." }
+    const replyTo = message.reply_to as { mid?: string } | undefined;
+    if (replyTo?.mid) {
+      payload.replyToMid = replyTo.mid;
+    }
+
     return payload;
   } catch (err) {
     console.error("parseMessengerEvent error:", err);

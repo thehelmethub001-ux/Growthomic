@@ -94,6 +94,7 @@ Deno.serve(async (req: Request) => {
     mediaType,
     mediaUrl,
     platformMessageId,
+    replyToMid,
   } = payload;
   let messageText = payload.text;
 
@@ -149,6 +150,34 @@ Deno.serve(async (req: Request) => {
     mediaUrl,
     platformMessageId,
   });
+
+  // ── Reply-to Context: If customer replied to a specific AI image, inject product context
+  // When a customer clicks "Reply" on a product image and asks "Price?", we need to tell
+  // the AI exactly which product image they replied to.
+  if (replyToMid && !mediaType) {
+    try {
+      const sbCtx = getSupabaseClient();
+      // Look up the message the customer replied to
+      const { data: repliedMsg } = await sbCtx
+        .from("messages")
+        .select("content, platform_message_id")
+        .eq("platform_message_id", replyToMid)
+        .single();
+
+      if (repliedMsg?.content) {
+        // Check if this message has PRODUCT_CONTEXT (AI had shown a product image)
+        const ctxMatch = repliedMsg.content.match(/\[PRODUCT_CONTEXT: ID=([^\|]+) \| Name=([^\|]+) \| Price=([^\|]+) \| Category=([^\]]+)\]/);
+        if (ctxMatch) {
+          const [, prodId, prodName, prodPrice] = ctxMatch;
+          const replyContext = `[SYSTEM_INSTRUCTION: কাস্টমার আপনার পাঠানো "${prodName.trim()}" (দাম: ${prodPrice.trim()}) হেলমেটের ছবিটিতে সরাসরি Reply করে এই প্রশ্ন করেছে। তারা এই নির্দিষ্ট পণ্যটির ব্যাপারেই জিজ্ঞেস করছে। অন্য কোনো পণ্যের কথা বলবে না। detectedProductId = "${prodId.trim()}" হিসেবে সেট করো।]\n`;
+          messageText = replyContext + (messageText || "");
+          console.log(`Reply-to context injected: Product "${prodName.trim()}" (ID: ${prodId.trim()})`);
+        }
+      }
+    } catch (replyCtxErr) {
+      console.error("Reply-to context lookup failed:", replyCtxErr);
+    }
+  }
 
   // Update 24-hour messaging window (Meta allows replies within 24h of last message)
   const windowExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -387,17 +416,19 @@ If the customer asks to see pictures of them, you MUST use the provided Image UR
         urls.push(aiResult.productImageUrl);
       }
 
-      // Send each image
+      // Send each image — capture the returned mid for single-image case
+      let sentImageMid: string | undefined = undefined;
       for (const imgUrl of urls) {
         try {
-          await sendImageMessage(platform as Platform, platformId, imgUrl);
+          const mid = await sendImageMessage(platform as Platform, platformId, imgUrl);
+          if (mid && urls.length === 1) sentImageMid = mid; // only track mid for single image
         } catch (imgErr) {
           console.error("Failed to send image:", imgUrl, imgErr);
         }
       }
 
       // Save a hidden context message so AI knows which product was shown
-      // This enables the 'price after image' context carry-forward
+      // Also saves the platform_message_id so reply_to lookups work
       if (aiResult.detectedProductId) {
         const { getProductById } = await import("../_shared/supabase-client.ts");
         const shownProduct = await getProductById(aiResult.detectedProductId);
@@ -407,6 +438,7 @@ If the customer asks to see pictures of them, you MUST use the provided Image UR
             conversationId: conversation.id,
             role: "ai",
             content: contextNote,
+            platformMessageId: sentImageMid, // link the FB mid to this context
           });
         }
       }

@@ -9,7 +9,7 @@ import type { Platform } from "./types.ts";
 import { getSupabaseClient } from "./supabase-client.ts";
 import { decryptSecret } from "./encryption.ts";
 
-async function getMetaAccessToken(): Promise<string> {
+export async function getMetaAccessToken(): Promise<string> {
   const sb = getSupabaseClient();
   const { data } = await sb.from("business_settings").select("meta_access_token").limit(1).single();
   let token = data?.meta_access_token || Deno.env.get("META_PAGE_ACCESS_TOKEN")!;
@@ -52,27 +52,25 @@ export async function sendImageMessage(
   platformId: string,
   imageUrl: string,
   caption?: string
-): Promise<void> {
+): Promise<string | undefined> { // returns platform message ID if available
   switch (platform) {
     case "messenger":
-      await sendMessengerMessage(platformId, {
+      return await sendMessengerMessage(platformId, {
         attachment: {
           type: "image",
           payload: { url: imageUrl, is_reusable: true },
         },
       });
-      break;
     case "instagram":
-      await sendInstagramMessage(platformId, {
+      return await sendInstagramMessage(platformId, {
         attachment: {
           type: "image",
           payload: { url: imageUrl, is_reusable: true },
         },
       });
-      break;
     case "whatsapp":
       await sendWhatsAppMediaMessage(platformId, "image", imageUrl, caption);
-      break;
+      return undefined;
   }
 }
 
@@ -114,7 +112,7 @@ export async function sendVideoMessage(
 async function sendMessengerMessage(
   psid: string,
   message: Record<string, unknown>
-): Promise<void> {
+): Promise<string | undefined> { // returns mid if available
   const res = await fetch(
     `https://graph.facebook.com/v19.0/me/messages?access_token=${await getMetaAccessToken()}`,
     {
@@ -133,6 +131,8 @@ async function sendMessengerMessage(
     console.error(`[Messenger] Send failed for ${psid}: ${err}`);
     throw new Error(`Messenger send failed: ${err}`);
   }
+  const json = await res.json();
+  return json?.message_id as string | undefined; // FB returns message_id
 }
 
 // ============================================================
