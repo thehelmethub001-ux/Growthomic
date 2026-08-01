@@ -14,6 +14,21 @@ const pColors: Record<string,[string,string]> = {
   whatsapp:  ["hsla(142,65%,50%,0.12)","hsl(142,65%,55%)"],
 };
 
+function getDisplayName(name?: string | null, platform_id?: string, platform?: string) {
+  if (name && name !== platform_id && !name.match(/^\d{10,}$/)) {
+    return name;
+  }
+  if (!platform_id) return "Customer";
+  if (platform_id === "REAL_MOBILE_USER") return "Customer (Mobile)";
+  
+  if (platform_id.length > 6) {
+    const shortId = platform_id.slice(-5);
+    const platformName = platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "Customer";
+    return `${platformName} User #${shortId}`;
+  }
+  return `Customer #${platform_id}`;
+}
+
 export default function InboxPage() {
   const [convs, setConvs] = useState<Conv[]>([]);
   const [selId, setSelId] = useState<string|null>(null);
@@ -215,7 +230,7 @@ export default function InboxPage() {
                       </div>
                     )}
                     <span style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                      {c.customers.name||c.customers.platform_id}
+                      {getDisplayName(c.customers.name, c.customers.platform_id, c.platform)}
                     </span>
                   </div>
                   <span style={{ fontSize:10, color:"var(--text-muted)", flexShrink:0, marginLeft:5 }}>{format(new Date(c.updated_at),"h:mm a")}</span>
@@ -245,7 +260,7 @@ export default function InboxPage() {
                 </div>
               )}
               <div>
-                <div style={{ fontSize:14, fontWeight:600, color:"var(--text-primary)" }}>{sel.customers.name||sel.customers.platform_id}</div>
+                <div style={{ fontSize:14, fontWeight:600, color:"var(--text-primary)" }}>{getDisplayName(sel.customers.name, sel.customers.platform_id, sel.platform)}</div>
                 <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2, textTransform:"capitalize" }}>{sel.platform} · {sel.status.replace("_"," ")}</div>
               </div>
             </div>
