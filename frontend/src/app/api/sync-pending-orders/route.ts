@@ -1,6 +1,48 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptSecret } from "@/lib/encryption";
+function parseOrderContactInfo(
+  rawAddress: string = "",
+  customerName: string = "",
+  platformId: string = "",
+  platform: string = ""
+) {
+  // 1. Extract 11-digit phone number using regex
+  let phone = "";
+  const phoneMatch = rawAddress.match(/(?:01\d{9})|(?:\+?8801\d{9})/);
+  if (phoneMatch) {
+    phone = phoneMatch[0];
+  } else if (platform === "whatsapp" && platformId) {
+    phone = platformId;
+  }
+
+  // 2. Extract customer name
+  let name = customerName || "";
+  const parts = rawAddress.split(",").map(p => p.trim());
+  if (parts.length > 0 && !parts[0].match(/\d/) && parts[0].length < 30) {
+    if (!name || name === platformId) {
+      name = parts[0];
+    }
+  }
+  if (!name) name = "Customer";
+
+  const nameParts = name.split(" ");
+  const firstName = nameParts[0] || "Customer";
+  const lastName = nameParts.slice(1).join(" ") || "";
+
+  // 3. Clean delivery address: remove name part and phone number part
+  let cleanAddress = rawAddress;
+  if (phone) {
+    cleanAddress = cleanAddress.replace(phone, "");
+  }
+  if (parts.length > 2 && parts[0] === nameParts[0]) {
+    cleanAddress = parts.slice(1).join(", ");
+  }
+  cleanAddress = cleanAddress.replace(/^[\s,]+|[\s,]+$/g, "").replace(/,\s*,/g, ",");
+  if (!cleanAddress) cleanAddress = rawAddress;
+
+  return { firstName, lastName, phone, cleanAddress };
+}
 
 export async function POST(req: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -69,10 +111,12 @@ export async function POST(req: Request) {
           continue;
         }
 
-        const nameParts = (order.customers?.name || "Customer").split(" ");
-        const firstName = nameParts[0];
-        const lastName = nameParts.slice(1).join(" ") || "";
-        const phone = order.customers?.platform === "whatsapp" ? order.customers?.platform_id : "";
+        const { firstName, lastName, phone, cleanAddress } = parseOrderContactInfo(
+          order.delivery_address || "",
+          order.customers?.name || "",
+          order.customers?.platform_id || "",
+          order.customers?.platform || ""
+        );
 
         const payload = {
           payment_method: order.payment_method === "cod" ? "cod" : "bacs",
@@ -83,13 +127,13 @@ export async function POST(req: Request) {
             first_name: firstName,
             last_name: lastName,
             phone: phone,
-            address_1: order.delivery_address || "",
+            address_1: cleanAddress,
             country: "BD",
           },
           shipping: {
             first_name: firstName,
             last_name: lastName,
-            address_1: order.delivery_address || "",
+            address_1: cleanAddress,
             country: "BD",
           },
           line_items: lineItems,

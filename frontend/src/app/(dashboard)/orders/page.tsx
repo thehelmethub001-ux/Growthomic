@@ -154,14 +154,15 @@ export default function OrdersPage() {
     const { error } = await sb.from("orders").update({ 
       status: editOrder.status,
       total_amount: editOrder.total_amount,
-      payment_method: editOrder.payment_method
+      payment_method: editOrder.payment_method,
+      delivery_address: editOrder.delivery_address
     }).eq("id", editOrder.id);
     
     if (error) {
       toast.error("Failed to update order");
     } else {
       toast.success("Order updated!");
-      setOrders(orders.map(o => o.id === editOrder.id ? { ...o, status: editOrder.status } : o));
+      setOrders(orders.map(o => o.id === editOrder.id ? { ...o, status: editOrder.status, delivery_address: editOrder.delivery_address } : o));
       setEditOrder(null);
     }
     setUpdating(false);
@@ -382,14 +383,14 @@ export default function OrdersPage() {
               ))}
             </div>
 
-            {editOrder.delivery_address && (
-              <>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Delivery Address</label>
-                <div style={{ padding: "10px 14px", background: C.surface, borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, marginBottom: 16, fontSize: 12, color: C.textPrimary }}>
-                  {editOrder.delivery_address}
-                </div>
-              </>
-            )}
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Delivery Address (ঠিকানা)</label>
+            <textarea 
+              value={editOrder.delivery_address || ""}
+              onChange={(e) => setEditOrder({ ...editOrder, delivery_address: e.target.value })}
+              rows={3}
+              style={{ ...inputStyle, width: "100%", marginBottom: 16, padding: "10px 14px", fontFamily: "inherit", fontSize: 12, resize: "vertical" }}
+              placeholder="যেমন: Bagnibari, Savar, Dhaka"
+            />
 
             <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Total Amount (৳)</label>
             <input 
