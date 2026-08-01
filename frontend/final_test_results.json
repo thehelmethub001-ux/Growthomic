@@ -1,0 +1,263 @@
+{
+  "totalTested": 64,
+  "successCount": 63,
+  "failCount": 1,
+  "results": [
+    {
+      "name": "Steelbird Sharp Glossy Black",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Studds Raider Solid",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Vega Bolt Superhero Glossy Black Red",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Steelbird SBH-11 Tornedo | Free Extra Visor",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Rizoma CNC Mirror",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Steelbird Skiptood Baby Helmet",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Helmet Lock Password Change system",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Motorcycle Rust Protactive Coating",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Baby Helmet",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Motowolf Mobile Holder",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "AR FF938 Solid + Free 4 items",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Vega Bolt Matial Glossy Black Red",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Studds Raider Glossy Blue",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Xpeedra Fog Ligth 15W",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "TORQ Alpha",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Studds Raider Glossy Gray",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Vega Bolt Marvel Edition ( Captain America )",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Xpeedra LED Projection Headlight",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "KM 603 Solid",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "H4 Projection LED Headlight",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Vega Bolt Crown Men",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "T8 LED Headlight",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Premium Snail Horn",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Vega Bolt Matial Glossy Black Blue",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Spark Metro Graphics - Half face",
+      "status": "ERROR: Gemini Embedding API Error: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Provided image is not valid.\",\n    \"status\": \"INVALID_ARGUMENT\"\n  }\n}\n"
+    },
+    {
+      "name": "Spark NEX Carboon Edition",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "MINI FOG Light Xpeedra 120W",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Alarm Disc Lock (110dB)",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Steelbird SBH-25 Sharp + Free Extra Visor",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "AR FF939 Graphic + Free 4 Items",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Helmet Mount",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Xpeedra Fog Light 20W Dual Lens | 1pec Switch Free",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Studds Raider Matt Black",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Steelbird SBA-20 Matt Black",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Eagle Eye Mirror",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Steelbird Sharp | Dual visor",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Steelbird SBA-20.09 +1 Free Visor",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "AR FF939 Solid + Free 4 items",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Vega Bolt Superhero Glossy Black Gray",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Waterproof Bike Cover Big size",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Spark Metro Solid - Half Face",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Aerodaynamic Carbon With LED Mirror",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Spark Challanger - DOT certified",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Studds Raider D1",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Raymax Photochoromic Visor Protector",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Arrow System Indicator Light",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Xpeedra S1 FOG light 80W",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Xpeedra M8 LED Headlight",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Arrow projection LED indicator Light",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "RTD projection LED Headlight",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Vega Bolt Glossy Black",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Aerodynamic Looking Glass",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Spark X25 Solid",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Steelbird SBA-20 Glossy Black",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Spark X Force Solid",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "AR-188 Solid",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "RYMAX D7 Fog Light (Premium)",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "RYMAX D5 Fog Light",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Steelbird SBA-20.09 neon + 1 Extra free visor",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "VEGA Sonic Solid",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Frok Slider Lighting Gutli",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Motorcycler Tank Rust Remover",
+      "status": "PASS (Ambiguous Variant Match)"
+    },
+    {
+      "name": "Aerodynamic Carbon Design Looking Glass",
+      "status": "PASS (Top Match)"
+    },
+    {
+      "name": "Vega Bolt Superhero Glossy Black Neon",
+      "status": "PASS (Top Match)"
+    }
+  ]
+}

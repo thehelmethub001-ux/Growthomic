@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { decryptSecret } from "@/lib/encryption";
 
 export async function GET() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -9,10 +10,17 @@ export async function GET() {
   try {
     // 1. Get Meta Page Access Token
     const { data: metaSettings } = await supabase.from("business_settings").select("meta_access_token").limit(1).single();
-    if (!metaSettings?.meta_access_token) {
+    let token = metaSettings?.meta_access_token || process.env.META_PAGE_ACCESS_TOKEN;
+    if (!token) {
       return NextResponse.json({ error: "No meta_access_token found" }, { status: 400 });
     }
-    const token = metaSettings.meta_access_token;
+    if (token.includes(":")) {
+      try {
+        token = decryptSecret(token);
+      } catch (err) {
+        console.error("Failed to decrypt meta_access_token:", err);
+      }
+    }
 
     // 2. Get all customers from messenger/instagram
     const { data: customers } = await supabase

@@ -56,8 +56,19 @@ export default function InboxPage() {
     setLoading(false);
   }, [filter, platformFilter]);
 
-  // Load conversations initial & on filter change
-  useEffect(() => { loadConvs(); }, [loadConvs]);
+  // Load conversations initial & on filter change + auto-sync customer Meta profile info
+  useEffect(() => {
+    loadConvs();
+    fetch('/api/sync-customers')
+      .then(res => res.json())
+      .then(data => {
+        if (data.updatedCount && data.updatedCount > 0) {
+          console.log(`Auto-synced ${data.updatedCount} customer profiles`);
+          loadConvs();
+        }
+      })
+      .catch(err => console.error("Customer sync error:", err));
+  }, [loadConvs]);
 
   // Read ?chat= parameter on mount
   useEffect(() => {
@@ -137,7 +148,24 @@ export default function InboxPage() {
       {/* ── Left: Conversation List ─────── */}
       <div style={{ width:280, minWidth:280, borderRight:`1px solid ${C.borderWhite}`, display:"flex", flexDirection:"column", background:"var(--bg-card)", flexShrink:0 }}>
         <div style={{ padding:"16px 12px 12px", borderBottom:`1px solid ${C.borderWhite}` }}>
-          <div style={{ fontSize:15, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.02em", marginBottom:10 }}>Conversations</div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+            <div style={{ fontSize:15, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.02em" }}>Conversations</div>
+            <button 
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/sync-customers');
+                  const data = await res.json();
+                  if (data.updatedCount) await loadConvs();
+                } catch (e) {
+                  console.error(e);
+                }
+              }}
+              style={{ fontSize:10, padding:"3px 7px", borderRadius:5, background:"var(--bg-elevated)", border:"1px solid var(--border-white)", color:"var(--primary-light)", cursor:"pointer", fontWeight:600 }}
+              title="Sync Facebook/Instagram profile names & photos"
+            >
+              🔄 Sync Names
+            </button>
+          </div>
           <div style={{ position:"relative", marginBottom:8 }}>
             <Search size={12} style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", pointerEvents:"none" }}/>
             <input style={{ ...inputStyle, paddingLeft:28, fontSize:12 }} placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)}/>

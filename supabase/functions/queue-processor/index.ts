@@ -105,17 +105,22 @@ Deno.serve(async (req: Request) => {
   let fetchedName: string | undefined = customerName;
   if (platform === "messenger" || platform === "instagram") {
     try {
-      const { getMetaSettings } = await import("../_shared/supabase-client.ts");
-      const metaSettings = await getMetaSettings();
-      const token = metaSettings.meta_access_token;
+      const { getMetaAccessToken } = await import("../_shared/platform-send.ts");
+      const token = await getMetaAccessToken();
       if (token) {
-        const res = await fetch(`https://graph.facebook.com/v19.0/${platformId}?fields=first_name,last_name,profile_pic&access_token=${token}`);
+        const fields = platform === "messenger" ? "first_name,last_name,profile_pic" : "name,username,profile_pic";
+        const res = await fetch(`https://graph.facebook.com/v19.0/${platformId}?fields=${fields}&access_token=${token}`);
         if (res.ok) {
           const data = await res.json();
           if (data.profile_pic) profilePic = data.profile_pic;
           if (data.first_name || data.last_name) {
             fetchedName = [data.first_name, data.last_name].filter(Boolean).join(" ");
+          } else if (data.name) {
+            fetchedName = data.name;
           }
+          console.log(`Fetched Meta profile info for ${platformId}: name="${fetchedName}", pic="${profilePic ? 'yes' : 'no'}"`);
+        } else {
+          console.error(`Meta profile fetch failed for ${platformId}:`, await res.text());
         }
       }
     } catch (err) {
