@@ -35,9 +35,37 @@ export default function OrdersPage() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
   const [syncingSelected, setSyncingSelected] = useState(false);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [editCustomerName, setEditCustomerName] = useState("");
+  const [editCustomerPhone, setEditCustomerPhone] = useState("");
+  const [editDeliveryAddress, setEditDeliveryAddress] = useState("");
   const [updating, setUpdating] = useState(false);
   const [expandedOrder, setExpandedOrder] = useState<string|null>(null);
   const sb = createClient();
+
+  const openEditModal = (o: Order) => {
+    const rawAddr = o.delivery_address || "";
+    const phoneMatch = rawAddr.match(/(?:01\d{9})|(?:\+?8801\d{9})/);
+    const phone = phoneMatch ? phoneMatch[0] : (o.customers?.platform === "whatsapp" ? o.customers.platform_id : "");
+    
+    let cleanAddr = rawAddr;
+    if (phone) cleanAddr = cleanAddr.replace(phone, "");
+
+    const parts = rawAddr.split(",").map(p => p.trim());
+    let name = o.customers?.name || "";
+    if (parts.length > 2 && !parts[0].match(/\d/) && parts[0].length < 30) {
+      if (!name || name === o.customers?.platform_id) {
+        name = parts[0];
+      }
+      cleanAddr = parts.slice(1).join(", ");
+    }
+    cleanAddr = cleanAddr.replace(phone || "", "").replace(/^[\s,]+|[\s,]+$/g, "").replace(/,\s*,/g, ",");
+    if (!cleanAddr) cleanAddr = rawAddr;
+
+    setEditCustomerName(name);
+    setEditCustomerPhone(phone);
+    setEditDeliveryAddress(cleanAddr);
+    setEditOrder(o);
+  };
 
   useEffect(() => { load(); }, [filter]);
 
@@ -151,18 +179,31 @@ export default function OrdersPage() {
       return;
     }
 
+    const fullDeliveryAddress = `${editCustomerName ? editCustomerName + ", " : ""}${editCustomerPhone ? editCustomerPhone + ", " : ""}${editDeliveryAddress}`;
+
     const { error } = await sb.from("orders").update({ 
       status: editOrder.status,
       total_amount: editOrder.total_amount,
       payment_method: editOrder.payment_method,
-      delivery_address: editOrder.delivery_address
+      delivery_address: fullDeliveryAddress
     }).eq("id", editOrder.id);
     
+    if (editCustomerName && editOrder.customers?.platform_id) {
+      await sb.from("customers").update({ name: editCustomerName }).eq("platform_id", editOrder.customers.platform_id);
+    }
+
     if (error) {
       toast.error("Failed to update order");
     } else {
       toast.success("Order updated!");
-      setOrders(orders.map(o => o.id === editOrder.id ? { ...o, status: editOrder.status, delivery_address: editOrder.delivery_address } : o));
+      setOrders(orders.map(o => o.id === editOrder.id ? { 
+        ...o, 
+        status: editOrder.status, 
+        total_amount: editOrder.total_amount,
+        payment_method: editOrder.payment_method,
+        delivery_address: fullDeliveryAddress,
+        customers: { ...o.customers, name: editCustomerName || o.customers.name }
+      } : o));
       setEditOrder(null);
     }
     setUpdating(false);
@@ -365,7 +406,7 @@ export default function OrdersPage() {
                       )}
                     </td>
                     <td style={tdStyle}>
-                      <button onClick={() => setEditOrder(o)} style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${C.border}`, color: C.textPrimary, padding: "5px 12px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "background 0.2s" }} onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"} onMouseOut={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}>Edit</button>
+                      <button onClick={() => openEditModal(o)} style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${C.border}`, color: C.textPrimary, padding: "5px 12px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "background 0.2s" }} onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"} onMouseOut={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}>Edit</button>
                     </td>
                   </tr>
                 );
@@ -377,19 +418,40 @@ export default function OrdersPage() {
       
       {editOrder && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
-          <div style={{ background: C.card, padding: 24, borderRadius: 16, width: 340, border: `1px solid ${C.border}`, boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}>
+          <div style={{ background: C.card, padding: 24, borderRadius: 16, width: 360, border: `1px solid ${C.border}`, boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: C.textPrimary }}>Edit Order #{editOrder.id.slice(0,8)}</h2>
             
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Customer details</label>
-            <div style={{ padding: "10px 14px", background: C.surface, borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, marginBottom: 16, fontSize: 12, color: C.textMuted }}>
-              <strong style={{color: C.textPrimary}}>{editOrder.customers.name || "Unknown"}</strong><br/>
-              Via: {editOrder.customers.platform}
-            </div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>👤 Customer Name (নাম)</label>
+            <input 
+              type="text"
+              value={editCustomerName}
+              onChange={(e) => setEditCustomerName(e.target.value)}
+              style={{ ...inputStyle, width: "100%", marginBottom: 14, padding: "8px 12px", fontSize: 12 }}
+              placeholder="যেমন: Kausar Hosen Rosan"
+            />
 
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Items Ordered</label>
-            <div style={{ padding: "10px 14px", background: C.surface, borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>📞 Phone Number (ফোন নম্বর)</label>
+            <input 
+              type="text"
+              value={editCustomerPhone}
+              onChange={(e) => setEditCustomerPhone(e.target.value)}
+              style={{ ...inputStyle, width: "100%", marginBottom: 14, padding: "8px 12px", fontSize: 12 }}
+              placeholder="যেমন: 01815666821"
+            />
+
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>📍 Street Address (ঠিকানা)</label>
+            <textarea 
+              value={editDeliveryAddress}
+              onChange={(e) => setEditDeliveryAddress(e.target.value)}
+              rows={2}
+              style={{ ...inputStyle, width: "100%", marginBottom: 14, padding: "8px 12px", fontFamily: "inherit", fontSize: 12, resize: "vertical" }}
+              placeholder="যেমন: Bagnibari, Savar, Dhaka"
+            />
+
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Items Ordered</label>
+            <div style={{ padding: "8px 12px", background: C.surface, borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, marginBottom: 14 }}>
               {editOrder.items.map((item, idx) => (
-                <div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:idx<editOrder.items.length-1?"1px solid rgba(255,255,255,0.05)":"none"}}>
+                <div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:idx<editOrder.items.length-1?"1px solid rgba(255,255,255,0.05)":"none"}}>
                   <div>
                     <div style={{fontSize:12,fontWeight:600,color:C.textPrimary}}>{item.name}</div>
                     <div style={{fontSize:11,color:C.textMuted}}>Qty: {item.qty} × ৳{item.unitPrice.toLocaleString()}</div>
@@ -398,15 +460,6 @@ export default function OrdersPage() {
                 </div>
               ))}
             </div>
-
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Delivery Address (ঠিকানা)</label>
-            <textarea 
-              value={editOrder.delivery_address || ""}
-              onChange={(e) => setEditOrder({ ...editOrder, delivery_address: e.target.value })}
-              rows={3}
-              style={{ ...inputStyle, width: "100%", marginBottom: 16, padding: "10px 14px", fontFamily: "inherit", fontSize: 12, resize: "vertical" }}
-              placeholder="যেমন: Bagnibari, Savar, Dhaka"
-            />
 
             <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Total Amount (৳)</label>
             <input 
