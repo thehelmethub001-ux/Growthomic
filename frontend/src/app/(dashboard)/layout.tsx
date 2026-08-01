@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -44,6 +45,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const [aiAutomationEnabled, setAiAutomationEnabled] = useState(true);
+  const [togglingAi, setTogglingAi] = useState(false);
+
+  useEffect(() => {
+    supabase.from("business_settings").select("ai_automation_enabled, ai_reply_mode").limit(1).single()
+      .then(({ data }) => {
+        if (data) {
+          if (data.ai_reply_mode === "off" || data.ai_automation_enabled === false) {
+            setAiAutomationEnabled(false);
+          } else {
+            setAiAutomationEnabled(true);
+          }
+        }
+      });
+  }, []);
+
+  const toggleAiAutomation = async () => {
+    setTogglingAi(true);
+    const nextState = !aiAutomationEnabled;
+    setAiAutomationEnabled(nextState);
+    const { data: existing } = await supabase.from("business_settings").select("id").limit(1).single();
+    if (existing) {
+      await supabase.from("business_settings").update({ 
+        ai_automation_enabled: nextState,
+        ai_reply_mode: nextState ? "full_auto" : "off"
+      }).eq("id", existing.id);
+    }
+    setTogglingAi(false);
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -167,9 +197,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div style={{ fontSize:10, color:"var(--text-muted)", fontWeight:500, letterSpacing:"0.04em" }}>Dashboard</div>
             <div style={{ fontSize:14, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.02em" }}>{currentPage}</div>
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-            <div style={{ width:7, height:7, borderRadius:"50%", background:"var(--green)", animation:"pulse 2s infinite" }}/>
-            <span style={{ fontSize:12, color:"var(--text-muted)" }}>AI Active</span>
+          
+          {/* Interactive Global AI Automation Toggle Switch */}
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <button
+              onClick={toggleAiAutomation}
+              disabled={togglingAi}
+              title={aiAutomationEnabled ? "Click to Pause AI Automation" : "Click to Enable AI Automation"}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 14px",
+                borderRadius: 20,
+                border: `1px solid ${aiAutomationEnabled ? "rgba(16,185,129,0.3)" : "rgba(244,63,94,0.3)"}`,
+                background: aiAutomationEnabled ? "rgba(16,185,129,0.12)" : "rgba(244,63,94,0.12)",
+                color: aiAutomationEnabled ? "#34d399" : "#fb7185",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: togglingAi ? "not-allowed" : "pointer",
+                transition: "all 0.2s"
+              }}
+            >
+              <div style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: aiAutomationEnabled ? "#34d399" : "#fb7185",
+                boxShadow: aiAutomationEnabled ? "0 0 8px #34d399" : "none",
+                animation: aiAutomationEnabled ? "pulse 2s infinite" : "none"
+              }} />
+              {aiAutomationEnabled ? "🤖 AI Automation: ON" : "⏸️ AI Automation: OFF"}
+            </button>
           </div>
         </div>
 

@@ -243,6 +243,13 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ status: "locked_for_human" });
   }
 
+  // ── Global AI Automation check: if admin turned OFF automation from frontend, skip AI
+  const { data: bSettings } = await sb.from("business_settings").select("ai_automation_enabled").limit(1).single();
+  if (bSettings && bSettings.ai_automation_enabled === false) {
+    console.log(`Global AI automation is turned OFF by admin from dashboard`);
+    return jsonResponse({ status: "automation_disabled_by_admin" });
+  }
+
   try {
     // ── Debounce (Batching)
     // Wait 3 seconds to allow rapid consecutive messages to be saved to DB
