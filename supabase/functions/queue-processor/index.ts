@@ -331,6 +331,51 @@ If the customer asks to see pictures of them, you MUST use the provided Image UR
       }
     }
 
+    // ── Step 6.7: Product Context Injection (2-Layer System)
+    // Layer 1: reply_to.mid lookup (already done above at line ~154)
+    // Layer 2: Fallback — scan conversation history for most recent PRODUCT_CONTEXT
+    // This runs if: no preMatchedProductId, no image, messageText looks like a follow-up
+    if (!preMatchedProductId && !mediaType && messageText && !messageText.includes("[SYSTEM_INSTRUCTION:")) {
+      try {
+        // Get extended history to find PRODUCT_CONTEXT
+        const fullHistory = await getConversationHistory(conversation.id, 30);
+        
+        // Find the most recent PRODUCT_CONTEXT in AI messages (scan in reverse = newest first)
+        let lastCtxMatch: RegExpMatchArray | null = null;
+        let lastCtxAge = 999; // how many messages ago
+        for (let i = fullHistory.length - 1; i >= 0; i--) {
+          const msg = fullHistory[i];
+          if (msg.role === "ai" && msg.content?.includes("[PRODUCT_CONTEXT:")) {
+            const m = msg.content.match(/\[PRODUCT_CONTEXT: ID=([^\|]+) \| Name=([^\|]+) \| Price=([^\|]+) \| Category=([^\]]+)\]/);
+            if (m) {
+              lastCtxMatch = m;
+              lastCtxAge = (fullHistory.length - 1) - i; // 0 = very recent
+              break;
+            }
+          }
+        }
+
+        // If a recent PRODUCT_CONTEXT exists (within last 15 messages) and 
+        // customer message looks like a price/buy follow-up without naming a product
+        if (lastCtxMatch && lastCtxAge <= 15) {
+          const [, prodId, prodName, prodPrice] = lastCtxMatch;
+          // Simple heuristic: if message is short OR contains price/buy keywords
+          const msgLower = (messageText || "").toLowerCase();
+          const isFollowUp = 
+            messageText.length <= 40 || // short message = likely follow-up
+            /price|দাম|কত|নিতে|কিনব|কিনতে|order|অর্ডার|buy|কিনব|stock|পাঠান|বুক/.test(msgLower);
+          
+          if (isFollowUp) {
+            const ctxInject = `[SYSTEM_INSTRUCTION: Conversation history-এ দেখা যাচ্ছে সম্প্রতি "${prodName.trim()}" (দাম: ${prodPrice.trim()}) পণ্যটির ছবি/তথ্য দেওয়া হয়েছে। কাস্টমারের বর্তমান বার্তাটি সম্ভবত এই পণ্যটি সম্পর্কেই। detectedProductId = "${prodId.trim()}" হিসেবে সেট করো এবং এই পণ্যের তথ্য দিয়ে উত্তর দাও।]\n`;
+            messageText = ctxInject + (messageText || "");
+            console.log(`[Layer2-CTX] Injected product context: "${prodName.trim()}" (age: ${lastCtxAge} msgs ago)`);
+          }
+        }
+      } catch (ctxErr) {
+        console.error("Layer2 product context injection failed:", ctxErr);
+      }
+    }
+
     // ── Step 7: AI Engine
     let aiResult;
     try {
