@@ -33,26 +33,40 @@ export async function GET() {
     // 3. Sync each customer
     const fetchPromises = customers.map(async (c) => {
       try {
-        const res = await fetch(`https://graph.facebook.com/v19.0/${c.platform_id}?fields=first_name,last_name,profile_pic,name&access_token=${token}`);
+        // Skip dummy / non-numeric IDs
+        if (!c.platform_id || isNaN(Number(c.platform_id))) {
+          return { skipped: true, id: c.platform_id };
+        }
+
+        const fields = c.platform === "messenger" ? "first_name,last_name,profile_pic" : "name,username,profile_picture_url";
+        let res = await fetch(`https://graph.facebook.com/v19.0/${c.platform_id}?fields=${fields}&access_token=${token}`);
+        
+        if (!res.ok && c.platform === "messenger") {
+          res = await fetch(`https://graph.facebook.com/v19.0/${c.platform_id}?fields=first_name,last_name&access_token=${token}`);
+        }
+
         if (res.ok) {
           const data = await res.json();
           const updates: any = {};
           
-          if (data.profile_pic) {
-            updates.profile_pic = data.profile_pic;
+          const profilePic = data.profile_pic || data.profile_picture_url;
+          if (profilePic) {
+            updates.profile_pic = profilePic;
           }
           
-          if (data.first_name || data.last_name || data.name) {
-            updates.name = data.name || [data.first_name, data.last_name].filter(Boolean).join(" ");
+          const fullName = [data.first_name, data.last_name].filter(Boolean).join(" ") || data.name || data.username;
+          if (fullName) {
+            updates.name = fullName;
           }
 
           if (Object.keys(updates).length > 0) {
             await supabase.from("customers").update(updates).eq("id", c.id);
-            return { success: true };
+            return { success: true, id: c.platform_id, name: fullName };
           }
         } else {
-            const errText = await res.text();
-            return { error: errText, id: c.platform_id };
+          const errText = await res.text();
+          console.error(`Meta Graph API error for customer ${c.platform_id}:`, errText);
+          return { error: errText, id: c.platform_id };
         }
       } catch (e: any) {
         return { error: e.message, id: c.platform_id };
