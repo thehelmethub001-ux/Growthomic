@@ -446,8 +446,17 @@ If the customer asks to see pictures of them, you MUST use the provided Image UR
         mediaUrl,
         preMatchedProductId,
         candidateProducts,
-        platform
       });
+
+      // Safety Net: Ensure aiResult.reply is never a raw JSON string
+      if (aiResult.reply && (aiResult.reply.trim().startsWith("{") || aiResult.reply.includes('"reply":'))) {
+        const { parseGeminiJSON } = await import("../_shared/gemini.ts");
+        const parsed = parseGeminiJSON(aiResult.reply);
+        aiResult.reply = parsed.reply;
+        if (parsed.sendProductImage) aiResult.sendProductImage = true;
+        if (parsed.productImageUrls?.length) aiResult.productImageUrls = parsed.productImageUrls;
+        if (parsed.detectedProductId) aiResult.detectedProductId = parsed.detectedProductId;
+      }
     } catch (aiErr) {
       console.error("AI engine failed:", aiErr);
       // AI Failed Queue pattern: lock conversation, notify human

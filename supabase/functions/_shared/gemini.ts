@@ -177,8 +177,60 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
   "productImageUrls": null,
   "sendVideo": false,
   "videoUrl": null
-}`;
 }
+
+// ============================================================
+// Robust Gemini JSON response parser
+// Extract reply text & image URLs even if output has raw text/markdown
+// ============================================================
+export function parseGeminiJSON(rawText: string): AIResult {
+  // 1. Strip markdown code blocks
+  let cleaned = rawText
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  // 2. Try direct JSON.parse
+  try {
+    const res = JSON.parse(cleaned);
+    if (res && typeof res === "object" && typeof res.reply === "string") {
+      return res as AIResult;
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  // 3. Extract JSON object substring between first '{' and last '}'
+  const startIdx = cleaned.indexOf("{");
+  const endIdx = cleaned.lastIndexOf("}");
+  if (startIdx !== -1 && endIdx > startIdx) {
+    const jsonCandidate = cleaned.substring(startIdx, endIdx + 1);
+    try {
+      const res = JSON.parse(jsonCandidate);
+      if (res && typeof res === "object") {
+        return res as AIResult;
+      }
+    } catch (e2) {
+      console.error("Substring JSON parse failed:", e2);
+    }
+  }
+
+  // 4. Fallback: extract reply string or URLs if JSON structure is damaged
+  const replyMatch = cleaned.match(/"reply"\s*:\s*"([^"]+)"/);
+  const replyText = replyMatch
+    ? replyMatch[1]
+    : "স্যার, আমাদের বিভিন্ন মডেলের হেলমেট রয়েছে। আপনি যেকোনোটির দাম বা ছবি দেখতে চাইলে আমাকে বলতে পারেন!";
+
+  const urlsMatch = Array.from(cleaned.matchAll(/https?:\/\/[^\s"',\]\)]+/g)).map((m) => m[0]);
+
+  return {
+    reply: replyText,
+    intent: "product_inquiry",
+    sendProductImage: urlsMatch.length > 0,
+    productImageUrls: urlsMatch.length > 0 ? urlsMatch : undefined,
+  };
+}
+
 
 // ============================================================
 // Generate embedding for a text query (OpenAI text-embedding-3-small)
@@ -589,15 +641,8 @@ export async function runAI(params: {
     const geminiJson = await geminiRes.json();
     let rawText = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
     
-    // Sanitize markdown JSON blocks that Gemini sometimes outputs despite responseMimeType
-    rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    try {
-      aiResult = JSON.parse(rawText);
-    } catch {
-      console.warn("JSON Parse failed for rawText:", rawText);
-      aiResult = { reply: rawText, intent: "unknown" };
-    }
+    // Robust JSON parse with fallback extraction
+    aiResult = parseGeminiJSON(rawText);
   } catch (error) {
     console.error("Gemini failed, falling back to GPT-4o-mini:", error);
     try {
