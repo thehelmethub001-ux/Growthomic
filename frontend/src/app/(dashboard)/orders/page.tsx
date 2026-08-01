@@ -317,11 +317,27 @@ export default function OrdersPage() {
                               <div style={{fontSize:12,fontWeight:700,color:"#34d399"}}>৳{(item.unitPrice * item.qty).toLocaleString()}</div>
                             </div>
                           ))}
-                          {o.delivery_address && (
-                            <div style={{marginTop:6,fontSize:11,color:C.textMuted}}>
-                              📍 {o.delivery_address}
-                            </div>
-                          )}
+                          {(() => {
+                            if (!o.delivery_address) return null;
+                            const phoneMatch = o.delivery_address.match(/(?:01\d{9})|(?:\+?8801\d{9})/);
+                            const phone = phoneMatch ? phoneMatch[0] : null;
+                            
+                            let cleanAddress = o.delivery_address;
+                            if (phone) cleanAddress = cleanAddress.replace(phone, "");
+                            const parts = o.delivery_address.split(",").map(p => p.trim());
+                            if (parts.length > 2 && !parts[0].match(/\d/) && parts[0].length < 30) {
+                              cleanAddress = parts.slice(1).join(", ");
+                            }
+                            cleanAddress = cleanAddress.replace(phone || "", "").replace(/^[\s,]+|[\s,]+$/g, "").replace(/,\s*,/g, ",");
+                            if (!cleanAddress) cleanAddress = o.delivery_address;
+
+                            return (
+                              <div style={{marginTop:8, paddingTop:6, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11}}>
+                                {phone && <div style={{marginBottom:3, color:C.brandLight, fontWeight:600}}>📞 {phone}</div>}
+                                <div style={{color:C.textMuted}}>📍 {cleanAddress}</div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </td>
