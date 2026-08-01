@@ -184,10 +184,11 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
 // Extract reply text & image URLs even if output has raw text/markdown
 // ============================================================
 export function parseGeminiJSON(rawText: string): AIResult {
-  // 1. Strip markdown code blocks
+  // 1. Strip markdown code blocks without backtick regex conflicts
   let cleaned = rawText
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
+    .replaceAll("```json", "")
+    .replaceAll("```JSON", "")
+    .replaceAll("```", "")
     .trim();
 
   // 2. Try direct JSON.parse
