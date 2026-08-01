@@ -34,6 +34,9 @@ export default function OrdersPage() {
   const [syncingAll, setSyncingAll] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
   const [syncingSelected, setSyncingSelected] = useState(false);
+  const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [expandedOrder, setExpandedOrder] = useState<string|null>(null);
   const sb = createClient();
 
   useEffect(() => { load(); }, [filter]);
