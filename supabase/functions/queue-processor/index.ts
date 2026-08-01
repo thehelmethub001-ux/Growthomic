@@ -196,25 +196,19 @@ Deno.serve(async (req: Request) => {
         console.log(`Reply-to DB mediaUrl resolved: ${foundMediaUrl}`);
       }
 
-      // 2. Meta Graph API Lookup fallback: if DB didn't have the message/url yet, fetch directly from Meta Graph API
-      if (!foundContextNote && !resolvedRepliedMediaUrl && (platform === "messenger" || platform === "instagram")) {
-        try {
-          const { getMetaSettings } = await import("../_shared/supabase-client.ts");
-          const metaSettings = await getMetaSettings();
-          const token = metaSettings.meta_access_token || Deno.env.get("META_PAGE_ACCESS_TOKEN");
-          if (token) {
-            const graphRes = await fetch(`https://graph.facebook.com/v19.0/${replyToMid}?fields=attachments,message&access_token=${token}`);
-            if (graphRes.ok) {
-              const graphData = await graphRes.json();
-              const attUrl = graphData?.attachments?.data?.[0]?.payload?.url;
-              if (attUrl) {
-                resolvedRepliedMediaUrl = attUrl;
-                console.log(`Reply-to Meta Graph API mediaUrl fetched: ${attUrl}`);
-              }
-            }
-          }
-        } catch (metaFetchErr) {
-          console.error("Failed to fetch replied message from Meta Graph API:", metaFetchErr);
+      // 2. Fallback: if mid lookup didn't find an explicit match, search conversation history for the most recent message with media_url
+      if (!foundContextNote && !resolvedRepliedMediaUrl) {
+        const { data: recentMediaMsgs } = await sbCtx
+          .from("messages")
+          .select("media_url, content")
+          .eq("conversation_id", conversation.id)
+          .not("media_url", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (recentMediaMsgs?.[0]?.media_url) {
+          resolvedRepliedMediaUrl = recentMediaMsgs[0].media_url;
+          console.log(`Reply-to fallback from history mediaUrl: ${resolvedRepliedMediaUrl}`);
         }
       }
 
@@ -390,7 +384,7 @@ If the customer asks to see pictures of them, you MUST use the provided Image UR
     // If Layer 1 failed, it means we couldn't identify the exact product. Injecting the
     // "most recent" product from history would give the WRONG product (different from what was in the image).
     // Better to let the AI ask "which product?" than to confidently give wrong info.
-    const shouldRunLayer2 = !replyToMid && !preMatchedProductId && !mediaType && messageText && !messageText.includes("[SYSTEM_INSTRUCTION:");
+    const shouldRunLayer2 = !preMatchedProductId && !mediaType && messageText && !messageText.includes("[SYSTEM_INSTRUCTION:");
     
     if (shouldRunLayer2) {
       try {
