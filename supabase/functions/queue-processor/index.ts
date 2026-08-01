@@ -154,25 +154,75 @@ Deno.serve(async (req: Request) => {
   // ── Reply-to Context: If customer replied to a specific AI image, inject product context
   // When a customer clicks "Reply" on a product image and asks "Price?", we need to tell
   // the AI exactly which product image they replied to.
+  // ── Reply-to Context: If customer replied to a specific AI image or user image
+  // When a customer clicks "Reply" on an image, we resolve the image URL or product context.
+  let resolvedRepliedMediaUrl: string | undefined = undefined;
   if (replyToMid && !mediaType) {
     try {
       const sbCtx = getSupabaseClient();
-      // Look up the message the customer replied to
-      const { data: repliedMsg } = await sbCtx
+      const cleanMid = replyToMid.replace(/^m_/, "");
+      
+      // 1. DB Lookup: check exact mid, m_ prefixed, and clean mid
+      const { data: repliedMsgs } = await sbCtx
         .from("messages")
-        .select("content, platform_message_id")
-        .eq("platform_message_id", replyToMid)
-        .single();
+        .select("content, media_url, media_type, platform_message_id")
+        .eq("conversation_id", conversation.id)
+        .or(`platform_message_id.eq.${replyToMid},platform_message_id.eq.m_${cleanMid},platform_message_id.eq.${cleanMid},platform_message_id.ilike.%${cleanMid}%`)
+        .limit(5);
 
-      if (repliedMsg?.content) {
-        // Check if this message has PRODUCT_CONTEXT (AI had shown a product image)
-        const ctxMatch = repliedMsg.content.match(/\[PRODUCT_CONTEXT: ID=([^\|]+) \| Name=([^\|]+) \| Price=([^\|]+) \| Category=([^\]]+)\]/);
+      let foundContextNote: string | undefined = undefined;
+      let foundMediaUrl: string | undefined = undefined;
+
+      for (const msg of repliedMsgs ?? []) {
+        if (msg.content?.includes("[PRODUCT_CONTEXT:")) {
+          foundContextNote = msg.content;
+          break;
+        }
+        if (msg.media_url && !foundMediaUrl) {
+          foundMediaUrl = msg.media_url;
+        }
+      }
+
+      if (foundContextNote) {
+        const ctxMatch = foundContextNote.match(/\[PRODUCT_CONTEXT: ID=([^\|]+) \| Name=([^\|]+) \| Price=([^\|]+) \| Category=([^\]]+)\]/);
         if (ctxMatch) {
           const [, prodId, prodName, prodPrice] = ctxMatch;
-          const replyContext = `[SYSTEM_INSTRUCTION: কাস্টমার আপনার পাঠানো "${prodName.trim()}" (দাম: ${prodPrice.trim()}) হেলমেটের ছবিটিতে সরাসরি Reply করে এই প্রশ্ন করেছে। তারা এই নির্দিষ্ট পণ্যটির ব্যাপারেই জিজ্ঞেস করছে। অন্য কোনো পণ্যের কথা বলবে না। detectedProductId = "${prodId.trim()}" হিসেবে সেট করো।]\n`;
+          const replyContext = `[SYSTEM_INSTRUCTION: কাস্টমার আপনার পাঠানো "${prodName.trim()}" (দাম: ৳${prodPrice.trim()}) হেলমেটের ছবিটিতে সরাসরি Reply করে এই প্রশ্ন করেছে। তারা এই নির্দিষ্ট পণ্যটির ব্যাপারেই জিজ্ঞেস করছে। অন্য কোনো পণ্যের কথা বলবে না। detectedProductId = "${prodId.trim()}" হিসেবে সেট করো।]\n`;
           messageText = replyContext + (messageText || "");
-          console.log(`Reply-to context injected: Product "${prodName.trim()}" (ID: ${prodId.trim()})`);
+          console.log(`Reply-to DB context injected: Product "${prodName.trim()}" (ID: ${prodId.trim()})`);
         }
+      } else if (foundMediaUrl) {
+        resolvedRepliedMediaUrl = foundMediaUrl;
+        console.log(`Reply-to DB mediaUrl resolved: ${foundMediaUrl}`);
+      }
+
+      // 2. Meta Graph API Lookup fallback: if DB didn't have the message/url yet, fetch directly from Meta Graph API
+      if (!foundContextNote && !resolvedRepliedMediaUrl && (platform === "messenger" || platform === "instagram")) {
+        try {
+          const { getMetaSettings } = await import("../_shared/supabase-client.ts");
+          const metaSettings = await getMetaSettings();
+          const token = metaSettings.meta_access_token || Deno.env.get("META_PAGE_ACCESS_TOKEN");
+          if (token) {
+            const graphRes = await fetch(`https://graph.facebook.com/v19.0/${replyToMid}?fields=attachments,message&access_token=${token}`);
+            if (graphRes.ok) {
+              const graphData = await graphRes.json();
+              const attUrl = graphData?.attachments?.data?.[0]?.payload?.url;
+              if (attUrl) {
+                resolvedRepliedMediaUrl = attUrl;
+                console.log(`Reply-to Meta Graph API mediaUrl fetched: ${attUrl}`);
+              }
+            }
+          }
+        } catch (metaFetchErr) {
+          console.error("Failed to fetch replied message from Meta Graph API:", metaFetchErr);
+        }
+      }
+
+      // 3. If an image URL was resolved for the replied message, set mediaUrl & mediaType to trigger Vector Search + Gemini Vision!
+      if (resolvedRepliedMediaUrl) {
+        mediaUrl = resolvedRepliedMediaUrl;
+        mediaType = "image";
+        console.log(`Set mediaUrl from replied message for Vector Search + Gemini Vision: ${mediaUrl}`);
       }
     } catch (replyCtxErr) {
       console.error("Reply-to context lookup failed:", replyCtxErr);
@@ -470,12 +520,21 @@ If the customer asks to see pictures of them, you MUST use the provided Image UR
         urls.push(aiResult.productImageUrl);
       }
 
-      // Send each image — capture the returned mid for single-image case
+      // Send each image — capture the returned mid and save image message to DB
       let sentImageMid: string | undefined = undefined;
       for (const imgUrl of urls) {
         try {
           const mid = await sendImageMessage(platform as Platform, platformId, imgUrl);
           if (mid && urls.length === 1) sentImageMid = mid; // only track mid for single image
+          
+          // Save image message entry to DB for accurate reply lookup
+          await saveMessage({
+            conversationId: conversation.id,
+            role: "ai",
+            mediaType: "image",
+            mediaUrl: imgUrl,
+            platformMessageId: mid,
+          });
         } catch (imgErr) {
           console.error("Failed to send image:", imgUrl, imgErr);
         }
