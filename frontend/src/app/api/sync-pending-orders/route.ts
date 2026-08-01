@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { decryptSecret } from "@/lib/encryption";
 
-export async function POST() {
+export async function POST(req: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   try {
+    const body = await req.json().catch(() => ({}));
+    const selectedOrderIds: string[] = body?.orderIds || [];
+
     // 1. Get the settings
     const { data: settings, error: settingsError } = await supabase
       .from("business_settings")
@@ -14,33 +18,50 @@ export async function POST() {
       .single();
 
     if (settingsError || !settings || !settings.woo_api_url) {
-      return NextResponse.json({ error: "WooCommerce credentials not set" }, { status: 400 });
+      return NextResponse.json({ error: "WooCommerce credentials not set in Settings" }, { status: 400 });
     }
 
-    // 2. Fetch all pending or failed orders from the database
-    const { data: pendingOrders, error: ordersError } = await supabase
+    let consumerKey = settings.woo_consumer_key || "";
+    let consumerSecret = settings.woo_consumer_secret || "";
+
+    if (consumerKey.includes(":")) {
+      try { consumerKey = decryptSecret(consumerKey); } catch (_) {}
+    }
+    if (consumerSecret.includes(":")) {
+      try { consumerSecret = decryptSecret(consumerSecret); } catch (_) {}
+    }
+
+    // 2. Fetch selected orders or pending/failed orders
+    let query = supabase
       .from("orders")
       .select("*, customers(name, platform_id, platform)")
-      .in("woo_sync_status", ["pending", "failed"])
-      .not("status", "eq", "cancelled"); // don't sync cancelled ones
+      .not("status", "eq", "cancelled");
+
+    if (selectedOrderIds.length > 0) {
+      query = query.in("id", selectedOrderIds);
+    } else {
+      query = query.in("woo_sync_status", ["pending", "failed"]);
+    }
+
+    const { data: pendingOrders, error: ordersError } = await query;
 
     if (ordersError || !pendingOrders || pendingOrders.length === 0) {
       return NextResponse.json({ success: true, count: 0 });
     }
 
-    // 3. Process each pending order
+    // 3. Process each selected order
     let syncedCount = 0;
     const apiUrl = settings.woo_api_url.replace(/\/$/, "");
-    const authString = Buffer.from(`${settings.woo_consumer_key}:${settings.woo_consumer_secret}`).toString("base64");
+    const authString = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
 
     for (const order of pendingOrders) {
       try {
         const lineItems = (order.items || [])
-          .filter((i: any) => i.wooProductId)
           .map((i: any) => ({
-            product_id: i.wooProductId,
-            quantity: i.qty,
-          }));
+            product_id: i.wooProductId || i.productId,
+            quantity: i.qty || 1,
+          }))
+          .filter((i: any) => i.product_id);
 
         if (lineItems.length === 0) {
           // Can't push an order with no mapped products

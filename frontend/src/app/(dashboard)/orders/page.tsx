@@ -32,12 +32,50 @@ export default function OrdersPage() {
   const [syncId, setSyncId] = useState<string|null>(null);
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [syncingAll, setSyncingAll] = useState(false);
-  const [editOrder, setEditOrder] = useState<Order | null>(null);
-  const [updating, setUpdating] = useState(false);
-  const [expandedOrder, setExpandedOrder] = useState<string|null>(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [syncingSelected, setSyncingSelected] = useState(false);
   const sb = createClient();
 
   useEffect(() => { load(); }, [filter]);
+
+  const toggleSelectAll = () => {
+    if (shown.length > 0 && selectedOrderIds.size === shown.length) {
+      setSelectedOrderIds(new Set());
+    } else {
+      setSelectedOrderIds(new Set(shown.map(o => o.id)));
+    }
+  };
+
+  const toggleSelectOrder = (id: string) => {
+    const next = new Set(selectedOrderIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedOrderIds(next);
+  };
+
+  const syncSelectedOrders = async () => {
+    if (selectedOrderIds.size === 0) return;
+    setSyncingSelected(true);
+    toast.loading(`Sending ${selectedOrderIds.size} selected order(s) to website...`, { id: "sync-selected" });
+    try {
+      const res = await fetch("/api/sync-pending-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderIds: Array.from(selectedOrderIds) }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        toast.success(`Successfully sent ${json.count || selectedOrderIds.size} order(s) to website!`, { id: "sync-selected" });
+        setSelectedOrderIds(new Set());
+        load();
+      } else {
+        toast.error(json.error || "Sync failed", { id: "sync-selected" });
+      }
+    } catch (e) {
+      toast.error("Network error during sync", { id: "sync-selected" });
+    }
+    setSyncingSelected(false);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -136,6 +174,28 @@ export default function OrdersPage() {
           <p style={pageSubtitle}>Manage orders and WooCommerce sync</p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          {/* Send Selected to Website Button */}
+          {selectedOrderIds.size > 0 && (
+            <button
+              onClick={syncSelectedOrders}
+              disabled={syncingSelected}
+              style={{
+                ...btnPrimary,
+                padding: "8px 16px",
+                background: "#10b981",
+                fontSize: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                borderRadius: 12,
+                boxShadow: "0 4px 12px rgba(16,185,129,0.3)"
+              }}
+            >
+              <RefreshCcw size={13} style={{ animation: syncingSelected ? "spin 1s linear infinite" : "none" }} />
+              ওয়েবসাইটে পাঠান ({selectedOrderIds.size} selected)
+            </button>
+          )}
+
           {/* Toggle Switch */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, padding: "8px 12px", borderRadius: 12, border: `1px solid ${C.border}` }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: syncEnabled ? C.brandLight : C.textMuted }}>
@@ -186,6 +246,14 @@ export default function OrdersPage() {
           <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:0 }}>
             <thead>
               <tr>
+                <th style={{ ...thStyle, width: 40, textAlign: "center" }}>
+                  <input 
+                    type="checkbox"
+                    checked={shown.length > 0 && selectedOrderIds.size === shown.length}
+                    onChange={toggleSelectAll}
+                    style={{ cursor: "pointer", accentColor: C.brand }}
+                  />
+                </th>
                 {["Order","Customer","Items","Amount","Status","WooSync","Action"].map(h=>(
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
@@ -194,19 +262,28 @@ export default function OrdersPage() {
             <tbody>
               {loading ? (
                 [...Array(5)].map((_,i)=>(
-                  <tr key={i}><td colSpan={7} style={{padding:"8px 16px"}}>
+                  <tr key={i}><td colSpan={8} style={{padding:"8px 16px"}}>
                     <div style={{...skeletonStyle,height:24}}/>
                   </td></tr>
                 ))
               ) : shown.length===0 ? (
-                <tr><td colSpan={7} style={{padding:"60px 16px",textAlign:"center",color:C.textMuted}}>
+                <tr><td colSpan={8} style={{padding:"60px 16px",textAlign:"center",color:C.textMuted}}>
                   <ShoppingCart size={44} style={{opacity:0.1,margin:"0 auto 12px",display:"block"}}/>
                   No orders found
                 </td></tr>
               ) : shown.map(o=>{
                 const [sc,sbg] = statusColors[o.status]??[C.textMuted,C.elevated];
+                const isSelected = selectedOrderIds.has(o.id);
                 return (
-                  <tr key={o.id} style={{transition:"background 0.12s"}}>
+                  <tr key={o.id} style={{transition:"background 0.12s", background: isSelected ? "rgba(124,92,252,0.08)" : "transparent"}}>
+                    <td style={{ ...tdStyle, width: 40, textAlign: "center" }}>
+                      <input 
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectOrder(o.id)}
+                        style={{ cursor: "pointer", accentColor: C.brand }}
+                      />
+                    </td>
                     <td style={tdStyle}>
                       <div style={{fontWeight:600,fontSize:12,color:C.textPrimary,fontFamily:"monospace"}}>#{o.id.slice(0,8)}</div>
                       <div style={{fontSize:11,color:C.textMuted,marginTop:2}}>{format(new Date(o.created_at),"MMM d, h:mm a")}</div>
