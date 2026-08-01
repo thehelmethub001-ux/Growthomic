@@ -474,18 +474,47 @@ If the customer asks to see pictures of them, you MUST use the provided Image UR
 
       // Save a hidden context message so AI knows which product was shown
       // Also saves the platform_message_id so reply_to lookups work
+      // Try detectedProductId first, then fall back to image URL lookup
+      let productForContext: { id: string; name: string; salePrice?: number; regularPrice: number; category?: string } | null = null;
+      
       if (aiResult.detectedProductId) {
         const { getProductById } = await import("../_shared/supabase-client.ts");
-        const shownProduct = await getProductById(aiResult.detectedProductId);
-        if (shownProduct) {
-          const contextNote = `[PRODUCT_CONTEXT: ID=${shownProduct.id} | Name=${shownProduct.name} | Price=৳${shownProduct.salePrice ?? shownProduct.regularPrice} | Category=${shownProduct.category ?? "-"}]`;
-          await saveMessage({
-            conversationId: conversation.id,
-            role: "ai",
-            content: contextNote,
-            platformMessageId: sentImageMid, // link the FB mid to this context
-          });
+        productForContext = await getProductById(aiResult.detectedProductId);
+      } else if (urls.length === 1 && urls[0]) {
+        // AI sent exactly one image but didn't set detectedProductId — look up by image URL
+        try {
+          const sbProd = getSupabaseClient();
+          const imageUrlToSearch = urls[0];
+          const { data: prodByImage } = await sbProd
+            .from("products")
+            .select("id, name, regular_price, sale_price, category")
+            .contains("images", JSON.stringify([imageUrlToSearch]))
+            .limit(1)
+            .maybeSingle();
+          if (prodByImage) {
+            productForContext = {
+              id: prodByImage.id,
+              name: prodByImage.name,
+              regularPrice: prodByImage.regular_price,
+              salePrice: prodByImage.sale_price,
+              category: prodByImage.category,
+            };
+            console.log(`[CTX] Product found by image URL: ${prodByImage.name}`);
+          }
+        } catch (imgLookupErr) {
+          console.error("Image URL product lookup failed:", imgLookupErr);
         }
+      }
+
+      if (productForContext) {
+        const contextNote = `[PRODUCT_CONTEXT: ID=${productForContext.id} | Name=${productForContext.name} | Price=৳${productForContext.salePrice ?? productForContext.regularPrice} | Category=${productForContext.category ?? "-"}]`;
+        await saveMessage({
+          conversationId: conversation.id,
+          role: "ai",
+          content: contextNote,
+          platformMessageId: sentImageMid, // link the FB mid to this context
+        });
+        console.log(`[CTX] Saved PRODUCT_CONTEXT: "${productForContext.name}" mid=${sentImageMid ?? "none"}`);
       }
     }
 

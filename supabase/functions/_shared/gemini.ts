@@ -156,7 +156,8 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
 - কাস্টমার যদি EXPLICITLY একটি পণ্যের বা নির্দিষ্ট ভ্যারিয়েশনের (কালার/সাইজ) ছবি চায় (যেমন: "লাল রঙের ছবি দাও", "দেখতে কেমন", "photo pathao") তাহলে:
   - নির্দিষ্ট কালারের ভ্যারিয়েশন চাইলে: KNOWLEDGE BASE-এ ভ্যারিয়েশনের URL থাকলে "sendProductImage": true এবং "productImageUrl": "ভ্যারিয়েশনের URL" দেবে।
   - সাধারণ পণ্যের জন্য: "sendProductImage": true, "detectedProductId": "<ID>"
-  - IMAGE ONLY MODE: শুধু ছবি চাইলে — "imageOnly": true, "reply": "", "sendProductImage": true
+  - ⚠️ CRITICAL: একটি নির্দিষ্ট পণ্যের ছবি পাঠানোর সময় "detectedProductId" অবশ্যই সেই product-এর UUID দিতে হবে, কখনো null রাখবে না।
+  - IMAGE ONLY MODE: শুধু ছবি চাইলে — "imageOnly": true, "reply": "", "sendProductImage": true, "detectedProductId": "<ID>"
 - কাস্টমার যদি একাধিক পণ্যের ছবি চায় (যেমন: "সব হেলমেটের ছবি দাও", "সবগুলো দেখাও"):
   - "sendProductImage": true, "productImageUrls": ["url1", "url2", ...] (KNOWLEDGE BASE থেকে image URL)
   - imageOnly মোডে reply ফাঁকা রাখবে
