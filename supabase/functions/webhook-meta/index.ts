@@ -77,8 +77,13 @@ function parseMessengerEvent(
 
     if (!sender?.id || !message) return null;
 
-    // Ignore echo (bot's own messages)
-    if (message.is_echo) return null;
+    // Handle echo (bot's own messages) to link image message IDs
+    if (message.is_echo) {
+      handleMessengerEcho(message, (entry?.id as string) || "").catch((err) =>
+        console.error("handleMessengerEcho error:", err)
+      );
+      return null;
+    }
 
     const payload: QueuePayload = {
       platformMessageId: message.mid as string,
@@ -118,6 +123,53 @@ function parseMessengerEvent(
   } catch (err) {
     console.error("parseMessengerEvent error:", err);
     return null;
+  }
+}
+
+// ============================================================
+// Handle Message Echo — when OUR bot sends a message,
+// Facebook sends an echo event with the confirmed mid.
+// We use this to update PRODUCT_CONTEXT records with the correct mid.
+// ============================================================
+async function handleMessengerEcho(
+  message: Record<string, unknown>,
+  pageId: string
+): Promise<void> {
+  try {
+    const mid = message.mid as string;
+    if (!mid) return;
+
+    // Only care about image echoes (our bot sent an image = product image)
+    const attachments = message.attachments as Array<{ type: string; payload: { url?: string } }> | undefined;
+    const isImageEcho = attachments?.some(a => a.type === "image");
+    if (!isImageEcho) return;
+
+    // Find the most recent PRODUCT_CONTEXT message WITHOUT a platform_message_id
+    // that belongs to the same page's conversations
+    const { getSupabaseClient } = await import("../_shared/supabase-client.ts");
+    const sb = getSupabaseClient();
+
+    // Find PRODUCT_CONTEXT messages without a mid (saved when we couldn't capture mid from API)
+    const { data: ctxMessages } = await sb
+      .from("messages")
+      .select("id, content, created_at")
+      .eq("role", "ai")
+      .like("content", "[PRODUCT_CONTEXT:%")
+      .is("platform_message_id", null)
+      .order("created_at", { ascending: false })
+      .limit(3);
+
+    if (ctxMessages && ctxMessages.length > 0) {
+      // Update the most recent unlinked PRODUCT_CONTEXT with this confirmed mid
+      const targetMsg = ctxMessages[0];
+      await sb
+        .from("messages")
+        .update({ platform_message_id: mid })
+        .eq("id", targetMsg.id);
+      console.log(`[ECHO] Linked PRODUCT_CONTEXT "${targetMsg.content?.substring(0, 50)}" → mid=${mid}`);
+    }
+  } catch (echoErr) {
+    console.error("Echo handler error:", echoErr);
   }
 }
 

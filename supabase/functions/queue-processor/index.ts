@@ -333,12 +333,19 @@ If the customer asks to see pictures of them, you MUST use the provided Image UR
 
     // ── Step 6.7: Product Context Injection (2-Layer System)
     // Layer 1: reply_to.mid lookup (already done above at line ~154)
-    // Layer 2: Fallback — scan conversation history for most recent PRODUCT_CONTEXT
-    // This runs if: no preMatchedProductId, no image, messageText looks like a follow-up
-    if (!preMatchedProductId && !mediaType && messageText && !messageText.includes("[SYSTEM_INSTRUCTION:")) {
+    // Layer 2: Fallback — scan conversation history ONLY when no specific reply_to reference
+    //
+    // ⚠️ IMPORTANT: Layer 2 must NOT run when replyToMid is present.
+    // If the customer replied to a specific image (replyToMid exists), Layer 1 already tried the DB lookup.
+    // If Layer 1 failed, it means we couldn't identify the exact product. Injecting the
+    // "most recent" product from history would give the WRONG product (different from what was in the image).
+    // Better to let the AI ask "which product?" than to confidently give wrong info.
+    const shouldRunLayer2 = !replyToMid && !preMatchedProductId && !mediaType && messageText && !messageText.includes("[SYSTEM_INSTRUCTION:");
+    
+    if (shouldRunLayer2) {
       try {
         // Get extended history to find PRODUCT_CONTEXT
-        const fullHistory = await getConversationHistory(conversation.id, 30);
+        const fullHistory = await getConversationHistory(conversation.id, 20);
         
         // Find the most recent PRODUCT_CONTEXT in AI messages (scan in reverse = newest first)
         let lastCtxMatch: RegExpMatchArray | null = null;
@@ -355,25 +362,27 @@ If the customer asks to see pictures of them, you MUST use the provided Image UR
           }
         }
 
-        // If a recent PRODUCT_CONTEXT exists (within last 15 messages) and 
-        // customer message looks like a price/buy follow-up without naming a product
-        if (lastCtxMatch && lastCtxAge <= 15) {
+        // Only inject if PRODUCT_CONTEXT is very recent (≤6 messages ago) to avoid stale context
+        // and message looks like a follow-up (price/buy inquiry)
+        if (lastCtxMatch && lastCtxAge <= 6) {
           const [, prodId, prodName, prodPrice] = lastCtxMatch;
-          // Simple heuristic: if message is short OR contains price/buy keywords
           const msgLower = (messageText || "").toLowerCase();
           const isFollowUp = 
             messageText.length <= 40 || // short message = likely follow-up
-            /price|দাম|কত|নিতে|কিনব|কিনতে|order|অর্ডার|buy|কিনব|stock|পাঠান|বুক/.test(msgLower);
+            /price|দাম|কত|নিতে|কিনব|কিনতে|order|অর্ডার|buy|stock|পাঠান|বুক/.test(msgLower);
           
           if (isFollowUp) {
-            const ctxInject = `[SYSTEM_INSTRUCTION: Conversation history-এ দেখা যাচ্ছে সম্প্রতি "${prodName.trim()}" (দাম: ${prodPrice.trim()}) পণ্যটির ছবি/তথ্য দেওয়া হয়েছে। কাস্টমারের বর্তমান বার্তাটি সম্ভবত এই পণ্যটি সম্পর্কেই। detectedProductId = "${prodId.trim()}" হিসেবে সেট করো এবং এই পণ্যের তথ্য দিয়ে উত্তর দাও।]\n`;
+            const ctxInject = `[SYSTEM_INSTRUCTION: কাস্টমার কোনো নির্দিষ্ট ছবিতে reply না করে সরাসরি বার্তা দিয়েছে। Conversation history-তে দেখা যাচ্ছে সম্প্রতি "${prodName.trim()}" (দাম: ${prodPrice.trim()}) পণ্যটির তথ্য/ছবি দেওয়া হয়েছে। কাস্টমারের বার্তাটি সম্ভবত এই পণ্যটি সম্পর্কেই। detectedProductId = "${prodId.trim()}" হিসেবে সেট করো।]\n`;
             messageText = ctxInject + (messageText || "");
-            console.log(`[Layer2-CTX] Injected product context: "${prodName.trim()}" (age: ${lastCtxAge} msgs ago)`);
+            console.log(`[Layer2-CTX] Injected: "${prodName.trim()}" (${lastCtxAge} msgs ago)`);
           }
         }
       } catch (ctxErr) {
         console.error("Layer2 product context injection failed:", ctxErr);
       }
+    } else if (replyToMid && !messageText?.includes("[SYSTEM_INSTRUCTION:")) {
+      // replyToMid present but Layer 1 couldn't find exact product — log and skip injection
+      console.log(`[Layer2-SKIP] replyToMid=${replyToMid} present but Layer1 lookup failed. AI will ask for clarification.`);
     }
 
     // ── Step 7: AI Engine
