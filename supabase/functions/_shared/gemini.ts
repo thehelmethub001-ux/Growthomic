@@ -174,9 +174,9 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
   "orderData": null,
   "sendProductImage": false,
   "productImageUrl": "একটি product-এর image URL অথবা null",
-  "productImageUrls": null,
   "sendVideo": false,
   "videoUrl": null
+}`;
 }
 
 // ============================================================
