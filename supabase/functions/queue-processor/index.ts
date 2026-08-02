@@ -321,12 +321,12 @@ Deno.serve(async (req: Request) => {
         if (matchData?.success && matchData.matches?.length > 0) {
           const topMatch = matchData.matches[0];
           let isConfident = false;
-          if (topMatch.similarity >= 0.75) {
+          if (topMatch.similarity >= 0.88) {
             if (matchData.matches.length > 1) {
               const secondMatch = matchData.matches[1];
               // Mirrors and visors can have very similar embeddings (margin > 0.10). 
-              // We must use a large margin (0.20) to ensure we don't confidently pick the wrong generic item.
-              if (topMatch.similarity - secondMatch.similarity >= 0.20) {
+              // We must use a large margin (0.15) and high score (0.88) to ensure we don't confidently pick the wrong generic item.
+              if (topMatch.similarity - secondMatch.similarity >= 0.15) {
                 isConfident = true;
               } else {
                 console.log(`Ambiguous: Top match (${topMatch.similarity}) is too close to second match (${secondMatch.similarity})`);
@@ -339,17 +339,17 @@ Deno.serve(async (req: Request) => {
           if (isConfident) {
              console.log(`Confirmed image match: ${topMatch.id} (Score: ${topMatch.similarity})`);
              preMatchedProductId = topMatch.id;
-             messageText = `[SYSTEM_INSTRUCTION: The customer just sent a photo of the following product:
+             messageText = `[SYSTEM_INSTRUCTION: Customer sent a photo. Analyze the customer's photo visually using Gemini Vision against our product catalog candidate:
 Product Name: ${topMatch.name}
 Product ID: ${topMatch.id}
 Price: ৳${topMatch.sale_price || topMatch.regular_price}
 
-Act like a real human shopkeeper who just saw the customer pointing at a helmet in the shop. 
-CRITICAL RULE: Do NOT say anything like "your sent picture matched with our product". That sounds like a robot.
-Start your response naturally with something like: "জি স্যার, এই মডেলটি তো আমাদের স্টকে এভেইলেবল আছে!"
-ALWAYS address the customer as "স্যার" (Sir). Keep it very conversational and friendly.] ` + (messageText || "");
+CRITICAL RULES:
+1. NEVER say "আপনার পাঠানো ছবির সাথে আমাদের প্রোডাক্টের মিল পাওয়া গেছে", "মিলেছে", or "match found". That sounds like a robot!
+2. If the customer's photo is NOT an exact match of this store product (e.g. custom mirror/part we don't sell), state: "স্যার, দুঃখিত আপনার পাঠানো এই নির্দিষ্ট মডেলটি আমাদের কাছে বর্তমানে নেই। তবে আমাদের কাছে ${topMatch.name} মডেলটি রয়েছে, দাম ৳${topMatch.sale_price || topMatch.regular_price}। আপনি কি এটি দেখতে চান?"
+3. If it IS an exact visual match, state the price and details naturally. NEVER say "স্টকে আছে" or "এভেইলেবল আছে".] ` + (messageText || "");
           } else {
-             // 0.70 to 0.85 range - ask for confirmation
+             // 0.70 to 0.88 range - ask for confirmation
              console.log(`Ambiguous matches found. Top score: ${topMatch.similarity}`);
              const optionsText = matchData.matches.map((m: any, i: number) => `- ${m.name} (Price: ৳${m.sale_price || m.regular_price}, Image URL: ${m.images?.[0] || 'None'})`).join("\n");
              
@@ -361,14 +361,13 @@ ALWAYS address the customer as "স্যার" (Sir). Keep it very conversatio
              })).filter((c: any) => c.imageUrl);
              
              const instruction = `[SYSTEM_INSTRUCTION: 
-কাস্টমার একটি ছবি পাঠিয়েছে যে প্রোডাক্টটির আমাদের কাছে কয়েকটি ভ্যারিয়েন্ট/মডেল আছে:
+কাস্টমার একটি ছবি পাঠিয়েছে যা আমাদের ক্যাটাগরির কয়েকটি প্রোডাক্টের সাথে সাদৃশ্যপূর্ণ হতে পারে:
 ${optionsText}
 
-⚠️ CRITICAL RULE: কখনোই বলবে না "আপনার পাঠানো ছবির সাথে আমাদের কয়েকটি পণ্যের মিল পাওয়া গেছে" বা এরকম কোনো রোবোটিক কথা!
-একদম স্বাভাবিক মানুষের মতো বলবে: "স্যার, এই প্রোডাক্টটির আমাদের কাছে এই কয়েকটি ভ্যারিয়েন্ট/মডেল আছে:"
-এরপর ন্যাচারালি অপশনগুলোর নাম ও দাম লিস্ট করে বলবে। 
-সবশেষে জিজ্ঞেস করবে: "আপনি কোনটি নিতে চাচ্ছেন?"
-If the customer asks to see pictures of them, you MUST use the provided Image URLs to send them.]`;
+⚠️ CRITICAL RULES:
+1. কখনোই বলবে না "আপনার পাঠানো ছবির সাথে আমাদের কয়েকটি পণ্যের মিল পাওয়া গেছে" বা এরকম কোনো রোবোটিক কথা!
+2. যদি কাস্টমারের কাস্টম পিকচার আমাদের কোনো পণ্যের সাথে না মেলে, বলবে: "স্যার, দুঃখিত আপনার পাঠানো এই মডেলটি আমাদের কাছে নেই। তবে আমাদের কাছে অনুরূপ কিছু মডেল আছে:" এবং অপশনগুলো উল্লেখ করবে।
+3. সবশেষে জিজ্ঞেস করবে: "আপনি কোনটি দেখতে বা নিতে চাচ্ছেন?"]`;
 
              messageText = instruction + "\n" + (messageText || "");
 
