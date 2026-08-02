@@ -339,15 +339,17 @@ Deno.serve(async (req: Request) => {
           if (isConfident) {
              console.log(`Confirmed image match: ${topMatch.id} (Score: ${topMatch.similarity})`);
              preMatchedProductId = topMatch.id;
-             messageText = `[SYSTEM_INSTRUCTION: Customer sent a photo. Analyze the customer's photo visually using Gemini Vision against our product catalog candidate:
-Product Name: ${topMatch.name}
-Product ID: ${topMatch.id}
-Price: ৳${topMatch.sale_price || topMatch.regular_price}
+             messageText = `[SYSTEM_INSTRUCTION: Customer sent an image of a product. 
+Target Product: ${topMatch.name} (Price: ৳${topMatch.sale_price || topMatch.regular_price})
 
-CRITICAL RULES:
-1. NEVER say "আপনার পাঠানো ছবির সাথে আমাদের প্রোডাক্টের মিল পাওয়া গেছে", "মিলেছে", or "match found". That sounds like a robot!
-2. If the customer's photo is NOT an exact match of this store product (e.g. custom mirror/part we don't sell), state: "স্যার, দুঃখিত আপনার পাঠানো এই নির্দিষ্ট মডেলটি আমাদের কাছে বর্তমানে নেই। তবে আমাদের কাছে ${topMatch.name} মডেলটি রয়েছে, দাম ৳${topMatch.sale_price || topMatch.regular_price}। আপনি কি এটি দেখতে চান?"
-3. If it IS an exact visual match, state the price and details naturally. NEVER say "স্টকে আছে" or "এভেইলেবল আছে".] ` + (messageText || "");
+HUMAN RESPONSE RULES:
+1. Speak naturally like a real human shopkeeper. State the product name and price directly.
+   Examples of how to reply:
+   - "জি স্যার, এটি আমাদের ${topMatch.name}। এর দাম ৳${topMatch.sale_price || topMatch.regular_price}।"
+   - "জি স্যার, চমৎকার এই ${topMatch.name} মডেলটির দাম ৳${topMatch.sale_price || topMatch.regular_price}।"
+
+2. If the customer's photo is NOT an exact match of this product:
+   - "স্যার, দুঃখিত আপনার পাঠানো এই নির্দিষ্ট মডেলটি আমাদের কাছে বর্তমানে নেই। তবে আমাদের কাছে ${topMatch.name} মডেলটি রয়েছে, দাম ৳${topMatch.sale_price || topMatch.regular_price}। আপনি কি এটি দেখতে চান?"] ` + (messageText || "");
           } else {
              // 0.70 to 0.88 range - ask for confirmation
              console.log(`Ambiguous matches found. Top score: ${topMatch.similarity}`);
@@ -361,13 +363,12 @@ CRITICAL RULES:
              })).filter((c: any) => c.imageUrl);
              
              const instruction = `[SYSTEM_INSTRUCTION: 
-কাস্টমার একটি ছবি পাঠিয়েছে যা আমাদের ক্যাটাগরির কয়েকটি প্রোডাক্টের সাথে সাদৃশ্যপূর্ণ হতে পারে:
+Customer sent an image. We have a few similar options in stock:
 ${optionsText}
 
-⚠️ CRITICAL RULES:
-1. কখনোই বলবে না "আপনার পাঠানো ছবির সাথে আমাদের কয়েকটি পণ্যের মিল পাওয়া গেছে" বা এরকম কোনো রোবোটিক কথা!
-2. যদি কাস্টমারের কাস্টম পিকচার আমাদের কোনো পণ্যের সাথে না মেলে, বলবে: "স্যার, দুঃখিত আপনার পাঠানো এই মডেলটি আমাদের কাছে নেই। তবে আমাদের কাছে অনুরূপ কিছু মডেল আছে:" এবং অপশনগুলো উল্লেখ করবে।
-3. সবশেষে জিজ্ঞেস করবে: "আপনি কোনটি দেখতে বা নিতে চাচ্ছেন?"]`;
+Speak naturally like a real human shopkeeper:
+"স্যার, এই ধরনের প্রোডাক্টের আমাদের কাছে এই মডেলগুলো রয়েছে:"
+Then list the names and prices naturally and ask: "আপনি কোনটি দেখতে বা নিতে চাচ্ছেন?"]`;
 
              messageText = instruction + "\n" + (messageText || "");
 
