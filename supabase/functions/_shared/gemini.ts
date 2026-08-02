@@ -17,7 +17,7 @@ import {
 import type { AIResult, BusinessSettings, LearnedResponse, MessageIntent, Product, Offer } from "./types.ts";
 
 const GEMINI_TEXT_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
 
 // Fallback logic
 async function callOpenAIFallback(apiKey: string, messages: any[], systemPrompt: string): Promise<any> {
