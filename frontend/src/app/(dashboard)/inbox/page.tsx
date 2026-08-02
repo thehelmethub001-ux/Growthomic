@@ -277,27 +277,32 @@ export default function InboxPage() {
 
           <div ref={chatContainerRef} style={{ flex:1, overflowY:"auto", padding:"20px 24px", display:"flex", flexDirection:"column", gap:10 }}>
             {msgs.length === 0 && <div style={{ textAlign:"center", color:C.textMuted, marginTop:20 }}>No messages yet.</div>}
-            {msgs.map(m => (
-              <div key={m.id} style={{ display:"flex", justifyContent:m.role==="customer"?"flex-start":"flex-end" }}>
-                <div style={{
-                  maxWidth:"66%", padding:"10px 14px",
-                  borderRadius: m.role==="customer"?"4px 14px 14px 14px":"14px 4px 14px 14px",
-                  fontSize:13, lineHeight:1.6,
-                  background: m.role==="customer"?"var(--bg-elevated)":m.role==="ai"?"hsla(262,83%,58%,0.15)":"hsla(152,60%,50%,0.1)",
-                  border: m.role==="customer"?`1px solid ${C.borderWhite}`:m.role==="ai"?"1px solid hsla(262,83%,58%,0.25)":"1px solid hsla(152,60%,50%,0.2)",
-                  color: m.role==="customer"?"var(--text-primary)":m.role==="ai"?"var(--primary-light)":"hsl(152,60%,60%)",
-                }}>
-                  <div style={{ fontSize:10, opacity:0.5, marginBottom:4, display:"flex", justifyContent:"space-between", gap:10 }}>
-                    <b>{m.role==="ai"?"🤖 AI":m.role==="human_agent"?"👨‍💻 Agent":"Customer"}</b>
-                    <span>{format(new Date(m.created_at),"h:mm a")}</span>
+            {msgs.filter(m => {
+              const clean = m.content ? m.content.replace(/\[SYSTEM_INSTRUCTION:[\s\S]*?\]/g, "").replace(/\[PRODUCT_CONTEXT:[\s\S]*?\]/g, "").trim() : "";
+              return clean.length > 0 || !!m.media_url;
+            }).map(m => {
+              const cleanText = m.content ? m.content.replace(/\[SYSTEM_INSTRUCTION:[\s\S]*?\]/g, "").replace(/\[PRODUCT_CONTEXT:[\s\S]*?\]/g, "").trim() : "";
+              return (
+                <div key={m.id} style={{ display:"flex", justifyContent: m.role==="customer"?"flex-start":"flex-end", marginBottom:12 }}>
+                  <div style={{
+                    maxWidth:"72%", padding:"10px 14px", borderRadius:14, fontSize:13, lineHeight:"1.45",
+                    background: m.role==="customer" ? "var(--bg-elevated)" : m.role==="human_agent" ? "linear-gradient(135deg, #10b981, #059669)" : "linear-gradient(135deg, hsl(262,83%,58%), hsl(271,91%,65%))",
+                    color: "#fff",
+                    border: m.role==="customer" ? `1px solid ${C.borderWhite}` : "none",
+                    boxShadow: m.role==="customer" ? "none" : "0 4px 14px rgba(124,92,252,0.25)",
+                  }}>
+                    <div style={{ fontSize:10, opacity:0.5, marginBottom:4, display:"flex", justifyContent:"space-between", gap:10 }}>
+                      <b>{m.role==="ai"?"🤖 AI":m.role==="human_agent"?"👨‍💻 Agent":"Customer"}</b>
+                      <span>{format(new Date(m.created_at),"h:mm a")}</span>
+                    </div>
+                    {m.media_url && m.media_type === "image" && (
+                      <img src={m.media_url} alt="attachment" onLoad={scrollToBottom} style={{ maxWidth: "100%", borderRadius: 8, marginBottom: 8, border: `1px solid ${C.borderWhite}` }} />
+                    )}
+                    {cleanText && <p style={{ margin:0, whiteSpace:"pre-wrap" }}>{cleanText}</p>}
                   </div>
-                  {m.media_url && m.media_type === "image" && (
-                    <img src={m.media_url} alt="attachment" onLoad={scrollToBottom} style={{ maxWidth: "100%", borderRadius: 8, marginBottom: 8, border: `1px solid ${C.borderWhite}` }} />
-                  )}
-                  <p style={{ margin:0, whiteSpace:"pre-wrap" }}>{m.content}</p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             <div ref={msgsEndRef} />
           </div>
 
