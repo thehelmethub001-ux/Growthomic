@@ -392,11 +392,8 @@ Then list the names and prices naturally and ask: "আপনি কোনটি 
     // Layer 2: Fallback — scan conversation history ONLY when no specific reply_to reference
     //
     // ⚠️ IMPORTANT: Layer 2 must NOT run when replyToMid is present.
-    // If the customer replied to a specific image (replyToMid exists), Layer 1 already tried the DB lookup.
-    // If Layer 1 failed, it means we couldn't identify the exact product. Injecting the
-    // "most recent" product from history would give the WRONG product (different from what was in the image).
-    // Better to let the AI ask "which product?" than to confidently give wrong info.
-    const shouldRunLayer2 = !preMatchedProductId && !mediaType && messageText && !messageText.includes("[SYSTEM_INSTRUCTION:");
+    // We are disabling Layer 2 guessing entirely to prevent hallucination.
+    const shouldRunLayer2 = false;
     
     if (shouldRunLayer2) {
       try {
