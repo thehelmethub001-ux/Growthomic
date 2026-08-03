@@ -84,6 +84,28 @@ export default function OrdersPage() {
     setSelectedOrderIds(next);
   };
 
+  const retrySync = async (id: string) => {
+    setSyncId(id);
+    toast.loading("Retrying sync...", { id: "retry-sync" });
+    try {
+      const res = await fetch("/api/sync-pending-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderIds: [id] }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        toast.success("Sync successful!", { id: "retry-sync" });
+        load();
+      } else {
+        toast.error(json.error || "Sync failed", { id: "retry-sync" });
+      }
+    } catch (e) {
+      toast.error("Network error during sync", { id: "retry-sync" });
+    }
+    setSyncId(null);
+  };
+
   const syncSelectedOrders = async () => {
     if (selectedOrderIds.size === 0) return;
     setSyncingSelected(true);
@@ -397,7 +419,7 @@ export default function OrdersPage() {
                       ) : o.woo_sync_status==="failed" ? (
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <span style={{padding:"2px 8px",borderRadius:100,fontSize:10,fontWeight:700,background:"rgba(244,63,94,0.12)",color:"#fb7185"}}>Failed</span>
-                          <button onClick={()=>setSyncId(o.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.textMuted,padding:2,display:"flex"}}>
+                          <button onClick={()=>retrySync(o.id)} disabled={syncId===o.id} style={{background:"none",border:"none",cursor:syncId===o.id?"not-allowed":"pointer",color:C.textMuted,padding:2,display:"flex"}}>
                             <RefreshCcw size={13} style={{animation:syncId===o.id?"spin 1s linear infinite":"none"}}/>
                           </button>
                         </div>

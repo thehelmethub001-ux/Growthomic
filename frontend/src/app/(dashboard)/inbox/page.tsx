@@ -321,22 +321,14 @@ export default function InboxPage() {
               setTimeout(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, 100);
               
               try {
-                // We directly insert into the messages table for human agent
-                const { error } = await sb.from("messages").insert({
-                  conversation_id: sel.id,
-                  role: "human_agent",
-                  content: text
+                // Call the edge function to send via Meta API, save to DB, and pause AI
+                const { error } = await sb.functions.invoke('manual-reply', {
+                  body: { conversationId: sel.id, text }
                 });
                 
                 if (error) throw error;
                 
-                // Update conversation to show AI is paused and status is open
-                await sb.from("conversations").update({
-                  is_locked_for_ai: true,
-                  status: "open", // Make sure it's active
-                  updated_at: new Date().toISOString()
-                }).eq("id", sel.id);
-                
+                // Optimistically update the local conversation state
                 if (!sel.is_locked_for_ai) {
                   setConvs(cs => cs.map(c => c.id === sel.id ? { ...c, is_locked_for_ai: true, status: "open", updated_at: new Date().toISOString() } : c));
                 }

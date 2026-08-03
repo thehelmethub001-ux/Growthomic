@@ -5,8 +5,20 @@ import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle } from "@/
 import { Plus, Tag, Zap, Clock, CheckCircle2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { format, isBefore, isAfter } from "date-fns";
 
-type Offer = { id:string; title:string; description:string; discount:string; status:"active"|"scheduled"|"ended"; platform:string; reach:number; starts:string; created_at:string };
+type Offer = { 
+  id: string; 
+  name: string; 
+  description: string; 
+  discount_type: "percentage" | "fixed_amount"; 
+  discount_value: number; 
+  min_order_amount: number | null;
+  start_date: string; 
+  end_date: string;
+  is_active: boolean; 
+  created_at: string;
+};
 
 const STATUS_STYLE: Record<string,{color:string;bg:string;icon:React.ReactNode}> = {
   active:    { color:"hsl(152,60%,60%)", bg:"hsla(152,60%,50%,0.1)", icon:<CheckCircle2 size={11}/> },
@@ -14,13 +26,32 @@ const STATUS_STYLE: Record<string,{color:string;bg:string;icon:React.ReactNode}>
   ended:     { color:"var(--text-muted)", bg:"var(--bg-elevated)",   icon:<X size={11}/> },
 };
 
+function getOfferStatus(offer: Offer): "active" | "scheduled" | "ended" {
+  if (!offer.is_active) return "ended";
+  const now = new Date();
+  const start = new Date(offer.start_date);
+  const end = new Date(offer.end_date);
+  if (isAfter(now, end)) return "ended";
+  if (isBefore(now, start)) return "scheduled";
+  return "active";
+}
+
 export default function OffersPage() {
   const [tab, setTab] = useState<"all"|"active"|"scheduled"|"ended">("all");
   const [showModal, setShowModal] = useState(false);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ title:"", description:"", discount:"", platform:"All", starts:"" });
+  const [form, setForm] = useState({ 
+    name: "", 
+    description: "", 
+    discount_type: "percentage", 
+    discount_value: "", 
+    min_order_amount: "",
+    start_date: format(new Date(), "yyyy-MM-dd"),
+    end_date: format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"),
+    is_active: true
+  });
   const sb = createClient();
 
   useEffect(() => { loadOffers(); }, []);
@@ -33,27 +64,50 @@ export default function OffersPage() {
   };
 
   const handleCreate = async () => {
-    if (!form.title || !form.discount) { toast.error("Title and Discount are required"); return; }
+    if (!form.name || !form.discount_value) { toast.error("Name and Discount Value are required"); return; }
     setSaving(true);
-    const { data, error } = await sb.from("offers").insert([form]).select().single();
+    
+    const payload = {
+      name: form.name,
+      description: form.description,
+      discount_type: form.discount_type,
+      discount_value: parseFloat(form.discount_value),
+      min_order_amount: form.min_order_amount ? parseFloat(form.min_order_amount) : null,
+      start_date: new Date(form.start_date).toISOString(),
+      end_date: new Date(form.end_date).toISOString(),
+      is_active: form.is_active
+    };
+
+    const { data, error } = await sb.from("offers").insert([payload]).select().single();
     if (error) {
-      toast.error("Failed to create offer");
+      toast.error("Failed to create offer: " + error.message);
     } else if (data) {
       toast.success("Offer created!");
       setOffers([data as Offer, ...offers]);
       setShowModal(false);
-      setForm({ title:"", description:"", discount:"", platform:"All", starts:"" });
+      setForm({ 
+        name: "", 
+        description: "", 
+        discount_type: "percentage", 
+        discount_value: "", 
+        min_order_amount: "",
+        start_date: format(new Date(), "yyyy-MM-dd"),
+        end_date: format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"),
+        is_active: true
+      });
     }
     setSaving(false);
   };
 
-  const changeStatus = async (id: string, currentStatus: string) => {
-    const nextStatus = currentStatus === "active" ? "ended" : currentStatus === "ended" ? "scheduled" : "active";
-    await sb.from("offers").update({ status: nextStatus }).eq("id", id);
-    setOffers(offers.map(o => o.id === id ? { ...o, status: nextStatus as any } : o));
+  const toggleStatus = async (id: string, currentStatus: boolean) => {
+    const nextStatus = !currentStatus;
+    const { error } = await sb.from("offers").update({ is_active: nextStatus }).eq("id", id);
+    if (!error) {
+      setOffers(offers.map(o => o.id === id ? { ...o, is_active: nextStatus } : o));
+    }
   };
 
-  const shown = tab === "all" ? offers : offers.filter(o => o.status === tab);
+  const shown = tab === "all" ? offers : offers.filter(o => getOfferStatus(o) === tab);
 
   return (
     <div style={{ ...pageWrap }}>
@@ -74,9 +128,9 @@ export default function OffersPage() {
       {/* Stats */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
         {[
-          { label:"Active Campaigns",  value:offers.filter(o=>o.status==="active").length,    color:"hsl(152,60%,60%)", bg:"hsla(152,60%,50%,0.08)" },
-          { label:"Scheduled",         value:offers.filter(o=>o.status==="scheduled").length,  color:"hsl(38,90%,65%)",  bg:"hsla(38,90%,55%,0.08)" },
-          { label:"Total Reach",       value:`${offers.reduce((a,o)=>a+(o.reach||0),0).toLocaleString()}`, color:"var(--primary-light)", bg:"hsla(262,83%,58%,0.08)" },
+          { label:"Active Campaigns",  value:offers.filter(o=>getOfferStatus(o)==="active").length,    color:"hsl(152,60%,60%)", bg:"hsla(152,60%,50%,0.08)" },
+          { label:"Scheduled",         value:offers.filter(o=>getOfferStatus(o)==="scheduled").length,  color:"hsl(38,90%,65%)",  bg:"hsla(38,90%,55%,0.08)" },
+          { label:"Total Offers",       value:offers.length.toLocaleString(), color:"var(--primary-light)", bg:"hsla(262,83%,58%,0.08)" },
         ].map(s => (
           <div key={s.label} style={{ background:s.bg, borderRadius:12, padding:"16px 20px", border:`1px solid ${s.bg.replace("0.08","0.2")}` }}>
             <div style={{ fontSize:24, fontWeight:700, color:s.color }}>{s.value}</div>
@@ -107,7 +161,15 @@ export default function OffersPage() {
         <motion.div layout style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:14 }}>
           <AnimatePresence>
             {shown.map(offer => {
-              const st = STATUS_STYLE[offer.status] || STATUS_STYLE.ended;
+              const statusStr = getOfferStatus(offer);
+              const st = STATUS_STYLE[statusStr] || STATUS_STYLE.ended;
+              
+              const discountText = offer.discount_type === "percentage" 
+                ? `${offer.discount_value}% Off` 
+                : `৳${offer.discount_value} Off`;
+                
+              const dateRange = `${format(new Date(offer.start_date), "MMM d")} - ${format(new Date(offer.end_date), "MMM d")}`;
+
               return (
                 <motion.div key={offer.id} layout initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }} whileHover={{ y:-2 }}
                   style={{ background:"var(--bg-card)", border:`1px solid ${C.border}`, borderRadius:14, padding:20, position:"relative", overflow:"hidden" }}>
@@ -116,28 +178,29 @@ export default function OffersPage() {
                     <div style={{ width:38, height:38, borderRadius:10, background:`${st.color}22`, display:"flex", alignItems:"center", justifyContent:"center" }}>
                       <Tag size={17} color={st.color}/>
                     </div>
-                    <button onClick={() => changeStatus(offer.id, offer.status)} style={{ display:"flex", alignItems:"center", gap:4, padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:st.bg, color:st.color, border:"none", cursor:"pointer" }}>
-                      {st.icon} {offer.status.charAt(0).toUpperCase()+offer.status.slice(1)}
+                    <button onClick={() => toggleStatus(offer.id, offer.is_active)} style={{ display:"flex", alignItems:"center", gap:4, padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:st.bg, color:st.color, border:"none", cursor:"pointer" }}>
+                      {st.icon} {statusStr.charAt(0).toUpperCase()+statusStr.slice(1)}
                     </button>
                   </div>
 
-                  <div style={{ fontSize:14, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.02em", marginBottom:6 }}>{offer.title}</div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.02em", marginBottom:6 }}>{offer.name}</div>
                   <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:14, lineHeight:1.5 }}>{offer.description}</div>
 
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14 }}>
                     <span style={{ padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:700, background:"hsla(262,83%,58%,0.1)", color:"var(--primary-light)" }}>
-                      <Zap size={9} style={{ marginRight:3, display:"inline" }}/>{offer.discount}
+                      <Zap size={9} style={{ marginRight:3, display:"inline" }}/>{discountText}
                     </span>
-                    <span style={{ padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:"var(--bg-elevated)", color:"var(--text-secondary)" }}>
-                      {offer.platform}
-                    </span>
+                    {offer.min_order_amount && (
+                      <span style={{ padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:"var(--bg-elevated)", color:"var(--text-secondary)" }}>
+                        Min ৳{offer.min_order_amount}
+                      </span>
+                    )}
                   </div>
 
                   <div style={{ display:"flex", justifyContent:"space-between", borderTop:`1px solid ${C.borderWhite}`, paddingTop:12 }}>
-                    <div style={{ fontSize:11, color:"var(--text-muted)" }}>
-                      <span style={{ fontWeight:600, color:"var(--text-secondary)" }}>{(offer.reach||0).toLocaleString()}</span> customers reached
+                    <div style={{ fontSize:11, color:"var(--text-muted)", fontWeight:600 }}>
+                      {dateRange}
                     </div>
-                    <div style={{ fontSize:11, color:"var(--text-muted)" }}>Since {offer.starts || "N/A"}</div>
                   </div>
                 </motion.div>
               );
@@ -153,27 +216,52 @@ export default function OffersPage() {
             style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(6px)" }}
             onClick={e=>e.target===e.currentTarget&&setShowModal(false)}>
             <motion.div initial={{ scale:0.94, y:16 }} animate={{ scale:1, y:0 }} exit={{ scale:0.94, y:8 }}
-              style={{ background:"var(--bg-card)", border:`1px solid ${C.border}`, borderRadius:18, padding:28, width:460, maxWidth:"95vw" }}>
+              style={{ background:"var(--bg-card)", border:`1px solid ${C.border}`, borderRadius:18, padding:28, width:460, maxWidth:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
                 <div style={{ fontSize:16, fontWeight:700, color:"var(--text-primary)" }}>Create New Offer</div>
                 <button onClick={()=>setShowModal(false)} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--text-muted)", padding:4 }}><X size={16}/></button>
               </div>
-              {[["title","Title","Summer Sale 20% Off"],["discount","Discount / Value","20% Off"],["starts","Start Date","July 15"]].map(([k,l,ph]) => (
-                <div key={k} style={{ marginBottom:14 }}>
-                  <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>{l}</label>
-                  <input style={inputStyle} placeholder={ph} value={(form as Record<string,string>)[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))}/>
-                </div>
-              ))}
+              
               <div style={{ marginBottom:14 }}>
-                <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Description</label>
-                <textarea style={{ ...inputStyle, minHeight:70, resize:"vertical" }} placeholder="Describe the offer..." value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}/>
+                <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Campaign Name</label>
+                <input style={inputStyle} placeholder="Summer Sale" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/>
               </div>
+              
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Discount Type</label>
+                  <select style={inputStyle} value={form.discount_type} onChange={e=>setForm(f=>({...f,discount_type:e.target.value}))}>
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="fixed_amount">Fixed Amount (৳)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Value</label>
+                  <input style={inputStyle} type="number" placeholder="20" value={form.discount_value} onChange={e=>setForm(f=>({...f,discount_value:e.target.value}))}/>
+                </div>
+              </div>
+
+              <div style={{ marginBottom:14 }}>
+                <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Minimum Order Amount (Optional)</label>
+                <input style={inputStyle} type="number" placeholder="1000" value={form.min_order_amount} onChange={e=>setForm(f=>({...f,min_order_amount:e.target.value}))}/>
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Start Date</label>
+                  <input style={inputStyle} type="date" value={form.start_date} onChange={e=>setForm(f=>({...f,start_date:e.target.value}))}/>
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>End Date</label>
+                  <input style={inputStyle} type="date" value={form.end_date} onChange={e=>setForm(f=>({...f,end_date:e.target.value}))}/>
+                </div>
+              </div>
+
               <div style={{ marginBottom:22 }}>
-                <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Platform</label>
-                <select style={inputStyle} value={form.platform} onChange={e=>setForm(f=>({...f,platform:e.target.value}))}>
-                  {["All","Messenger","Instagram","WhatsApp"].map(p=><option key={p} value={p}>{p}</option>)}
-                </select>
+                <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Description</label>
+                <textarea style={{ ...inputStyle, minHeight:70, resize:"vertical" }} placeholder="Describe the offer rules..." value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}/>
               </div>
+              
               <div style={{ display:"flex", gap:10 }}>
                 <button onClick={()=>setShowModal(false)} style={{ flex:1, padding:"10px", borderRadius:10, border:`1px solid ${C.border}`, background:"none", color:"var(--text-muted)", cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>Cancel</button>
                 <button onClick={handleCreate} disabled={saving} style={{ flex:2, padding:"10px", borderRadius:10, border:"none", background:"linear-gradient(135deg,var(--primary),var(--accent))", color:"#fff", cursor:saving?"not-allowed":"pointer", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>

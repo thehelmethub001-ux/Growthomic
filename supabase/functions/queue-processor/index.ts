@@ -238,14 +238,14 @@ Deno.serve(async (req: Request) => {
     .eq("id", conversation.id);
 
   // ── isLockedForAI check: if another human is handling this, skip AI
-  if (conversation.isLockedForAI && conversation.status === "human_queue") {
+  if (conversation.isLockedForAI) {
     console.log(`Conversation ${conversation.id} locked for AI — human is handling`);
     return jsonResponse({ status: "locked_for_human" });
   }
 
   // ── Global AI Automation check: if admin turned OFF automation from frontend, skip AI
-  const { data: bSettings } = await sb.from("business_settings").select("ai_automation_enabled").limit(1).single();
-  if (bSettings && bSettings.ai_automation_enabled === false) {
+  const { data: bSettings } = await sb.from("business_settings").select("ai_reply_mode").limit(1).single();
+  if (bSettings && bSettings.ai_reply_mode === "off") {
     console.log(`Global AI automation is turned OFF by admin from dashboard`);
     return jsonResponse({ status: "automation_disabled_by_admin" });
   }

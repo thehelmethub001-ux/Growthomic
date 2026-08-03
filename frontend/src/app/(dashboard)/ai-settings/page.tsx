@@ -258,6 +258,44 @@ export default function AISettingsPage() {
           </div>
         </motion.div>
 
+        {/* WooCommerce Sync */}
+        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.4}} style={CARD}>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:22 }}>
+            <div style={{ width:38, height:38, borderRadius:11, background:"hsla(280,80%,60%,0.1)", border:"1px solid hsla(280,80%,60%,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <RefreshCw size={19} color="hsl(280,80%,65%)"/>
+            </div>
+            <div style={{ flex:1 }}>
+              <h2 style={{ fontSize:14, fontWeight:700, color:C.textPrimary, letterSpacing:"-0.02em" }}>WooCommerce Knowledge Base</h2>
+              <p style={{ fontSize:12, color:C.textMuted, marginTop:2 }}>Keep the AI updated with your latest products, inventory, and prices.</p>
+            </div>
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:C.elevated, borderRadius:12, border:`1px solid ${C.borderWhite}` }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.textPrimary }}>Manual Product Sync</div>
+              <div style={{ fontSize:11, color:C.textMuted, marginTop:3 }}>Fetch products and rebuild AI vector embeddings.</div>
+            </div>
+            <button 
+              onClick={async () => {
+                const toastId = toast.loading("Syncing products from WooCommerce...");
+                try {
+                  const res = await fetch("/api/woo-sync", { method: "POST" });
+                  const data = await res.json();
+                  if (data.success) {
+                    toast.success(`Successfully synced ${data.count} products!`, { id: toastId });
+                  } else {
+                    toast.error(data.error || "Failed to sync products", { id: toastId });
+                  }
+                } catch (err) {
+                  toast.error("Network error during sync", { id: toastId });
+                }
+              }}
+              style={{ padding:"8px 16px", borderRadius:8, background:"var(--primary)", color:"#fff", border:"none", fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}
+            >
+              Sync Now
+            </button>
+          </div>
+        </motion.div>
+
       </motion.div>
     </div>
   );

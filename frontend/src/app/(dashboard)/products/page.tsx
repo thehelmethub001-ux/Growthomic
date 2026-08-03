@@ -98,8 +98,21 @@ export default function ProductsPage() {
     }
     setSaving(true);
 
-    const payload = { ...formData };
-    delete payload.id; // remove id for insert/update payload processing
+    const payload = {
+      name: formData.name,
+      sku: formData.sku || null,
+      regular_price: formData.regular_price,
+      sale_price: formData.sale_price || null,
+      stock_quantity: formData.stock_quantity || 0,
+      category: formData.category || null,
+      is_active: formData.is_active ?? true,
+      images: formData.images || [],
+      description: formData.description || null,
+      return_conditions: formData.return_conditions || null,
+      qna_pairs: formData.qna_pairs || [],
+      required_order_fields: formData.required_order_fields || [],
+      variations: formData.variations || [],
+    };
 
     if (formData.id) {
       // Update
