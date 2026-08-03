@@ -461,7 +461,6 @@ export async function getAllInStockProducts(): Promise<Product[]> {
     .from("products")
     .select("*")
     .eq("is_active", true)
-    .gt("stock_quantity", 0)
     .order("category", { ascending: true })
     .order("name", { ascending: true });
 
@@ -474,40 +473,18 @@ export async function getAllInStockProducts(): Promise<Product[]> {
 
 export async function getAllActiveProducts(limit = 15): Promise<Product[]> {
   const sb = getSupabaseClient();
-  // First fetch in-stock products, then out-of-stock — so AI always sees available items first
-  const { data: inStock, error: e1 } = await sb
+  const { data, error } = await sb
     .from("products")
     .select("*")
     .eq("is_active", true)
-    .gt("stock_quantity", 0)
     .order("name", { ascending: true })
     .limit(limit);
 
-  if (e1) {
-    console.error("getAllActiveProducts (inStock) error:", e1);
+  if (error) {
+    console.error("getAllActiveProducts error:", error);
   }
 
-  if (inStock && inStock.length >= limit) {
-    return inStock.map(mapProduct);
-  }
-
-  // If not enough in-stock, pad with out-of-stock products
-  const remaining = limit - (inStock?.length ?? 0);
-  const { data: outStock, error: e2 } = await sb
-    .from("products")
-    .select("*")
-    .eq("is_active", true)
-    .eq("stock_quantity", 0)
-    .order("name", { ascending: true })
-    .limit(remaining);
-
-  if (e2) console.error("getAllActiveProducts (outStock) error:", e2);
-
-  const combined = [...(inStock ?? []), ...(outStock ?? [])];
-  if (combined.length === 0) {
-    return [];
-  }
-  return combined.map(mapProduct);
+  return (data ?? []).map(mapProduct);
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
