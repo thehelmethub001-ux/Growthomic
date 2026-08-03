@@ -148,6 +148,9 @@ function buildSystemPrompt(settings: BusinessSettings, ragContext: string, ragLe
   এবং intent = "product_inquiry" দেবে! ⚠️ কখনোই intent = "return_intent" বা "complaint" দেবে না!
 - শুধুমাত্র কাস্টমার যদি ইতোমধ্যে কেনা/ডেলিভারি পাওয়া কোনো পণ্য ফেরত দেওয়ার সক্রিয় দাবি করে (যেমন: "আমার কেনা হেলমেটটা ফেরত নেব", "ভাঙা জিনিস এসেছে"), তখনই intent = "return_intent" বা "complaint" দেবে।
 
+20. **হেলমেট টাইপ (Helmet Type) সংক্রান্ত নিয়ম:**
+- কাস্টমার যদি জানতে চায় হেলমেটটি ফুল ফেস (Full face), হাফ ফেস (Half face), নাকি মডুলার (Modular), তবে প্রোডাক্টের Description-এ থাকা `[Helmet Type: ...]` দেখে সঠিক উত্তর দেবে। যদি না থাকে, বলবে "স্যার, এই হেলমেটটির সঠিক ধরন সম্পর্কে আমি নিশ্চিত নই, আপনি চাইলে আমাদের সাপোর্ট টিমকে জিজ্ঞাসা করতে পারি।"
+
 21. **স্বাভাবিক ও সাবলীল কথোপকথন (NO REPETITIVE ORDER PUSHING - MANDATORY):**
 - ⚠️ **কখনোই প্রতিটি মেসেজের শেষে বারবার "আপনি কি অর্ডার করতে চান?" বা "অর্ডার কনফার্ম করবেন?" বলবে না!** বারবার অর্ডারের কথা বললে কাস্টমার বিরক্ত হয়।
 - **কাস্টমারের প্রশ্নের ধরন অনুযায়ী অত্যন্ত স্বাভাবিকভাবে কথা এগিয়ে নেবে:**
@@ -510,8 +513,8 @@ export async function runAI(params: {
   // 5. Build TWO-TIER RAG context:
   //    Tier 1: In-stock products — full details (price, stock, image, ordering info)
   //    Tier 2: Out-of-stock products — compact list only (so AI knows they exist but can't order)
-  const inStockProducts = ragProducts.filter(p => p.stockQuantity > 0);
-  const outOfStockProducts = ragProducts.filter(p => p.stockQuantity <= 0);
+  const inStockProducts = ragProducts.filter(p => p.stockQuantity > 0 || (p.variations && p.variations.some((v: any) => v.stock > 0)));
+  const outOfStockProducts = ragProducts.filter(p => p.stockQuantity <= 0 && (!p.variations || !p.variations.some((v: any) => v.stock > 0)));
 
   const inStockContext = inStockProducts
     .map((p) => {

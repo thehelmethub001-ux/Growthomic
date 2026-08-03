@@ -14,6 +14,7 @@ type Product = {
   is_active: boolean; images: string[];
   description?: string; return_conditions?: string;
   qna_pairs?: QnAPair[]; required_order_fields?: OrderField[];
+  variations?: any[];
 };
 
 export default function ProductsPage() {
@@ -80,7 +81,7 @@ export default function ProductsPage() {
   const openAddModal = () => {
     setFormData({
       name: "", sku: "", regular_price: 0, sale_price: null, stock_quantity: 0, category: "",
-      description: "", return_conditions: "", images: [], qna_pairs: [], required_order_fields: [], is_active: true
+      description: "", return_conditions: "", images: [], qna_pairs: [], required_order_fields: [], is_active: true, variations: []
     });
     setIsModalOpen(true);
   };
@@ -112,6 +113,19 @@ export default function ProductsPage() {
       else { toast.success("Product added"); load(); setIsModalOpen(false); }
     }
     setSaving(false);
+  };
+
+  const helmetMatch = formData.description?.match(/\[Helmet Type: (.*?)\]/);
+  const helmetType = helmetMatch ? helmetMatch[1] : "";
+
+  const handleHelmetTypeChange = (type: string) => {
+    let desc = formData.description || "";
+    if (desc.includes("[Helmet Type:")) {
+      desc = desc.replace(/\[Helmet Type: (.*?)\]/, type ? `[Helmet Type: ${type}]` : "");
+    } else if (type) {
+      desc += `\n[Helmet Type: ${type}]`;
+    }
+    setFormData({ ...formData, description: desc.trim() });
   };
 
   const shown = products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku || "").toLowerCase().includes(search.toLowerCase()));
@@ -325,6 +339,16 @@ export default function ProductsPage() {
                     <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Category</label>
                     <input style={inputStyle} value={formData.category || ""} onChange={e => setFormData({ ...formData, category: e.target.value })} placeholder="e.g. Clothing" />
                   </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Helmet Type (Optional)</label>
+                    <select style={{...inputStyle, background: C.elevated}} value={helmetType} onChange={e => handleHelmetTypeChange(e.target.value)}>
+                      <option value="">None / Not a helmet</option>
+                      <option value="Full Face">Full Face</option>
+                      <option value="Half Face">Half Face</option>
+                      <option value="Modular">Modular</option>
+                      <option value="Off-Road">Off-Road</option>
+                    </select>
+                  </div>
                   <div style={{ gridColumn: "1 / -1" }}>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Product Description</label>
                     <textarea style={{ ...inputStyle, minHeight: 80, resize: "vertical" }} value={formData.description || ""} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Used by AI to understand the product details..." />
@@ -335,6 +359,63 @@ export default function ProductsPage() {
                       <input style={inputStyle} value={formData.images?.[0] || ""} onChange={e => setFormData({ ...formData, images: e.target.value ? [e.target.value] : [] })} placeholder="https://example.com/image.jpg" />
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Variations */}
+              <div style={{ padding: 16, background: "rgba(245,158,11,0.04)", border: `1px solid rgba(245,158,11,0.15)`, borderRadius: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: "#fbbf24", display: "flex", alignItems: "center", gap: 6 }}>🏷️ Product Variations</h3>
+                    <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>Define sizes, colors, and specific image URLs for variations</p>
+                  </div>
+                  <button onClick={() => setFormData({ ...formData, variations: [...(formData.variations || []), { id: Date.now(), attributes: { "Color/Size": "" }, price: formData.regular_price || 0, stock: 0, image_url: "" }] })} style={{ background: "rgba(245,158,11,0.1)", border: "none", color: "#fbbf24", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                    <Plus size={12} /> Add Variation
+                  </button>
+                </div>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {formData.variations?.map((v, idx) => {
+                    const attrKey = Object.keys(v.attributes || {})[0] || "Attribute";
+                    const attrVal = Object.values(v.attributes || {})[0] as string || "";
+                    return (
+                    <div key={v.id || idx} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: C.elevated, padding: 12, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                          <input style={{...inputStyle, fontSize:12}} placeholder="e.g. Color: Red, Size: M" value={attrVal} onChange={e => {
+                            const newVars = [...(formData.variations || [])];
+                            newVars[idx].attributes = { "Variation": e.target.value };
+                            setFormData({ ...formData, variations: newVars });
+                          }} />
+                          <input style={{...inputStyle, fontSize:12}} type="number" placeholder="Price (৳)" value={v.price} onChange={e => {
+                            const newVars = [...(formData.variations || [])];
+                            newVars[idx].price = parseFloat(e.target.value) || 0;
+                            setFormData({ ...formData, variations: newVars });
+                          }} />
+                          <input style={{...inputStyle, fontSize:12}} type="number" placeholder="Stock Qty" value={v.stock} onChange={e => {
+                            const newVars = [...(formData.variations || [])];
+                            newVars[idx].stock = parseInt(e.target.value) || 0;
+                            setFormData({ ...formData, variations: newVars });
+                          }} />
+                        </div>
+                        <input style={{...inputStyle, fontSize:12}} placeholder="Variation Image URL (Important for AI)" value={v.image_url || ""} onChange={e => {
+                          const newVars = [...(formData.variations || [])];
+                          newVars[idx].image_url = e.target.value;
+                          setFormData({ ...formData, variations: newVars });
+                        }} />
+                      </div>
+                      <button onClick={() => {
+                        const newVars = [...(formData.variations || [])];
+                        newVars.splice(idx, 1);
+                        setFormData({ ...formData, variations: newVars });
+                      }} style={{ background: "rgba(244,63,94,0.1)", border: "none", color: "#fb7185", padding: 6, borderRadius: 6, cursor: "pointer", height: "fit-content" }}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )})}
+                  {(!formData.variations || formData.variations.length === 0) && (
+                    <div style={{ fontSize: 12, color: C.textMuted, textAlign: "center", padding: "12px 0" }}>No variations added.</div>
+                  )}
                 </div>
               </div>
 
