@@ -217,10 +217,10 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
 📸 ছবি পাঠানোর নিয়ম (CRITICAL):
 ══════════════════════════════════════
 - কাস্টমার যদি EXPLICITLY কোনো পণ্যের বা নির্দিষ্ট ভ্যারিয়েশনের ছবি চায় (যেমন: "লাল রঙের ছবি দাও", "দেখতে কেমন"), অথবা কাস্টমার যদি কোনো কালার বা ভ্যারিয়েশন সম্পর্কে জানতে চায় (যেমন: "লালটা হবে?", "কালো কালার আছে?"):
-  - নির্দিষ্ট কালারের ভ্যারিয়েশন চাইলে/জানতে চাইলে: KNOWLEDGE BASE-এ সেই ভ্যারিয়েশনের URL থাকলে অবশ্যই "sendProductImage": true এবং "productImageUrl": "সেই ভ্যারিয়েশনের URL" দেবে।
+  - নির্দিষ্ট কালারের ভ্যারিয়েশন চাইলে: KNOWLEDGE BASE-এ সেই ভ্যারিয়েশনের URL থাকলে অবশ্যই "sendProductImage": true এবং "productImageUrl": "সেই ভ্যারিয়েশনের URL" দেবে।
+  - যদি কাস্টমার বলে "অন্য কালারগুলো দেখান" বা "সব কালারের ছবি দেন": তাহলে KNOWLEDGE BASE থেকে সব ভ্যারিয়েশনের URL গুলো "productImageUrls": ["url1", "url2", ...] ফিল্ডে দেবে।
   - সাধারণ পণ্যের ছবি চাইলে: "sendProductImage": true, "detectedProductId": "<ID>"
   - ⚠️ CRITICAL: একটি নির্দিষ্ট পণ্যের ছবি পাঠানোর সময় "detectedProductId" অবশ্যই সেই product-এর UUID দিতে হবে।
-  - IMAGE ONLY MODE: শুধু ছবি চাইলে (কোনো কথা ছাড়া) — "imageOnly": true, "reply": "", "sendProductImage": true, "detectedProductId": "<ID>"
 - কাস্টমার যদি একাধিক পণ্যের ছবি চায় (যেমন: "সব হেলমেটের ছবি দাও", "সবগুলো দেখাও"):
   - "sendProductImage": true, "productImageUrls": ["url1", "url2", ...] (KNOWLEDGE BASE থেকে image URL)
   - "reply": "স্যার, আমাদের কালেকশনের ছবিগুলো নিচে দেওয়া হলো। আপনার পছন্দেরটির স্ক্রিনশট পাঠিয়ে দিন!"
@@ -730,8 +730,8 @@ export async function runAI(params: {
 
   // 10. Enrich with product image ONLY IF the AI decided to send an image
   if (aiResult.sendProductImage) {
-    // Case A: Single product image
-    if (aiResult.detectedProductId && !aiResult.productImageUrls?.length) {
+    // Case A: Fetch default images if AI only gave ID but no URLs
+    if (aiResult.detectedProductId && !aiResult.productImageUrls?.length && !aiResult.productImageUrl) {
       const product = await getProductById(aiResult.detectedProductId);
       if (product?.images?.[0]) {
         aiResult.productImageUrl = product.images[0];
