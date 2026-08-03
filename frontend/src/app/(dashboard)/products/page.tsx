@@ -376,8 +376,9 @@ export default function ProductsPage() {
                 
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {formData.variations?.map((v, idx) => {
-                    const attrKey = Object.keys(v.attributes || {})[0] || "Attribute";
-                    const attrVal = Object.values(v.attributes || {})[0] as string || "";
+                    const attrVal = Object.entries(v.attributes || {})
+                      .map(([k, val]) => k === "Variation" ? val : `${k}: ${val}`)
+                      .join(", ");
                     return (
                     <div key={v.id || idx} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: C.elevated, padding: 12, borderRadius: 8, border: `1px solid ${C.border}` }}>
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
