@@ -221,9 +221,10 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
   - যদি কাস্টমার বলে "অন্য কালারগুলো দেখান" বা "সব কালারের ছবি দেন": তাহলে KNOWLEDGE BASE থেকে সব ভ্যারিয়েশনের URL গুলো "productImageUrls": ["url1", "url2", ...] ফিল্ডে দেবে।
   - সাধারণ পণ্যের ছবি চাইলে: "sendProductImage": true, "detectedProductId": "<ID>"
   - ⚠️ CRITICAL: একটি নির্দিষ্ট পণ্যের ছবি পাঠানোর সময় "detectedProductId" অবশ্যই সেই product-এর UUID দিতে হবে।
-- কাস্টমার যদি একাধিক পণ্যের ছবি চায় (যেমন: "সব হেলমেটের ছবি দাও", "সবগুলো দেখাও"):
-  - "sendProductImage": true, "productImageUrls": ["url1", "url2", ...] (KNOWLEDGE BASE থেকে image URL)
-  - "reply": "স্যার, আমাদের কালেকশনের ছবিগুলো নিচে দেওয়া হলো। আপনার পছন্দেরটির স্ক্রিনশট পাঠিয়ে দিন!"
+  - IMAGE ONLY MODE: শুধু ছবি চাইলে (কোনো কথা ছাড়া) — "imageOnly": true, "reply": "", "sendProductImage": true, "detectedProductId": "<ID>"
+- কাস্টমার যদি একাধিক পণ্যের বা কালেকশনের ছবি চায় (যেমন: "সব হেলমেটের ছবি দাও", "আপনাদের কালেকশন দেখান", "সবগুলো দেখাও"):
+  - ছবি পাঠাবে না ("sendProductImage": false)
+  - "reply": "স্যার, আমাদের ওয়েবসাইটে সবগুলো প্রোডাক্ট দেওয়া আছে। আপনি ওয়েবসাইটে যেয়ে পছন্দ করে আমাদের একটি ছবি দিন, আমি আপনাকে ইনফরমেশন দিচ্ছি।"
 - সাধারণ দাম বা স্টক জানতে চাইলে (কালার মেনশন না থাকলে) ছবি পাঠানোর দরকার নেই, শুধু উত্তর দেবে।
 
 ══════════════════════════════════════
@@ -532,10 +533,15 @@ export async function runAI(params: {
 
       let variationInfo = "";
       if (p.variations && p.variations.length > 0) {
-        variationInfo = "  ভ্যারিয়েশনসমূহ:\n" + p.variations.map((v: any) => {
-          const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
-          return `    - ${attrs} (URL: ${v.image_url || "ছবি নেই"})`;
-        }).join("\n");
+        const inStockVariations = p.variations.filter((v: any) => v.stock > 0);
+        if (inStockVariations.length > 0) {
+          variationInfo = "  স্টকে থাকা ভ্যারিয়েশনসমূহ:\n" + inStockVariations.map((v: any) => {
+            const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
+            return `    - ${attrs} (URL: ${v.image_url || "ছবি নেই"})`;
+          }).join("\n");
+        } else {
+          variationInfo = "  (সব ভ্যারিয়েশন আউট-অফ-স্টক)";
+        }
       }
 
       const imageInfo = p.images.length > 0 ? `ছবির URL: ${p.images[0]}` : "ছবি নেই";
