@@ -564,11 +564,11 @@ Then list the names and prices naturally and ask: "আপনি কোনটি 
     if (aiResult.sendProductImage) {
       const urls: string[] = [];
       
-      // Collect all image URLs (multi-image takes priority over single)
+      // Collect all image URLs
       if (aiResult.productImageUrls && aiResult.productImageUrls.length > 0) {
         urls.push(...aiResult.productImageUrls);
-      } else if (aiResult.productImageUrl) {
-        urls.push(aiResult.productImageUrl);
+      } else if ((aiResult as any).productImageUrl) {
+        urls.push((aiResult as any).productImageUrl);
       }
 
       // Send each image — capture the returned mid and save image message to DB

@@ -190,7 +190,6 @@ export interface AIResult {
     totalAmount: number;
   };
   sendProductImage?: boolean;
-  productImageUrl?: string;    // single image (legacy)
   productImageUrls?: string[]; // multiple images support
   sendVideo?: boolean;
   videoUrl?: string;

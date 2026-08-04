@@ -196,12 +196,12 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
 📸 ছবি পাঠানোর নিয়ম (CRITICAL):
 ══════════════════════════════════════
 - কাস্টমার যদি EXPLICITLY কোনো পণ্যের বা নির্দিষ্ট ভ্যারিয়েশনের ছবি চায় (যেমন: "লাল রঙের ছবি দাও", "দেখতে কেমন"), অথবা কাস্টমার যদি কোনো কালার বা ভ্যারিয়েশন সম্পর্কে জানতে চায় (যেমন: "লালটা হবে?", "কালো কালার আছে?"):
-  - নির্দিষ্ট কালারের ভ্যারিয়েশন চাইলে: KNOWLEDGE BASE-এ সেই ভ্যারিয়েশনের URL থাকলে অবশ্যই "sendProductImage": true এবং "productImageUrl": "সেই ভ্যারিয়েশনের URL" দেবে।
-  - যদি কাস্টমার বলে "অন্য কালারগুলো দেখান", "সব কালারের ছবি দেন", "pic gula dew", "hae pic gula", "বাকিগুলো দেখাও", "সব ছবি দাও" বা এই জাতীয় কথা: তাহলে KNOWLEDGE BASE থেকে স্টকে থাকা সব ভ্যারিয়েশনের URL গুলো "productImageUrls": ["url1", "url2", ...] ফিল্ডে দেবে।
-    ⚠️ CRITICAL: এই ক্ষেত্রে "sendProductImage": true অবশ্যই সেট করতে হবে। এটা true না হলে কোনো ছবিই পাঠানো হবে না! "productImageUrl" (singular) ফাঁকা রাখবে।
-  - সাধারণ পণ্যের ছবি চাইলে: "sendProductImage": true, "detectedProductId": "<ID>"
+  - নির্দিষ্ট কালারের ভ্যারিয়েশন চাইলে (যেমন "লালটা"): KNOWLEDGE BASE-এ সেই ভ্যারিয়েশনের URL থাকলে অবশ্যই "sendProductImage": true এবং "productImageUrls": ["সেই নির্দিষ্ট ভ্যারিয়েশনের URL"] দেবে।
+  - কাস্টমার যদি সাধারণভাবে পণ্যের ছবি দেখতে চায় (যেমন: "ছবি দেখাও", "pic den", "দেখতে কেমন") অথবা "অন্য কালারগুলো দেখান", "সব কালারের ছবি দেন": 
+    ⚠️ তাহলে KNOWLEDGE BASE থেকে ওই পণ্যের স্টকে থাকা সবগুলো ভ্যারিয়েশনের/কালারের URL "productImageUrls": ["url1", "url2", ...] ফিল্ডে একবারে দেবে। যাতে কাস্টমার সবগুলো কালার একসাথে দেখতে পারে।
+    ⚠️ CRITICAL: এই ক্ষেত্রে "sendProductImage": true অবশ্যই সেট করতে হবে। এটা true না হলে কোনো ছবিই পাঠানো হবে না!
   - ⚠️ CRITICAL: একটি নির্দিষ্ট পণ্যের ছবি পাঠানোর সময় "detectedProductId" অবশ্যই সেই product-এর UUID দিতে হবে।
-  - IMAGE ONLY MODE: শুধু ছবি চাইলে (কোনো কথা ছাড়া) — "imageOnly": true, "reply": "", "sendProductImage": true, "detectedProductId": "<ID>"
+  - IMAGE ONLY MODE: শুধু ছবি চাইলে (কোনো কথা ছাড়া) — "imageOnly": true, "reply": "", "sendProductImage": true, "productImageUrls": ["সবগুলো কালারের URL..."], "detectedProductId": "<ID>"
 - কাস্টমার যদি একাধিক পণ্যের বা কালেকশনের ছবি চায় (যেমন: "সব হেলমেটের ছবি দাও", "আপনাদের কালেকশন দেখান", "সবগুলো দেখাও"):
   - ছবি পাঠাবে না ("sendProductImage": false)
   - "reply": "স্যার, আমাদের ওয়েবসাইটে সবগুলো প্রোডাক্ট দেওয়া আছে। আপনি ওয়েবসাইটে যেয়ে পছন্দ করে আমাদের একটি ছবি দিন, আমি আপনাকে ইনফরমেশন দিচ্ছি।"
@@ -217,8 +217,7 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
   "imageOnly": false,
   "orderData": null,
   "sendProductImage": false,
-  "productImageUrl": "https://example.com/image.jpg অথবা null",
-  "productImageUrls": ["https://example.com/img1.jpg", "https://example.com/img2.jpg"],
+  "productImageUrls": [],
   "sendVideo": false,
   "videoUrl": null
 }`;
