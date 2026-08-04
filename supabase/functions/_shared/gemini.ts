@@ -516,15 +516,11 @@ export async function runAI(params: {
 
       let variationInfo = "";
       if (p.variations && p.variations.length > 0) {
-        const inStockVariations = p.variations.filter((v: any) => v.stock > 0);
-        if (inStockVariations.length > 0) {
-          variationInfo = "  স্টকে থাকা ভ্যারিয়েশনসমূহ:\n" + inStockVariations.map((v: any) => {
-            const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
-            return `    - ${attrs} (URL: ${v.image_url || "ছবি নেই"})`;
-          }).join("\n");
-        } else {
-          variationInfo = "  (সব ভ্যারিয়েশন আউট-অফ-স্টক)";
-        }
+        variationInfo = "  ভ্যারিয়েশনসমূহ:\n" + p.variations.map((v: any) => {
+          const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
+          const stockStatus = v.stock > 0 ? "স্টক আছে" : "স্টক নেই";
+          return `    - ${attrs} (URL: ${v.image_url || "ছবি নেই"}) [${stockStatus}]`;
+        }).join("\n");
       }
 
       const imageInfo = p.images.length > 0 ? `ছবির URL: ${p.images[0]}` : "ছবি নেই";
