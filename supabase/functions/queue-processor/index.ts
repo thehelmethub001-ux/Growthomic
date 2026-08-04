@@ -546,6 +546,13 @@ Then list the names and prices naturally and ask: "আপনি কোনটি 
       }
     }
 
+    // Ensure closing prompt for multi-image responses
+    if (aiResult.sendProductImage && (aiResult.productImageUrls?.length ?? 0) > 1 && aiResult.reply) {
+      if (!aiResult.reply.includes("স্ক্রিনশট") && !aiResult.reply.includes("ss")) {
+        aiResult.reply = aiResult.reply.trim() + "\n\nআপনি যেটি নিবেন সেটির স্ক্রিনশট (ss) বা ছবি আমাদের দেন, আমরা আপনাকে বিস্তারিত ইনফরমেশন দিচ্ছি।";
+      }
+    }
+
     // ── Step 8: Save AI reply to DB (skip if imageOnly with no text)
     if (!aiResult.imageOnly || aiResult.reply?.trim()) {
       await saveMessage({
