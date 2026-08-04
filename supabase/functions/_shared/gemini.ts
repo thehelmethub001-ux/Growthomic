@@ -216,8 +216,8 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
   "imageOnly": false,
   "orderData": null,
   "sendProductImage": false,
-  "productImageUrl": "একটি product-এর image URL অথবা null",
-  "productImageUrls": ["একাধিক ছবি পাঠাতে চাইলে URL-এর array", "অথবা খালি array"],
+  "productImageUrl": "https://example.com/image.jpg অথবা null",
+  "productImageUrls": ["https://example.com/img1.jpg", "https://example.com/img2.jpg"],
   "sendVideo": false,
   "videoUrl": null
 }`;
