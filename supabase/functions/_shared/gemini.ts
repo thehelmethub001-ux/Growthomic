@@ -516,12 +516,20 @@ export async function runAI(params: {
 
       let variationInfo = "";
       if (p.variations && p.variations.length > 0) {
-        variationInfo = "  ভ্যারিয়েশনসমূহ:\n" + p.variations.map((v: any) => {
-          const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
-          const stockStatus = v.stock > 0 ? "স্টক আছে" : "স্টক নেই";
-          return `    - ${attrs} (URL: ${v.image_url || "ছবি নেই"}) [${stockStatus}]`;
-        }).join("\n");
+        const inStockVariations = p.variations.filter((v: any) => v.stock > 0);
+        if (inStockVariations.length > 0) {
+          variationInfo = "  স্টকে থাকা ভ্যারিয়েশনসমূহ:\n" + inStockVariations.map((v: any) => {
+            const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
+            return `    - ${attrs} (URL: ${v.image_url || "ছবি নেই"})`;
+          }).join("\n");
+        } else {
+          // If no variations are in stock, we hide the variation info so AI doesn't know about them
+          variationInfo = "";
+        }
       }
+
+      // Remove the [Available Options -> ...] injected by woo-sync so AI doesn't hallucinate out-of-stock colors
+      const cleanDesc = (p.description || "কোনো বিবরণ নেই").replace(/\[Available Options \-\>.*?\]/g, "").trim();
 
       const imageInfo = p.images.length > 0 ? `ছবির URL: ${p.images[0]}` : "ছবি নেই";
 
@@ -531,7 +539,7 @@ export async function runAI(params: {
         `  ক্যাটাগরি: ${p.category ?? "উল্লেখ নেই"}`,
         `  ${price}`,
         `  স্টক: ${p.stockQuantity} টি`,
-        `  বিবরণ: ${p.description ?? "কোনো বিবরণ নেই"}`,
+        `  বিবরণ: ${cleanDesc}`,
         `  ${imageInfo}`,
         variationInfo ? variationInfo : "",
         `  অর্ডার করতে যা জানতে হবে:`,
