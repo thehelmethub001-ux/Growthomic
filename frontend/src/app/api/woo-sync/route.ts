@@ -138,6 +138,8 @@ export async function POST() {
       };
 
       if (existing) {
+        // Prevent overwriting manual description edits from Growthomic Dashboard
+        delete (payload as any).description;
         await supabase.from("products").update(payload).eq("id", existing.id);
       } else {
         await supabase.from("products").insert([payload]);
