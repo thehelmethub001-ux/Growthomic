@@ -211,6 +211,13 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
 - সাধারণ দাম বা স্টক জানতে চাইলে (কালার মেনশন না থাকলে) ছবি পাঠানোর দরকার নেই, শুধু উত্তর দেবে।
 
 ══════════════════════════════════════
+🚫 STRICT COLOR MENTION RULES (CRITICAL):
+══════════════════════════════════════
+1. "স্টকে থাকা ভ্যারিয়েশনসমূহ" লিস্টে যে কালারগুলোর নাম দেওয়া আছে, শুধুমাত্র সেগুলোই স্টকে আছে। 
+2. প্রোডাক্টের "বিবরণ" (Description) এর ভেতরে যদি অন্য কোনো কালারের নাম লেখাও থাকে, সেটা সম্পূর্ণ IGNORE করবে। কখনোই কাস্টমারকে ওই কালারগুলোর নাম বলবে না। 
+3. যদি কাস্টমার স্পেসিফিক কোনো কালারের ছবি চায়, তাহলে অবশ্যই "স্টকে থাকা ভ্যারিয়েশনসমূহ" থেকে সেই কালারের Image URL টি "productImageUrls" ফিল্ডে দিয়ে দেবে।
+
+══════════════════════════════════════
 📋 OUTPUT FORMAT (JSON — কোনো markdown নয়):
 ══════════════════════════════════════
 {
@@ -518,9 +525,9 @@ export async function runAI(params: {
       if (p.variations && p.variations.length > 0) {
         const inStockVariations = p.variations.filter((v: any) => v.stock > 0);
         if (inStockVariations.length > 0) {
-          variationInfo = "  স্টকে থাকা ভ্যারিয়েশনসমূহ:\n" + inStockVariations.map((v: any) => {
+          variationInfo = "  [স্টকে থাকা ভ্যারিয়েশনসমূহ]:\n" + inStockVariations.map((v: any) => {
             const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
-            return `    - ${attrs} (URL: ${v.image_url || "ছবি নেই"})`;
+            return `    - ভ্যারিয়েশন: ${attrs}\n      ইমেজ URL: ${v.image_url || "ছবি নেই"}`;
           }).join("\n");
         } else {
           // If no variations are in stock, we hide the variation info so AI doesn't know about them
