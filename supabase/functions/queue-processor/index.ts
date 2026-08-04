@@ -242,6 +242,7 @@ Deno.serve(async (req: Request) => {
           // We will inject the SYSTEM_INSTRUCTION directly and clear mediaUrl so vector search is bypassed.
           messageText = `[SYSTEM_INSTRUCTION: Customer replied "Aita" or similar to a specific product image. 
 Target Product: ${matchedProduct.name} (Price: ৳${matchedProduct.salePrice || matchedProduct.regularPrice})
+detectedProductId = "${matchedProduct.id}" হিসেবে সেট করো।
 
 HUMAN RESPONSE RULES:
 1. Speak naturally like a real human shopkeeper. State the product name and price directly.
