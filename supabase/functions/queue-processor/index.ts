@@ -217,11 +217,50 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // 3. If an image URL was resolved for the replied message, set mediaUrl & mediaType to trigger Vector Search + Gemini Vision!
+      // 3. If an image URL was resolved for the replied message, first try an exact match in our DB
       if (resolvedRepliedMediaUrl) {
-        mediaUrl = resolvedRepliedMediaUrl;
-        mediaType = "image";
-        console.log(`Set mediaUrl from replied message for Vector Search + Gemini Vision: ${mediaUrl}`);
+        const { getAllInStockProducts } = await import("../_shared/supabase-client.ts");
+        const allProds = await getAllInStockProducts();
+        let matchedProduct = null;
+        for (const p of allProds) {
+          if (p.images.includes(resolvedRepliedMediaUrl)) {
+            matchedProduct = p;
+            break;
+          }
+          if (p.variations) {
+            const hasVar = p.variations.some((v: any) => v.image_url === resolvedRepliedMediaUrl);
+            if (hasVar) {
+              matchedProduct = p;
+              break;
+            }
+          }
+        }
+
+        if (matchedProduct) {
+          console.log(`Exact URL match found for replied image! Product: ${matchedProduct.name} (${matchedProduct.id})`);
+          // We found exactly which product/variation the AI sent. Skip vector search!
+          // We will inject the SYSTEM_INSTRUCTION directly and clear mediaUrl so vector search is bypassed.
+          messageText = `[SYSTEM_INSTRUCTION: Customer replied "Aita" or similar to a specific product image. 
+Target Product: ${matchedProduct.name} (Price: ৳${matchedProduct.salePrice || matchedProduct.regularPrice})
+
+HUMAN RESPONSE RULES:
+1. Speak naturally like a real human shopkeeper. State the product name and price directly.
+   Examples of how to reply:
+   - "জি স্যার, এটি আমাদের ${matchedProduct.name}। এর দাম ৳${matchedProduct.salePrice || matchedProduct.regularPrice}।"
+   - "জি স্যার, চমৎকার এই ${matchedProduct.name} মডেলটির দাম ৳${matchedProduct.salePrice || matchedProduct.regularPrice}।"
+
+2. If the customer's photo is NOT an exact match of this product:
+   - "স্যার, দুঃখিত আপনার পাঠানো এই নির্দিষ্ট মডেলটি আমাদের কাছে বর্তমানে নেই। তবে আমাদের কাছে ${matchedProduct.name} মডেলটি রয়েছে, দাম ৳${matchedProduct.salePrice || matchedProduct.regularPrice}। আপনি কি এটি দেখতে চান?"] ` + (messageText || "");
+          
+          // Clear media properties to bypass Vector Search and Gemini Vision
+          mediaUrl = undefined;
+          mediaType = undefined;
+        } else {
+          // Fallback to Vector Search if exact match failed
+          mediaUrl = resolvedRepliedMediaUrl;
+          mediaType = "image";
+          console.log(`Set mediaUrl from replied message for Vector Search + Gemini Vision: ${mediaUrl}`);
+        }
       }
     } catch (replyCtxErr) {
       console.error("Reply-to context lookup failed:", replyCtxErr);
