@@ -85,7 +85,7 @@ export async function POST() {
       // Check if product already exists
       const { data: existing } = await supabase
         .from("products")
-        .select("id")
+        .select("id, variations")
         .eq("woo_product_id", wp.id)
         .maybeSingle();
 
@@ -97,16 +97,26 @@ export async function POST() {
           );
           if (varRes.ok) {
             const varJson = await varRes.json();
-            variationsData = varJson.map((v: any) => ({
-              id: v.id,
-              price: parseFloat(v.sale_price) || parseFloat(v.regular_price) || parseFloat(v.price) || 0,
-              stock: v.manage_stock ? v.stock_quantity : (v.stock_status === "instock" ? 10 : 0),
-              image_url: v.image?.src || null,
-              attributes: v.attributes?.reduce((acc: any, attr: any) => {
-                acc[attr.name] = attr.option;
-                return acc;
-              }, {}) || {}
-            }));
+            variationsData = varJson.map((v: any) => {
+              // Try to preserve existing manually added image_url if WooCommerce doesn't provide one
+              let imgUrl = v.image?.src || null;
+              if (!imgUrl && existing && existing.variations) {
+                const existingVar = existing.variations.find((ev: any) => ev.id === v.id);
+                if (existingVar && existingVar.image_url) {
+                  imgUrl = existingVar.image_url;
+                }
+              }
+              return {
+                id: v.id,
+                price: parseFloat(v.sale_price) || parseFloat(v.regular_price) || parseFloat(v.price) || 0,
+                stock: v.manage_stock ? v.stock_quantity : (v.stock_status === "instock" ? 10 : 0),
+                image_url: imgUrl,
+                attributes: v.attributes?.reduce((acc: any, attr: any) => {
+                  acc[attr.name] = attr.option;
+                  return acc;
+                }, {}) || {}
+              };
+            });
           }
         } catch (err) {
           console.error("Failed to fetch variations for product:", wp.id, err);
