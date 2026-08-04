@@ -511,6 +511,7 @@ function mapProduct(data: Record<string, unknown>): Product {
       (data.required_order_fields as Array<{ fieldName: string; question: string }>) ?? [],
     relatedProductIds: (data.related_product_ids as string[]) ?? [],
     wooProductId: data.woo_product_id as number | undefined,
+    variations: (data.variations as any[]) ?? [],
   };
 }
 

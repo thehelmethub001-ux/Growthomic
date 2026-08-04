@@ -198,8 +198,8 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
 - কাস্টমার যদি EXPLICITLY কোনো পণ্যের বা নির্দিষ্ট ভ্যারিয়েশনের ছবি চায় (যেমন: "লাল রঙের ছবি দাও", "দেখতে কেমন"), অথবা কাস্টমার যদি কোনো কালার বা ভ্যারিয়েশন সম্পর্কে জানতে চায় (যেমন: "লালটা হবে?", "কালো কালার আছে?"):
   - নির্দিষ্ট কালারের ভ্যারিয়েশন চাইলে (যেমন "লালটা"): KNOWLEDGE BASE-এ সেই ভ্যারিয়েশনের URL থাকলে অবশ্যই "sendProductImage": true এবং "productImageUrls": ["সেই নির্দিষ্ট ভ্যারিয়েশনের URL"] দেবে।
   - কাস্টমার যদি সাধারণভাবে পণ্যের ছবি দেখতে চায় (যেমন: "ছবি দেখাও", "pic den", "দেখতে কেমন") অথবা "অন্য কালারগুলো দেখান", "সব কালারের ছবি দেন": 
-    ⚠️ তাহলে KNOWLEDGE BASE থেকে ওই পণ্যের স্টকে থাকা সবগুলো ভ্যারিয়েশনের/কালারের URL "productImageUrls": ["url1", "url2", ...] ফিল্ডে একবারে দেবে। যাতে কাস্টমার সবগুলো কালার একসাথে দেখতে পারে।
-    ⚠️ CRITICAL: এই ক্ষেত্রে "sendProductImage": true অবশ্যই সেট করতে হবে। এটা true না হলে কোনো ছবিই পাঠানো হবে না!
+    ⚠️ তাহলে KNOWLEDGE BASE থেকে ওই পণ্যের স্টকে থাকা সবগুলো ভ্যারিয়েশনের/কালারের URL "productImageUrls": ["url1", "url2", ...] ফিল্ডে একবারে দেবে এবং অবশ্যই "sendProductImage": true সেট করবে।
+    ⚠️ CRITICAL: এই ক্ষেত্রে "sendProductImage": true অবশ্যই সেট করতে হবে! এটা true না হলে কোনো ছবিই পাঠানো হবে না!
   - ⚠️ CRITICAL: একটি নির্দিষ্ট পণ্যের ছবি পাঠানোর সময় "detectedProductId" অবশ্যই সেই product-এর UUID দিতে হবে।
   - IMAGE ONLY MODE: শুধু ছবি চাইলে (কোনো কথা ছাড়া) — "imageOnly": true, "reply": "", "sendProductImage": true, "productImageUrls": ["সবগুলো কালারের URL..."], "detectedProductId": "<ID>"
 - কাস্টমার যদি কোনো নির্দিষ্ট ক্যাটাগরির (যেমন: full face, half face, modular) ছবি দেখতে চায়:
@@ -730,13 +730,29 @@ export async function runAI(params: {
 
   // 10. Enrich with product image ONLY IF the AI decided to send an image
   if (aiResult.sendProductImage) {
-    // Case A: Fetch default images if AI only gave ID but no URLs
+    // Case A: Fetch images if AI only gave ID but no URLs
     if (aiResult.detectedProductId && !aiResult.productImageUrls?.length && !aiResult.productImageUrl) {
       const product = await getProductById(aiResult.detectedProductId);
-      if (product?.images?.[0]) {
-        aiResult.productImageUrl = product.images[0];
-        // Also set productImageUrls for consistency
-        aiResult.productImageUrls = product.images.slice(0, 3); // max 3 images per product
+      if (product) {
+        const isMultiColorReq = /সব\s*(কালার|রং|রঙ|ছবি)|অন্য\s*(কালার|রং|রঙ)|all\s*color|other\s*color/i.test(effectiveText || "");
+        
+        let variationUrls: string[] = [];
+        if (isMultiColorReq && product.variations && Array.isArray(product.variations)) {
+          variationUrls = Array.from(new Set(
+            product.variations
+              .map((v: any) => v.image_url || v.imageUrl)
+              .filter((url: any) => typeof url === "string" && url.trim().length > 0 && url.startsWith("http"))
+          )).slice(0, 8) as string[];
+        }
+
+        if (variationUrls.length > 0) {
+          aiResult.productImageUrl = variationUrls[0];
+          aiResult.productImageUrls = variationUrls;
+        } else if (product.images?.[0]) {
+          aiResult.productImageUrl = product.images[0];
+          // Also set productImageUrls for consistency
+          aiResult.productImageUrls = product.images.slice(0, 3); // max 3 images per product
+        }
       }
     }
     // Case B: Multiple product images (AI returned productImageUrls directly with image URLs from the prompt)
