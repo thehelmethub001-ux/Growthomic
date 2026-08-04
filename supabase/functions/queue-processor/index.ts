@@ -177,6 +177,7 @@ Deno.serve(async (req: Request) => {
 
       let foundContextNote: string | undefined = undefined;
       let foundMediaUrl: string | undefined = undefined;
+      let foundRepliedText: string | undefined = undefined;
 
       for (const msg of repliedMsgs ?? []) {
         if (msg.content?.includes("[PRODUCT_CONTEXT:")) {
@@ -185,6 +186,9 @@ Deno.serve(async (req: Request) => {
         }
         if (msg.media_url && !foundMediaUrl) {
           foundMediaUrl = msg.media_url;
+        }
+        if (msg.content && !msg.content.includes("[PRODUCT_CONTEXT:") && msg.content.trim().length > 0 && !foundRepliedText) {
+          foundRepliedText = msg.content.trim();
         }
       }
 
@@ -199,10 +203,14 @@ Deno.serve(async (req: Request) => {
       } else if (foundMediaUrl) {
         resolvedRepliedMediaUrl = foundMediaUrl;
         console.log(`Reply-to DB mediaUrl resolved: ${foundMediaUrl}`);
+      } else if (foundRepliedText) {
+        const replyContext = `[SYSTEM_INSTRUCTION: কাস্টমার আপনার এই আগের মেসেজটিতে সরাসরি Reply দিয়ে প্রশ্ন বা মন্তব্য করেছে: "${foundRepliedText}"। কাস্টমারের নতুন মেসেজের উত্তর এই মেসেজের প্রেক্ষাপট বজায় রেখে দিন।]\n`;
+        messageText = replyContext + (messageText || "");
+        console.log(`Reply-to DB text context injected: "${foundRepliedText}"`);
       }
 
       // 2. Fallback: if mid lookup didn't find an explicit match, search conversation history for the most recent message with media_url
-      if (!foundContextNote && !resolvedRepliedMediaUrl) {
+      if (!foundContextNote && !resolvedRepliedMediaUrl && !foundRepliedText) {
         const { data: recentMediaMsgs } = await sbCtx
           .from("messages")
           .select("media_url, content")
