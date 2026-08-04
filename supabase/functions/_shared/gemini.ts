@@ -220,7 +220,7 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
   "imageOnly": false,
   "orderData": null,
   "sendProductImage": false,
-  "productImageUrls": [],
+  "productImageUrls": ["একাধিক কালার বা ভ্যারিয়েশন দেখাতে চাইলে KNOWLEDGE BASE থেকে সবগুলোর URL এখানে দেবে, কখনোই ফাঁকা রাখবে না"],
   "sendVideo": false,
   "videoUrl": null
 }`;

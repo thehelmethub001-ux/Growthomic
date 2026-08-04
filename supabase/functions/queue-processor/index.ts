@@ -571,9 +571,12 @@ Then list the names and prices naturally and ask: "আপনি কোনটি 
         urls.push((aiResult as any).productImageUrl);
       }
 
+      // Filter out invalid URLs (in case AI hallucinates placeholder text)
+      const validUrls = urls.filter(u => typeof u === "string" && u.startsWith("http"));
+
       // Send each image — capture the returned mid and save image message to DB
       let sentImageMid: string | undefined = undefined;
-      for (const imgUrl of urls) {
+      for (const imgUrl of validUrls) {
         try {
           const mid = await sendImageMessage(platform as Platform, platformId, imgUrl);
           if (mid && urls.length === 1) sentImageMid = mid; // only track mid for single image
@@ -599,11 +602,11 @@ Then list the names and prices naturally and ask: "আপনি কোনটি 
       if (aiResult.detectedProductId) {
         const { getProductById } = await import("../_shared/supabase-client.ts");
         productForContext = await getProductById(aiResult.detectedProductId);
-      } else if (urls.length === 1 && urls[0]) {
+      } else if (validUrls.length === 1 && validUrls[0]) {
         // AI sent exactly one image but didn't set detectedProductId — look up by image URL
         try {
           const sbProd = getSupabaseClient();
-          const imageUrlToSearch = urls[0];
+          const imageUrlToSearch = validUrls[0];
           const { data: prodByImage } = await sbProd
             .from("products")
             .select("id, name, regular_price, sale_price, category")
@@ -622,6 +625,29 @@ Then list the names and prices naturally and ask: "আপনি কোনটি 
           }
         } catch (imgLookupErr) {
           console.error("Image URL product lookup failed:", imgLookupErr);
+        }
+      }
+
+      // FALLBACK: If AI failed to provide any valid URLs but detected the product, send its main image
+      if (validUrls.length === 0 && productForContext) {
+        try {
+          // No valid image URL found, try to use the main image of the product
+          if (productForContext.images && productForContext.images.length > 0) {
+            const fallbackUrl = productForContext.images[0];
+            const mid = await sendImageMessage(platform as Platform, platformId, fallbackUrl);
+            if (mid) sentImageMid = mid;
+            
+            await saveMessage({
+              conversationId: conversation.id,
+              role: "ai",
+              mediaType: "image",
+              mediaUrl: fallbackUrl,
+              platformMessageId: mid,
+            });
+            console.log(`Fallback: sent main product image for ${productForContext.name}`);
+          }
+        } catch (fbErr) {
+          console.error("Failed to send fallback image:", fbErr);
         }
       }
 
