@@ -378,9 +378,10 @@ export async function runAI(params: {
   mediaUrl?: string;
   platform?: string;
   preMatchedProductId?: string;
+  preMatchedProductIds?: string[];
   candidateProducts?: { id: string; name: string; imageUrl: string }[];
 }): Promise<AIResult> {
-  const { conversationId, messageText, mediaType, mediaUrl, platform, preMatchedProductId, candidateProducts } = params;
+  const { conversationId, messageText, mediaType, mediaUrl, platform, preMatchedProductId, preMatchedProductIds, candidateProducts } = params;
 
   // 1. Load business settings
   const settings = await getBusinessSettings();

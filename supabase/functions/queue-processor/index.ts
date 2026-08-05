@@ -447,6 +447,7 @@ Then list the names and prices naturally and ask: "আপনি কোনটি 
                }).eq("platform_message_id", platformMessageId);
              }
           }
+        }
         } else {
           // Multi-Image Batch Flow (> 1 images, cap at 5 max to control API cost/latency)
           const imagesToMatch = batchImageMsgs.slice(0, 5);
