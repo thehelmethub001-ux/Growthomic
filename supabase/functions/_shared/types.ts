@@ -178,6 +178,7 @@ export interface AIResult {
   reply: string;
   intent: MessageIntent;
   detectedProductId?: string;
+  detectedProductIds?: string[];
   orderData?: {
     items: Array<{
       productId: string;

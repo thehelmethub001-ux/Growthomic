@@ -786,5 +786,11 @@ export async function runAI(params: {
     aiResult.detectedProductId = preMatchedProductId;
   }
 
+  if (params.preMatchedProductIds && params.preMatchedProductIds.length > 0) {
+    aiResult.detectedProductIds = Array.from(new Set(params.preMatchedProductIds));
+  } else if (aiResult.detectedProductId) {
+    aiResult.detectedProductIds = [aiResult.detectedProductId];
+  }
+
   return aiResult;
 }

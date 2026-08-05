@@ -313,7 +313,6 @@ HUMAN RESPONSE RULES:
         headers: { "Content-Type": "application/json" }
       });
     }
-
     // ── Step 4.5: Check if already answered by a batched run
     const latestHistory = await getConversationHistory(conversation.id, 1);
     if (latestHistory.length > 0 && latestHistory[0].role !== "customer") {
@@ -342,53 +341,76 @@ HUMAN RESPONSE RULES:
 
     // ── Step 6.5: Image Embedding Match (New Vector Search)
     let preMatchedProductId: string | undefined = undefined;
+    let preMatchedProductIds: string[] | undefined = undefined;
     let candidateProducts: { id: string; name: string; imageUrl: string }[] | undefined = undefined;
-    if (mediaType === "image" && mediaUrl) {
+
+    // Detect all customer image messages in current batch
+    let batchStartIndex = history.length;
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role !== "customer") {
+        batchStartIndex = i + 1;
+        break;
+      }
+    }
+    if (batchStartIndex === history.length) batchStartIndex = 0;
+    const currentBatchMsgs = history.slice(batchStartIndex);
+    const batchImageMsgs = currentBatchMsgs.filter(m => m.media_type === "image" && m.media_url);
+
+    // If current triggering payload has mediaType === "image" and is not in batchImageMsgs, add it
+    if (mediaType === "image" && mediaUrl && !batchImageMsgs.some(m => m.media_url === mediaUrl)) {
+      batchImageMsgs.push({ media_type: "image", media_url: mediaUrl } as any);
+    }
+
+    if (batchImageMsgs.length > 0 && !messageText?.includes("Target Product:")) {
       try {
-        console.log("Image received, executing vector similarity search...");
-        let res: Response;
-        if (platform === "whatsapp") {
-          const { downloadMetaMedia, getMetaAccessToken } = await import("../_shared/platform-send.ts");
-          const metaRes = await downloadMetaMedia(mediaUrl);
-          res = await fetch(metaRes.url, { headers: { Authorization: `Bearer ${await getMetaAccessToken()}` } });
-        } else {
-          res = await fetch(mediaUrl);
-        }
-        const buffer = await res.arrayBuffer();
-        const base64 = encodeBase64(buffer);
-        let mimeType = res.headers.get("content-type") || "image/jpeg";
-        if (!mimeType.startsWith("image/")) mimeType = "image/jpeg";
-
+        console.log(`Image(s) received (${batchImageMsgs.length} photo(s) in batch), executing vector similarity search...`);
         const sb = getSupabaseClient();
-        const { data: matchData, error: matchErr } = await sb.functions.invoke("image-match", {
-          body: { base64, mimeType, threshold: 0.45, matchCount: 6 }
-        });
 
-        if (matchErr) throw matchErr;
-        
-        if (matchData?.success && matchData.matches?.length > 0) {
-          const topMatch = matchData.matches[0];
-          let isConfident = false;
-          if (topMatch.similarity >= 0.88) {
-            if (matchData.matches.length > 1) {
-              const secondMatch = matchData.matches[1];
-              // Mirrors and visors can have very similar embeddings (margin > 0.10). 
-              // We must use a large margin (0.15) and high score (0.88) to ensure we don't confidently pick the wrong generic item.
-              if (topMatch.similarity - secondMatch.similarity >= 0.15) {
-                isConfident = true;
-              } else {
-                console.log(`Ambiguous: Top match (${topMatch.similarity}) is too close to second match (${secondMatch.similarity})`);
-              }
-            } else {
-              isConfident = true;
-            }
+        if (batchImageMsgs.length === 1) {
+          // Normal Single-Image Flow
+          const targetMediaUrl = batchImageMsgs[0].media_url!;
+          let res: Response;
+          if (platform === "whatsapp") {
+            const { downloadMetaMedia, getMetaAccessToken } = await import("../_shared/platform-send.ts");
+            const metaRes = await downloadMetaMedia(targetMediaUrl);
+            res = await fetch(metaRes.url, { headers: { Authorization: `Bearer ${await getMetaAccessToken()}` } });
+          } else {
+            res = await fetch(targetMediaUrl);
           }
+          const buffer = await res.arrayBuffer();
+          const base64 = encodeBase64(buffer);
+          let mimeType = res.headers.get("content-type") || "image/jpeg";
+          if (!mimeType.startsWith("image/")) mimeType = "image/jpeg";
 
-          if (isConfident) {
-             console.log(`Confirmed image match: ${topMatch.id} (Score: ${topMatch.similarity})`);
-             preMatchedProductId = topMatch.id;
-             messageText = `[SYSTEM_INSTRUCTION: Customer sent an image of a product. 
+          const { data: matchData, error: matchErr } = await sb.functions.invoke("image-match", {
+            body: { base64, mimeType, threshold: 0.45, matchCount: 6 }
+          });
+
+          if (matchErr) throw matchErr;
+          
+          if (matchData?.success && matchData.matches?.length > 0) {
+            const topMatch = matchData.matches[0];
+            let isConfident = false;
+            if (topMatch.similarity >= 0.88) {
+              if (matchData.matches.length > 1) {
+                const secondMatch = matchData.matches[1];
+                if (topMatch.similarity - secondMatch.similarity >= 0.15) {
+                  isConfident = true;
+                } else {
+                  console.log(`Ambiguous: Top match (${topMatch.similarity}) is too close to second match (${secondMatch.similarity})`);
+                }
+              } else {
+                isConfident = true;
+              }
+            }
+
+            if (isConfident) {
+              console.log(`Confirmed image match: ${topMatch.id} (Score: ${topMatch.similarity})`);
+              preMatchedProductId = topMatch.id;
+              preMatchedProductIds = [topMatch.id];
+              messageText = `[SYSTEM_INSTRUCTION: Customer sent an image of a product. 
 Target Product: ${topMatch.name} (Price: ৳${topMatch.sale_price || topMatch.regular_price})
+detectedProductId = "${topMatch.id}" হিসেবে সেট করো।
 
 HUMAN RESPONSE RULES:
 1. Speak naturally like a real human shopkeeper. State the product name and price directly.
@@ -398,19 +420,17 @@ HUMAN RESPONSE RULES:
 
 2. If the customer's photo is NOT an exact match of this product:
    - "স্যার, দুঃখিত আপনার পাঠানো এই নির্দিষ্ট মডেলটি আমাদের কাছে বর্তমানে নেই। তবে আমাদের কাছে ${topMatch.name} মডেলটি রয়েছে, দাম ৳${topMatch.sale_price || topMatch.regular_price}। আপনি কি এটি দেখতে চান?"] ` + (messageText || "");
-          } else {
-             // 0.70 to 0.88 range - ask for confirmation
-             console.log(`Ambiguous matches found. Top score: ${topMatch.similarity}`);
-             const optionsText = matchData.matches.map((m: any, i: number) => `- ${m.name} (Price: ৳${m.sale_price || m.regular_price}, Image URL: ${m.images?.[0] || 'None'})`).join("\n");
-             
-             // Extract candidate products (up to 6) to pass to Gemini Vision for flawless visual disambiguation
-             candidateProducts = matchData.matches.slice(0, 6).map((m: any) => ({
+            } else {
+              console.log(`Ambiguous matches found. Top score: ${topMatch.similarity}`);
+              const optionsText = matchData.matches.map((m: any) => `- ${m.name} (Price: ৳${m.sale_price || m.regular_price}, Image URL: ${m.images?.[0] || 'None'})`).join("\n");
+              
+              candidateProducts = matchData.matches.slice(0, 6).map((m: any) => ({
                 id: m.id,
                 name: m.name,
                 imageUrl: m.images?.[0]
-             })).filter((c: any) => c.imageUrl);
-             
-             const instruction = `[SYSTEM_INSTRUCTION: 
+              })).filter((c: any) => c.imageUrl);
+              
+              const instruction = `[SYSTEM_INSTRUCTION: 
 Customer sent an image. We have a few similar options in stock:
 ${optionsText}
 
@@ -428,7 +448,101 @@ Then list the names and prices naturally and ask: "আপনি কোনটি 
              }
           }
         } else {
-          console.log("No confident matches found from image embedding, falling back to Vision LLM...");
+          // Multi-Image Batch Flow (> 1 images, cap at 5 max to control API cost/latency)
+          const imagesToMatch = batchImageMsgs.slice(0, 5);
+          const multiImageMatches: Array<{ imageUrl: string; topMatch: any; matches: any[] }> = [];
+
+          for (let idx = 0; idx < imagesToMatch.length; idx++) {
+            const imgMsg = imagesToMatch[idx];
+            try {
+              let res: Response;
+              if (platform === "whatsapp") {
+                const { downloadMetaMedia, getMetaAccessToken } = await import("../_shared/platform-send.ts");
+                const metaRes = await downloadMetaMedia(imgMsg.media_url!);
+                res = await fetch(metaRes.url, { headers: { Authorization: `Bearer ${await getMetaAccessToken()}` } });
+              } else {
+                res = await fetch(imgMsg.media_url!);
+              }
+              const buffer = await res.arrayBuffer();
+              const base64 = encodeBase64(buffer);
+              let mimeType = res.headers.get("content-type") || "image/jpeg";
+              if (!mimeType.startsWith("image/")) mimeType = "image/jpeg";
+
+              const { data: matchData } = await sb.functions.invoke("image-match", {
+                body: { base64, mimeType, threshold: 0.45, matchCount: 6 }
+              });
+
+              if (matchData?.success && matchData.matches?.length > 0) {
+                const topMatch = matchData.matches[0];
+                let isConfident = false;
+                if (topMatch.similarity >= 0.88) {
+                  if (matchData.matches.length > 1) {
+                    const secondMatch = matchData.matches[1];
+                    if (topMatch.similarity - secondMatch.similarity >= 0.15) {
+                      isConfident = true;
+                    }
+                  } else {
+                    isConfident = true;
+                  }
+                }
+                multiImageMatches.push({
+                  imageUrl: imgMsg.media_url!,
+                  topMatch: isConfident ? topMatch : null,
+                  matches: matchData.matches,
+                });
+              } else {
+                multiImageMatches.push({
+                  imageUrl: imgMsg.media_url!,
+                  topMatch: null,
+                  matches: [],
+                });
+              }
+            } catch (singleImgErr) {
+              console.error(`Vector match failed for batch image ${idx + 1}:`, singleImgErr);
+            }
+          }
+
+          // Build combined multi-image SYSTEM_INSTRUCTION
+          const matchLines = multiImageMatches.map((item, idx) => {
+            if (item.topMatch) {
+              const price = item.topMatch.sale_price || item.topMatch.regular_price;
+              return `  ছবি ${idx + 1}: ${item.topMatch.name} (দাম ৳${price})`;
+            } else if (item.matches?.length > 0) {
+              const candidateStr = item.matches.slice(0, 3).map((m: any) => `${m.name} (৳${m.sale_price || m.regular_price})`).join(", ");
+              return `  ছবি ${idx + 1}: সম্ভাব্য মডেল: ${candidateStr}`;
+            } else {
+              return `  ছবি ${idx + 1}: আমাদের ক্যাটালগে এই নির্দিষ্ট পণ্যের সাথে ১০০% মিল পাওয়া যায়নি`;
+            }
+          }).join("\n");
+
+          messageText = `[SYSTEM_INSTRUCTION: কাস্টমার একসাথে ${multiImageMatches.length}টি ছবি পাঠিয়েছেন। প্রতিটির তথ্য নিচে দেওয়া হলো:
+${matchLines}
+
+নিয়মাবলী:
+১. প্রতিটি ছবির পণ্যের নাম ও দাম আলাদা আলাদাভাবে উল্লেখ করে সুন্দরভাবে বাংলায় উত্তর দিন।
+২. যে ছবিটি মিলেনি তার জন্য বিনীতভাবে জানান যে ওই নির্দিষ্ট মডেলটি বর্তমানে স্টকে নেই, তবে অন্য ছবিগুলোর নাম ও দাম সরাসরি জানিয়ে দিন।]` + "\n" + (messageText || "");
+
+          // Set preMatchedProductId to the product from the LAST confident image match in the batch (for backward compatibility)
+          const confidentMatches = multiImageMatches.filter(m => m.topMatch);
+          if (confidentMatches.length > 0) {
+            preMatchedProductId = confidentMatches[confidentMatches.length - 1].topMatch.id;
+            preMatchedProductIds = confidentMatches.map(m => m.topMatch.id);
+          }
+
+          // Flatten candidate products across all images for Gemini Vision reference
+          const allCandidates: { id: string; name: string; imageUrl: string }[] = [];
+          for (const mItem of multiImageMatches) {
+            if (mItem.matches && mItem.matches.length > 0) {
+              for (const m of mItem.matches.slice(0, 3)) {
+                if (m.images?.[0] && !allCandidates.some(c => c.id === m.id)) {
+                  allCandidates.push({ id: m.id, name: m.name, imageUrl: m.images[0] });
+                }
+              }
+            }
+          }
+          if (allCandidates.length > 0) {
+            candidateProducts = allCandidates.slice(0, 6);
+          }
         }
       } catch (imgErr) {
         console.error("Image vector search failed, falling back to Vision LLM:", imgErr);
@@ -496,6 +610,7 @@ Then list the names and prices naturally and ask: "আপনি কোনটি 
         mediaType,
         mediaUrl,
         preMatchedProductId,
+        preMatchedProductIds,
         candidateProducts,
       });
 
