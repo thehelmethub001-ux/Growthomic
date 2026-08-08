@@ -395,10 +395,15 @@ export default function ProductsPage() {
                     return (
                     <div key={v.id || idx} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: C.elevated, padding: 12, borderRadius: 8, border: `1px solid ${C.border}` }}>
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr", gap: 8 }}>
                           <input style={{...inputStyle, fontSize:12}} placeholder="e.g. Color: Red, Size: M" value={attrVal} onChange={e => {
                             const newVars = [...(formData.variations || [])];
                             newVars[idx].attributes = { "Variation": e.target.value };
+                            setFormData({ ...formData, variations: newVars });
+                          }} />
+                          <input style={{...inputStyle, fontSize:12}} type="number" placeholder="Woo Var ID" value={v.woo_variation_id || ""} onChange={e => {
+                            const newVars = [...(formData.variations || [])];
+                            newVars[idx].woo_variation_id = parseInt(e.target.value) || undefined;
                             setFormData({ ...formData, variations: newVars });
                           }} />
                           <input style={{...inputStyle, fontSize:12}} type="number" placeholder="Price (৳)" value={v.price} onChange={e => {
