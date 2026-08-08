@@ -382,7 +382,7 @@ export default function ProductsPage() {
                     <h3 style={{ fontSize: 14, fontWeight: 700, color: "#fbbf24", display: "flex", alignItems: "center", gap: 6 }}>🏷️ Product Variations</h3>
                     <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>Define sizes, colors, and specific image URLs for variations</p>
                   </div>
-                  <button onClick={() => setFormData({ ...formData, variations: [...(formData.variations || []), { id: Date.now(), attributes: { "Color/Size": "" }, price: formData.regular_price || 0, stock: 0, image_url: "" }] })} style={{ background: "rgba(245,158,11,0.1)", border: "none", color: "#fbbf24", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                  <button onClick={() => setFormData({ ...formData, variations: [...(formData.variations || []), { id: Date.now(), attributes: { "Color/Size": "" }, price: formData.regular_price || 0, stock: 0, image_url: "", woo_variation_id: "" }] })} style={{ background: "rgba(245,158,11,0.1)", border: "none", color: "#fbbf24", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
                     <Plus size={12} /> Add Variation
                   </button>
                 </div>
@@ -395,15 +395,10 @@ export default function ProductsPage() {
                     return (
                     <div key={v.id || idx} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: C.elevated, padding: 12, borderRadius: 8, border: `1px solid ${C.border}` }}>
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr", gap: 8 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                           <input style={{...inputStyle, fontSize:12}} placeholder="e.g. Color: Red, Size: M" value={attrVal} onChange={e => {
                             const newVars = [...(formData.variations || [])];
                             newVars[idx].attributes = { "Variation": e.target.value };
-                            setFormData({ ...formData, variations: newVars });
-                          }} />
-                          <input style={{...inputStyle, fontSize:12}} type="number" placeholder="Woo Var ID" value={v.woo_variation_id || ""} onChange={e => {
-                            const newVars = [...(formData.variations || [])];
-                            newVars[idx].woo_variation_id = parseInt(e.target.value) || undefined;
                             setFormData({ ...formData, variations: newVars });
                           }} />
                           <input style={{...inputStyle, fontSize:12}} type="number" placeholder="Price (৳)" value={v.price} onChange={e => {
@@ -420,6 +415,11 @@ export default function ProductsPage() {
                         <input style={{...inputStyle, fontSize:12}} placeholder="Variation Image URL (Important for AI)" value={v.image_url || ""} onChange={e => {
                           const newVars = [...(formData.variations || [])];
                           newVars[idx].image_url = e.target.value;
+                          setFormData({ ...formData, variations: newVars });
+                        }} />
+                        <input style={{...inputStyle, fontSize:12}} type="number" placeholder="WooCommerce Variation ID (order-এ সঠিক কালার পাঠাতে জরুরি — WP Admin > Product > Variations থেকে নিন)" value={v.woo_variation_id || ""} onChange={e => {
+                          const newVars = [...(formData.variations || [])];
+                          newVars[idx].woo_variation_id = e.target.value ? parseInt(e.target.value) : "";
                           setFormData({ ...formData, variations: newVars });
                         }} />
                       </div>
