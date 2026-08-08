@@ -85,7 +85,7 @@ export async function POST() {
       // Check if product already exists
       const { data: existing } = await supabase
         .from("products")
-        .select("id, variations")
+        .select("id, variations, images")
         .eq("woo_product_id", wp.id)
         .maybeSingle();
 
@@ -98,16 +98,21 @@ export async function POST() {
           if (varRes.ok) {
             const varJson = await varRes.json();
             variationsData = varJson.map((v: any) => {
-              // Try to preserve existing manually added image_url if WooCommerce doesn't provide one
-              let imgUrl = v.image?.src || null;
-              if (!imgUrl && existing && existing.variations) {
+              // Always preserve existing manually added image_url if present (e.g., multiple comma-separated URLs)
+              let imgUrl = null;
+              if (existing && existing.variations) {
                 const existingVar = existing.variations.find((ev: any) => ev.id === v.id);
                 if (existingVar && existingVar.image_url) {
                   imgUrl = existingVar.image_url;
                 }
               }
+              // Fallback to WooCommerce image if no manual image exists
+              if (!imgUrl) {
+                imgUrl = v.image?.src || null;
+              }
               return {
                 id: v.id,
+                woo_variation_id: v.id,
                 price: parseFloat(v.sale_price) || parseFloat(v.regular_price) || parseFloat(v.price) || 0,
                 stock: v.manage_stock ? v.stock_quantity : (v.stock_status === "instock" ? 10 : 0),
                 image_url: imgUrl,
@@ -123,6 +128,11 @@ export async function POST() {
         }
       }
 
+      let finalImages = images;
+      if (existing && existing.images && Array.isArray(existing.images)) {
+        finalImages = Array.from(new Set([...existing.images, ...images]));
+      }
+
       const payload = {
         woo_product_id: wp.id,
         name: wp.name,
@@ -130,7 +140,7 @@ export async function POST() {
         regular_price: parseFloat(wp.regular_price) || parseFloat(wp.price) || 0,
         sale_price: wp.sale_price ? parseFloat(wp.sale_price) : null,
         stock_quantity: stock,
-        images: images,
+        images: finalImages,
         category: category,
         description: plainTextDesc,
         is_active: wp.status === "publish",
