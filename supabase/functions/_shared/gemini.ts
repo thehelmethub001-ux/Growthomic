@@ -524,8 +524,8 @@ export async function runAI(params: {
   // 5. Build TWO-TIER RAG context:
   //    Tier 1: In-stock products — full details (price, stock, image, ordering info)
   //    Tier 2: Out-of-stock products — compact list only (so AI knows they exist but can't order)
-  const inStockProducts = ragProducts.filter(p => p.stockQuantity > 0 || (p.variations && p.variations.some((v: any) => v.stock > 0)));
-  const outOfStockProducts = ragProducts.filter(p => p.stockQuantity <= 0 && (!p.variations || !p.variations.some((v: any) => v.stock > 0)));
+  const inStockProducts = ragProducts.filter(p => p.stockQuantity > 0 || (p.variations && p.variations.some((v: any) => (v.stock_quantity ?? v.stock ?? 0) > 0)));
+  const outOfStockProducts = ragProducts.filter(p => p.stockQuantity <= 0 && (!p.variations || !p.variations.some((v: any) => (v.stock_quantity ?? v.stock ?? 0) > 0)));
 
   const inStockContext = inStockProducts
     .map((p) => {
@@ -543,15 +543,21 @@ export async function runAI(params: {
 
       let variationInfo = "";
       if (p.variations && p.variations.length > 0) {
-        const inStockVariations = p.variations.filter((v: any) => v.stock > 0);
+        const inStockVariations = p.variations.filter((v: any) => (v.stock_quantity ?? v.stock ?? 0) > 0);
         if (inStockVariations.length > 0) {
           variationInfo = "  [স্টকে থাকা ভ্যারিয়েশনসমূহ]:\n" + inStockVariations.map((v: any) => {
             const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
-            return `    - ভ্যারিয়েশন: ${attrs}\n      ইমেজ URL: ${v.image_url || "ছবি নেই"}`;
+            const vStock = v.stock_quantity ?? v.stock ?? 0;
+            const vPrice = v.sale_price ? `৳${v.sale_price}` : (v.price ? `৳${v.price}` : "");
+            return `    - ভ্যারিয়েশন: ${attrs} | স্টক: ${vStock} টি${vPrice ? ` | মূল্য: ${vPrice}` : ""}\n      ইমেজ URL: ${v.image_url || "ছবি নেই"}`;
           }).join("\n");
         } else {
-          // If no variations are in stock, we hide the variation info so AI doesn't know about them
-          variationInfo = "";
+          // Show out-of-stock variations so AI knows they exist
+          const allVars = p.variations.map((v: any) => {
+            const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
+            return `    - ❌ ${attrs} (স্টক নেই)`;
+          }).join("\n");
+          variationInfo = allVars ? `  [সকল ভ্যারিয়েশন (স্টক নেই)]:\n${allVars}` : "";
         }
       }
 
