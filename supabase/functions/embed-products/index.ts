@@ -54,6 +54,22 @@ async function getGeminiEmbedding(base64: string, mimeType: string, apiKey: stri
   return json.embedding.values;
 }
 
+async function getGeminiTextEmbedding(text: string, apiKey: string): Promise<number[]> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "models/text-embedding-004",
+      content: { parts: [{ text }] },
+      outputDimensionality: 768,
+    }),
+  });
+  if (!res.ok) throw new Error(`Gemini Text Embedding failed: ${await res.text()}`);
+  const json = await res.json();
+  return json.embedding.values;
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -74,7 +90,7 @@ serve(async (req: Request) => {
     // Fetch products and filter for those with images in JS to avoid PostgREST array format quirks
     const { data: allProducts, error: prodErr } = await sb
       .from("products")
-      .select("id, images");
+      .select("id, name, description, category, images");
 
     if (prodErr) throw prodErr;
     
@@ -158,6 +174,26 @@ serve(async (req: Request) => {
         console.log(`Successfully embedded product ${product.id}`);
       } else {
         errors++;
+      }
+      
+      // -- Text Embedding --
+      try {
+        const textToEmbed = [product.name, product.description, product.category].filter(Boolean).join(" ");
+        if (textToEmbed) {
+          const textEmbedding = await getGeminiTextEmbedding(textToEmbed, apiKey);
+          const { error: textUpdateErr } = await sb
+            .from("products")
+            .update({ embedding: `[${textEmbedding.join(",")}]` })
+            .eq("id", product.id);
+            
+          if (textUpdateErr) {
+            console.error(`Failed to update text embedding for product ${product.id}:`, textUpdateErr);
+          } else {
+            console.log(`Successfully added text embedding for product ${product.id}`);
+          }
+        }
+      } catch (textErr) {
+        console.error(`Failed to generate text embedding for product ${product.id}:`, textErr);
       }
     }
 

@@ -292,6 +292,7 @@ HUMAN RESPONSE RULES:
   }
 
   // ── Global AI Automation check: if admin turned OFF automation from frontend, skip AI
+  let cachedSettings: any = null;
   const { data: bSettings } = await sb.from("business_settings").select("ai_reply_mode").limit(1).single();
   if (bSettings && bSettings.ai_reply_mode === "off") {
     console.log(`Global AI automation is turned OFF by admin from dashboard`);
@@ -391,13 +392,15 @@ HUMAN RESPONSE RULES:
           if (matchData?.success && matchData.matches?.length > 0) {
             const topMatch = matchData.matches[0];
             let isConfident = false;
-            if (topMatch.similarity >= 0.88) {
+            // Lowered threshold: 0.75 similarity is sufficient for a confident match
+            if (topMatch.similarity >= 0.75) {
               if (matchData.matches.length > 1) {
                 const secondMatch = matchData.matches[1];
-                if (topMatch.similarity - secondMatch.similarity >= 0.15) {
+                // Reduced gap requirement: 0.08 is enough to distinguish two different products
+                if (topMatch.similarity - secondMatch.similarity >= 0.08) {
                   isConfident = true;
                 } else {
-                  console.log(`Ambiguous: Top match (${topMatch.similarity}) is too close to second match (${secondMatch.similarity})`);
+                  console.log(`Ambiguous: Top match (${topMatch.similarity.toFixed(3)}) too close to second (${secondMatch.similarity.toFixed(3)}), gap=${(topMatch.similarity - secondMatch.similarity).toFixed(3)}`);
                 }
               } else {
                 isConfident = true;
@@ -405,40 +408,127 @@ HUMAN RESPONSE RULES:
             }
 
             if (isConfident) {
-              console.log(`Confirmed image match: ${topMatch.id} (Score: ${topMatch.similarity})`);
+              console.log(`Confirmed image match: ${topMatch.name} (ID: ${topMatch.id}, Score: ${topMatch.similarity.toFixed(3)})`);
               preMatchedProductId = topMatch.id;
               preMatchedProductIds = [topMatch.id];
-              messageText = `[SYSTEM_INSTRUCTION: Customer sent an image of a product. 
-Target Product: ${topMatch.name} (Price: ৳${topMatch.sale_price || topMatch.regular_price})
-detectedProductId = "${topMatch.id}" হিসেবে সেট করো।
+              // Build ALL variation images (including out-of-stock) so Gemini can identify the customer's color
+              const allVarImages: { id: string; name: string; imageUrl: string }[] = [];
+              for (const v of (topMatch.variations || [])) {
+                const url = v.image_url || v.imageUrl;
+                if (url && url.startsWith("http")) {
+                  const attrs = Object.entries(v.attributes || {}).map(([_k, val]) => `${val}`).join(" ");
+                  allVarImages.push({ id: topMatch.id, name: `${topMatch.name} - ${attrs}`, imageUrl: url });
+                }
+              }
 
-HUMAN RESPONSE RULES:
-1. Speak naturally like a real human shopkeeper. State the product name and price directly.
-   Examples of how to reply:
-   - "জি স্যার, এটি আমাদের ${topMatch.name}। এর দাম ৳${topMatch.sale_price || topMatch.regular_price}।"
-   - "জি স্যার, চমৎকার এই ${topMatch.name} মডেলটির দাম ৳${topMatch.sale_price || topMatch.regular_price}।"
+              // Build in-stock vs out-of-stock info
+              const inStockVars = (topMatch.variations || []).filter((v: any) => (v.stock ?? 1) > 0);
+              const outOfStockVars = (topMatch.variations || []).filter((v: any) => (v.stock ?? 1) <= 0);
+              const inStockColors = inStockVars.map((v: any) => Object.values(v.attributes || {}).join(" "));
 
-2. If the customer's photo is NOT an exact match of this product:
-   - "স্যার, দুঃখিত আপনার পাঠানো এই নির্দিষ্ট মডেলটি আমাদের কাছে বর্তমানে নেই। তবে আমাদের কাছে ${topMatch.name} মডেলটি রয়েছে, দাম ৳${topMatch.sale_price || topMatch.regular_price}। আপনি কি এটি দেখতে চান?"] ` + (messageText || "");
+              if (allVarImages.length > 0) {
+                // Send ALL variation images so Gemini Vision can identify ANY color (even out of stock)
+                candidateProducts = allVarImages.slice(0, 8);
+
+                // Build full color+stock status info
+                const allColorStockInfo = (topMatch.variations || []).map((v: any) => {
+                  const colorName = Object.values(v.attributes || {}).join(" ");
+                  const price = v.sale_price || v.price || topMatch.sale_price || topMatch.regular_price;
+                  const stockStatus = (v.stock ?? 1) > 0 ? "✅ স্টকে আছে" : "❌ স্টকে নেই";
+                  return `  • ${topMatch.name} - ${colorName} (দাম: ৳${price}) — ${stockStatus}`;
+                }).join("\n");
+
+                const inStockColorNames = inStockColors.join(", ");
+
+                const instruction = `[SYSTEM_INSTRUCTION:
+Customer sent a helmet image.
+Product identified by vector search: ${topMatch.name}
+detectedProductId = "${topMatch.id}"
+
+STEP 1 — Model confirmed: ${topMatch.name} আমাদের কাছে আছে।
+STEP 2 — সব কালারের তালিকা (stock status সহ):
+${allColorStockInfo}
+
+তোমার কাজ (৩ ধাপে):
+১. উপরের reference ছবিগুলোর সাথে customer এর helmet এর কালার মেলাও।
+   RULE: হুবহু না মিললেও সবচেয়ে কাছের কালারটাকে MATCH ধরবে। কখনো "এই কালার আমাদের কাছে নেই" বলবে না।
+২. যে কালারটা সবচেয়ে কাছে মিলেছে, সেটার stock status দেখো উপরের তালিকায়।
+৩. উত্তর দাও:
+   - যদি ✅ স্টকে আছে → বলো: "জি স্যার, এটি আমাদের ${topMatch.name} - [COLOR]। এর দাম ৳[PRICE]।"
+   - যদি ❌ স্টকে নেই → বলো: "স্যার, ${topMatch.name} - [COLOR] কালারটি এই মুহূর্তে স্টকে নেই। তবে এই কালারগুলো এখন পাওয়া যাচ্ছে: ${inStockColorNames}।"
+
+Reply in Bengali naturally. প্রতিটি product বলার সময় অবশ্যই color name সহ বলো।]`;
+                messageText = instruction + "\n" + (messageText || "");
+              } else {
+                // No variation images — simple single-image product
+                const price = topMatch.sale_price || topMatch.regular_price;
+                const stockOk = (topMatch.stock_quantity ?? 1) > 0;
+                messageText = `[SYSTEM_INSTRUCTION:
+Customer sent a helmet image.
+Product identified by system: ${topMatch.name} (দাম: ৳${price})
+detectedProductId = "${topMatch.id}"
+Stock status: ${stockOk ? "✅ স্টকে আছে" : "❌ স্টকে নেই"}
+
+Gemini Vision করবে:
+- Customer এর ছবির হেলমেটের শেপ/ডিজাইন যদি ${topMatch.name} এর মতো হয় (কালার বা স্টিকার ভিন্ন হলেও), তাহলে মিল হিসেবে ধরবে।
+- যদি মিলে এবং স্টকে আছে → বলো: "জি স্যার, এটি আমাদের ${topMatch.name}। এর দাম ৳${price}।"
+- যদি মিলে কিন্তু স্টকে নেই → বলো: "স্যার, ${topMatch.name} এর এই নির্দিষ্ট কালারটি বর্তমানে স্টকে নেই।"
+- যদি একেবারেই না মিলে (সম্পূর্ণ ভিন্ন শেপ) → বলো: "স্যার, আপনার পাঠানো নির্দিষ্ট কালার/গ্রাফিক্সটি হয়তো আমাদের কাছে নেই, তবে ${topMatch.name} মডেলটি আমাদের কাছে আছে যার দাম ৳${price}।"
+Reply in Bengali naturally.]` + "\n" + (messageText || "");
+              }
             } else {
-              console.log(`Ambiguous matches found. Top score: ${topMatch.similarity}`);
-              const optionsText = matchData.matches.map((m: any) => `- ${m.name} (Price: ৳${m.sale_price || m.regular_price}, Image URL: ${m.images?.[0] || 'None'})`).join("\n");
-              
-              candidateProducts = matchData.matches.slice(0, 6).map((m: any) => ({
-                id: m.id,
-                name: m.name,
-                imageUrl: m.images?.[0]
-              })).filter((c: any) => c.imageUrl);
-              
-              const instruction = `[SYSTEM_INSTRUCTION: 
-Customer sent an image. We have a few similar options in stock:
+              console.log(`Ambiguous matches found. Top score: ${topMatch.similarity.toFixed(3)}, building candidate set for Gemini Vision...`);
+
+              // Build candidate list with VARIATION images (not just product-level images)
+              const candidateList: { id: string; name: string; imageUrl: string }[] = [];
+              for (const m of matchData.matches.slice(0, 5)) {
+                // Add variation images first (specific colors)
+                if (m.variations && m.variations.length > 0) {
+                  for (const v of m.variations) {
+                    const vUrl = v.image_url || v.imageUrl;
+                    if (vUrl && vUrl.startsWith("http")) {
+                      const attrs = Object.entries(v.attributes || {}).map(([_k, val]) => `${val}`).join(" ");
+                      if (!candidateList.some(c => c.imageUrl === vUrl)) {
+                        candidateList.push({ id: m.id, name: `${m.name} - ${attrs}`, imageUrl: vUrl });
+                      }
+                    }
+                  }
+                }
+                // Fallback: product-level image
+                if (m.images?.[0] && !candidateList.some(c => c.imageUrl === m.images[0])) {
+                  candidateList.push({ id: m.id, name: m.name, imageUrl: m.images[0] });
+                }
+              }
+              candidateProducts = candidateList.slice(0, 8);
+
+              // Build per-product color+stock text for ambiguous matches
+              const optionsText = matchData.matches.slice(0, 5).map((m: any) => {
+                const price = m.sale_price || m.regular_price;
+                const inStockVariations = (m.variations || []).filter((v: any) => (v.stock ?? 1) > 0);
+                const colorLines = inStockVariations.map((v: any) => {
+                  const colorName = Object.values(v.attributes || {}).join(" ");
+                  const vPrice = v.sale_price || v.price || price;
+                  return `    • ${m.name} - ${colorName} (৳${vPrice})`;
+                }).join("\n") || `    • ${m.name} (৳${price})`;
+                return `[${m.id}] ${m.name}:\n${colorLines}`;
+              }).join("\n\n");
+
+              const instruction = `[SYSTEM_INSTRUCTION:
+Customer sent a helmet image. Vector search found similar models. Reference variation images are provided above.
+
+Available models & colors in stock:
 ${optionsText}
 
-Speak naturally like a real human shopkeeper:
-"স্যার, এই ধরনের প্রোডাক্টের আমাদের কাছে এই মডেলগুলো রয়েছে:"
-Then list the names and prices naturally and ask: "আপনি কোনটি দেখতে বা নিতে চাচ্ছেন?"]`;
+Gemini Vision করবে (3 ধাপে):
+STEP 1: Customer এর helmet এর model/shape কোনটির সাথে সবচেয়ে বেশি মিলে তা নির্ধারণ করো। (কালার বা স্টিকার ভিন্ন হলেও হেলমেটের মূল গঠন বা শেপ এক হলে একই মডেল হিসেবে ধরবে)।
+STEP 2: কাস্টমারের ছবির কালার কি উপরের catalog-এর (stock-এ থাকা) কোনো কালারের সাথে মিলে যায়?
+  - যদি হ্যাঁ (কালার মিলে যায়) → বলো: "জি স্যার, এটি আমাদের [Product Name] - [COLOR]। এর দাম ৳[Price]।"
+  - যদি না (মডেল মিলে কিন্তু এই নির্দিষ্ট কালারটি catalog-এ নেই) → বলো: "স্যার, আপনার পাঠানো এই নির্দিষ্ট কালারটি বর্তমানে আমাদের স্টকে নেই। তবে এই মডেলের নিচের কালারগুলো আমাদের কাছে আছে:" তারপর catalog থেকে ওই মডেলের কালার ও দামগুলো list করো।
+STEP 3: যদি customer এর ছবির model/shape কোনোটির সাথেই না মিলে → বলো: "স্যার, আপনার পাঠানো ঠিক একই মডেলটি হয়তো আমাদের কাছে বর্তমানে নেই, তবে কাছাকাছি এই মডেলগুলো আছে:" তারপর catalog থেকে list করো।
 
-             messageText = instruction + "\n" + (messageText || "");
+Reply in Bengali naturally. প্রতিটি product বলার সময় অবশ্যই color সহ বলো।]`;
+
+              messageText = instruction + "\n" + (messageText || "");
 
              // Save the context persistently in the user's message so AI remembers the image URLs in the next turns
              if (platformMessageId) {
@@ -476,10 +566,10 @@ Then list the names and prices naturally and ask: "আপনি কোনটি 
               if (matchData?.success && matchData.matches?.length > 0) {
                 const topMatch = matchData.matches[0];
                 let isConfident = false;
-                if (topMatch.similarity >= 0.88) {
+                if (topMatch.similarity >= 0.75) {
                   if (matchData.matches.length > 1) {
                     const secondMatch = matchData.matches[1];
-                    if (topMatch.similarity - secondMatch.similarity >= 0.15) {
+                    if (topMatch.similarity - secondMatch.similarity >= 0.08) {
                       isConfident = true;
                     }
                   } else {
@@ -507,7 +597,11 @@ Then list the names and prices naturally and ask: "আপনি কোনটি 
           const matchLines = multiImageMatches.map((item, idx) => {
             if (item.topMatch) {
               const price = item.topMatch.sale_price || item.topMatch.regular_price;
-              return `  ছবি ${idx + 1}: ${item.topMatch.name} (দাম ৳${price})`;
+              const inStockColors = (item.topMatch.variations || [])
+                .filter((v: any) => (v.stock ?? 1) > 0)
+                .map((v: any) => Object.values(v.attributes || {}).join(" "))
+                .join(", ");
+              return `  ছবি ${idx + 1}: ${item.topMatch.name}${inStockColors ? ` (স্টকে থাকা কালার: ${inStockColors})` : ""} (দাম ৳${price})`;
             } else if (item.matches?.length > 0) {
               const candidateStr = item.matches.slice(0, 3).map((m: any) => `${m.name} (৳${m.sale_price || m.regular_price})`).join(", ");
               return `  ছবি ${idx + 1}: সম্ভাব্য মডেল: ${candidateStr}`;
@@ -535,14 +629,23 @@ ${matchLines}
           for (const mItem of multiImageMatches) {
             if (mItem.matches && mItem.matches.length > 0) {
               for (const m of mItem.matches.slice(0, 3)) {
-                if (m.images?.[0] && !allCandidates.some(c => c.id === m.id)) {
+                // Add the main image
+                if (m.images?.[0] && !allCandidates.some(c => c.id === m.id && c.imageUrl === m.images[0])) {
                   allCandidates.push({ id: m.id, name: m.name, imageUrl: m.images[0] });
+                }
+                // Add all variation images
+                for (const v of (m.variations || [])) {
+                  const url = v.image_url || v.imageUrl;
+                  if (url && url.startsWith("http")) {
+                    const attrs = Object.entries(v.attributes || {}).map(([_k, val]) => `${val}`).join(" ");
+                    allCandidates.push({ id: m.id, name: `${m.name} - ${attrs}`, imageUrl: url });
+                  }
                 }
               }
             }
           }
           if (allCandidates.length > 0) {
-            candidateProducts = allCandidates.slice(0, 6);
+            candidateProducts = allCandidates.slice(0, 10);
           }
         }
       } catch (imgErr) {
@@ -550,55 +653,9 @@ ${matchLines}
       }
     }
 
-    // ── Step 6.7: Product Context Injection (2-Layer System)
-    // Layer 1: reply_to.mid lookup (already done above at line ~154)
-    // Layer 2: Fallback — scan conversation history ONLY when no specific reply_to reference
-    //
-    // ⚠️ IMPORTANT: Layer 2 must NOT run when replyToMid is present.
-    // We are disabling Layer 2 guessing entirely to prevent hallucination.
-    const shouldRunLayer2 = false;
-    
-    if (shouldRunLayer2) {
-      try {
-        // Get extended history to find PRODUCT_CONTEXT
-        const fullHistory = await getConversationHistory(conversation.id, 20);
-        
-        // Find the most recent PRODUCT_CONTEXT in AI messages (scan in reverse = newest first)
-        let lastCtxMatch: RegExpMatchArray | null = null;
-        let lastCtxAge = 999; // how many messages ago
-        for (let i = fullHistory.length - 1; i >= 0; i--) {
-          const msg = fullHistory[i];
-          if (msg.role === "ai" && msg.content?.includes("[PRODUCT_CONTEXT:")) {
-            const m = msg.content.match(/\[PRODUCT_CONTEXT: ID=([^\|]+) \| Name=([^\|]+) \| Price=([^\|]+) \| Category=([^\]]+)\]/);
-            if (m) {
-              lastCtxMatch = m;
-              lastCtxAge = (fullHistory.length - 1) - i; // 0 = very recent
-              break;
-            }
-          }
-        }
-
-        // Only inject if PRODUCT_CONTEXT is very recent (≤6 messages ago) to avoid stale context
-        // and message looks like a follow-up (price/buy inquiry)
-        if (lastCtxMatch && lastCtxAge <= 6) {
-          const [, prodId, prodName, prodPrice] = lastCtxMatch;
-          const msgLower = (messageText || "").toLowerCase();
-          const isFollowUp = 
-            messageText.length <= 40 || // short message = likely follow-up
-            /price|দাম|কত|নিতে|কিনব|কিনতে|order|অর্ডার|buy|stock|পাঠান|বুক/.test(msgLower);
-          
-          if (isFollowUp) {
-            const ctxInject = `[SYSTEM_INSTRUCTION: কাস্টমার কোনো নির্দিষ্ট ছবিতে reply না করে সরাসরি বার্তা দিয়েছে। Conversation history-তে দেখা যাচ্ছে সম্প্রতি "${prodName.trim()}" (দাম: ${prodPrice.trim()}) পণ্যটির তথ্য/ছবি দেওয়া হয়েছে। কাস্টমারের বার্তাটি সম্ভবত এই পণ্যটি সম্পর্কেই। detectedProductId = "${prodId.trim()}" হিসেবে সেট করো।]\n`;
-            messageText = ctxInject + (messageText || "");
-            console.log(`[Layer2-CTX] Injected: "${prodName.trim()}" (${lastCtxAge} msgs ago)`);
-          }
-        }
-      } catch (ctxErr) {
-        console.error("Layer2 product context injection failed:", ctxErr);
-      }
-    } else if (replyToMid && !messageText?.includes("[SYSTEM_INSTRUCTION:")) {
-      // replyToMid present but Layer 1 couldn't find exact product — log and skip injection
-      console.log(`[Layer2-SKIP] replyToMid=${replyToMid} present but Layer1 lookup failed. AI will ask for clarification.`);
+    // Layer 2 context injection disabled — Layer 1 (reply_to lookup) handles all cases
+    if (replyToMid && !messageText?.includes("[SYSTEM_INSTRUCTION:")) {
+      console.log(`[Layer2-SKIP] replyToMid present but Layer1 lookup failed. AI will ask for clarification.`);
     }
 
     // ── Step 7: AI Engine
@@ -729,11 +786,21 @@ ${matchLines}
       // Save a hidden context message so AI knows which product was shown
       // Also saves the platform_message_id so reply_to lookups work
       // Try detectedProductId first, then fall back to image URL lookup
-      let productForContext: { id: string; name: string; salePrice?: number; regularPrice: number; category?: string } | null = null;
+      let productForContext: { id: string; name: string; salePrice?: number; regularPrice: number; category?: string; images?: string[] } | null = null;
       
       if (aiResult.detectedProductId) {
         const { getProductById } = await import("../_shared/supabase-client.ts");
-        productForContext = await getProductById(aiResult.detectedProductId);
+        const fullProduct = await getProductById(aiResult.detectedProductId);
+        if (fullProduct) {
+          productForContext = {
+            id: fullProduct.id,
+            name: fullProduct.name,
+            regularPrice: fullProduct.regularPrice,
+            salePrice: fullProduct.salePrice,
+            category: fullProduct.category,
+            images: fullProduct.images,
+          };
+        }
       } else if (validUrls.length === 1 && validUrls[0]) {
         // AI sent exactly one image but didn't set detectedProductId — look up by image URL
         try {
@@ -741,7 +808,7 @@ ${matchLines}
           const imageUrlToSearch = validUrls[0];
           const { data: prodByImage } = await sbProd
             .from("products")
-            .select("id, name, regular_price, sale_price, category")
+            .select("id, name, regular_price, sale_price, category, images")
             .contains("images", JSON.stringify([imageUrlToSearch]))
             .limit(1)
             .maybeSingle();
@@ -752,6 +819,7 @@ ${matchLines}
               regularPrice: prodByImage.regular_price,
               salePrice: prodByImage.sale_price,
               category: prodByImage.category,
+              images: prodByImage.images,
             };
             console.log(`[CTX] Product found by image URL: ${prodByImage.name}`);
           }
@@ -813,7 +881,8 @@ ${matchLines}
         deliveryAddress: orderData.deliveryAddress,
       });
 
-      const settings = await getBusinessSettings();
+      if (!cachedSettings) cachedSettings = await getBusinessSettings();
+      const settings = cachedSettings;
 
       // 1. Google Sheets Webhook
       if (settings.googleSheetsWebhookUrl) {

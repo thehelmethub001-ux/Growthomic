@@ -15,16 +15,20 @@ const sb = createClient(supabaseUrl, supabaseKey);
 
 async function main() {
   const { data, error } = await sb
-    .from("products")
-    .select("name, variations")
-    .limit(5);
+    .from("orders")
+    .select("id, created_at, items, woo_order_id, woo_sync_status")
+    .order('created_at', { ascending: false })
+    .limit(3);
 
-  if (error) {
-    console.error("Error:", error);
-    return;
+  for (const o of data || []) {
+    console.log(`\nOrder ID: ${o.id}`);
+    console.log(`WooOrderId: ${o.woo_order_id}`);
+    console.log("Items:");
+    for (const item of (o.items || [])) {
+      console.log(`  - Name: ${item.name}`);
+      console.log(`    wooVariationId: ${item.wooVariationId}`);
+    }
   }
-
-  console.log(JSON.stringify(data, null, 2));
 }
 
 main();

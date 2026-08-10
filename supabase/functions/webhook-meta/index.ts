@@ -98,17 +98,23 @@ function parseMessengerEvent(
     const attachments = message.attachments as
       | Array<{ type: string; payload: { url?: string } }>
       | undefined;
-    if (attachments?.[0]) {
-      const att = attachments[0];
-      if (att.type === "image") {
+      
+    if (attachments && attachments.length > 0) {
+      const imageAtts = attachments.filter(a => a.type === "image" && a.payload?.url);
+      
+      if (imageAtts.length > 0) {
         payload.mediaType = "image";
-        payload.mediaUrl = att.payload.url;
-      } else if (att.type === "audio") {
-        payload.mediaType = "voice";
-        payload.mediaUrl = att.payload.url;
-      } else if (att.type === "video") {
-        payload.mediaType = "video";
-        payload.mediaUrl = att.payload.url;
+        payload.mediaUrls = imageAtts.map(a => a.payload.url!);
+        payload.mediaUrl = imageAtts[0].payload.url; // fallback for single-image code
+      } else {
+        const att = attachments[0];
+        if (att.type === "audio") {
+          payload.mediaType = "voice";
+          payload.mediaUrl = att.payload.url;
+        } else if (att.type === "video") {
+          payload.mediaType = "video";
+          payload.mediaUrl = att.payload.url;
+        }
       }
     }
 

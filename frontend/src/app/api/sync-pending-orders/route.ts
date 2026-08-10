@@ -98,12 +98,36 @@ export async function POST(req: Request) {
 
     for (const order of pendingOrders) {
       try {
-        const lineItems = (order.items || [])
-          .map((i: any) => ({
-            product_id: i.wooProductId || i.productId,
+        const rawLineItems = [];
+        for (const i of (order.items || [])) {
+          let resolvedWooProductId = i.wooProductId;
+
+          // Lookup woo_product_id if missing but we have internal productId
+          if (!resolvedWooProductId && i.productId) {
+            const { data } = await supabase
+              .from("products")
+              .select("woo_product_id")
+              .eq("id", i.productId)
+              .maybeSingle();
+
+            if (data && data.woo_product_id) {
+              resolvedWooProductId = data.woo_product_id;
+            }
+          }
+
+          const itemTotal = String((i.unitPrice || 0) * (i.qty || 1));
+          
+          rawLineItems.push({
+            product_id: resolvedWooProductId,
+            variation_id: i.wooVariationId,
             quantity: i.qty || 1,
-          }))
-          .filter((i: any) => i.product_id);
+            name: i.name,
+            total: itemTotal,
+            subtotal: itemTotal
+          });
+        }
+
+        const lineItems = rawLineItems.filter((i: any) => i.product_id);
 
         if (lineItems.length === 0) {
           // Can't push an order with no mapped products

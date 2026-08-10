@@ -74,10 +74,10 @@ export async function acquireIdempotencyLock(platformMessageId: string): Promise
 /**
  * Conversation lock: prevents concurrent AI processing on same conversation.
  * Key: lock:conversation:{conversationId}
- * TTL: 30 seconds
+ * TTL: 120 seconds
  */
 export async function acquireConversationLock(conversationId: string): Promise<boolean> {
-  return redisSetNX(`lock:conversation:${conversationId}`, "1", 30);
+  return redisSetNX(`lock:conversation:${conversationId}`, "1", 120);
 }
 
 export async function releaseConversationLock(conversationId: string): Promise<void> {

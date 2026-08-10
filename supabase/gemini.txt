@@ -304,58 +304,53 @@ export function parseGeminiJSON(rawText: string): AIResult {
 // Generate embedding for a text query (OpenAI text-embedding-3-small)
 // Used for hybrid RAG product search
 // ============================================================
-export async function generateEmbedding(text: string, geminiKey?: string): Promise<number[]> {
-  const key = geminiKey || Deno.env.get("GEMINI_API_KEY")!;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${key}`;
-  const res = await fetch(url, {
+export async function generateEmbedding(text: string, openaiKey?: string): Promise<number[]> {
+  const key = openaiKey || Deno.env.get("OPENAI_API_KEY")!;
+  const res = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+    },
     body: JSON.stringify({
-      model: "models/text-embedding-004",
-      content: { parts: [{ text }] },
-      outputDimensionality: 768,
+      model: "text-embedding-3-small",
+      input: text,
+      dimensions: 1536,
     }),
   });
-  if (!res.ok) throw new Error(`Gemini Text Embedding failed: ${await res.text()}`);
+
+  if (!res.ok) {
+    throw new Error(`Embedding generation failed: ${await res.text()}`);
+  }
+
   const json = await res.json();
-  return json.embedding.values as number[];
+  return json.data[0].embedding as number[];
 }
 
 // ============================================================
 // Transcribe voice message with OpenAI Whisper
 // ============================================================
-export async function transcribeVoice(audioUrl: string, mimeType: string, geminiKey?: string, audioToken?: string): Promise<string> {
-  const key = geminiKey || Deno.env.get("GEMINI_API_KEY")!;
+export async function transcribeVoice(audioUrl: string, mimeType: string, openaiKey?: string, audioToken?: string): Promise<string> {
+  const key = openaiKey || Deno.env.get("OPENAI_API_KEY")!;
   // Download audio
   const headers = audioToken ? { Authorization: `Bearer ${audioToken}` } : undefined;
   const audioRes = await fetch(audioUrl, { headers });
-  const audioBuffer = await audioRes.arrayBuffer();
-  const bytes = new Uint8Array(audioBuffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  const base64 = btoa(binary);
+  const audioBlob = await audioRes.blob();
 
-  // Send to Gemini with transcription instruction
-  const res = await fetch(`${GEMINI_TEXT_URL}?key=${key}`, {
+  const form = new FormData();
+  form.append("file", audioBlob, `audio.${mimeType.split("/")[1] ?? "ogg"}`);
+  form.append("model", "whisper-1");
+  form.append("language", "bn"); // Hint: Bengali; Whisper auto-detects if wrong
+
+  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{
-        role: "user",
-        parts: [
-          { inlineData: { mimeType: mimeType || "audio/ogg", data: base64 } },
-          { text: "এই audio message টি বাংলায় transcribe করো। শুধু transcribed text দাও, অন্য কিছু নয়।" }
-        ]
-      }],
-      generationConfig: { temperature: 0, maxOutputTokens: 512 },
-    }),
+    headers: { Authorization: `Bearer ${key}` },
+    body: form,
   });
 
-  if (!res.ok) throw new Error(`Gemini audio transcription failed: ${await res.text()}`);
+  if (!res.ok) throw new Error(`Whisper transcription failed: ${await res.text()}`);
   const json = await res.json();
-  return json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+  return json.text as string;
 }
 
 // ============================================================
@@ -444,7 +439,7 @@ export async function runAI(params: {
         audioToken = await getMetaAccessToken();
       }
 
-      effectiveText = await transcribeVoice(finalAudioUrl, finalAudioMimeType, settings.geminiApiKey ?? undefined, audioToken);
+      effectiveText = await transcribeVoice(finalAudioUrl, finalAudioMimeType, settings.openaiApiKey ?? undefined, audioToken);
     } catch (err) {
       console.error("Whisper transcription failed:", err);
       effectiveText = "[Voice message — could not transcribe]";
@@ -469,9 +464,9 @@ export async function runAI(params: {
   }
 
   if (searchText && searchText.length > 0) {
-    if (settings.geminiApiKey || Deno.env.get("GEMINI_API_KEY")) {
+    if (settings.openaiApiKey) {
       try {
-        const embedding = await generateEmbedding(searchText, settings.geminiApiKey);
+        const embedding = await generateEmbedding(searchText, settings.openaiApiKey);
         ragProducts = await hybridProductSearch(embedding, searchText, searchLimit);
         learnedResponses = await hybridKnowledgeSearch(embedding, 3);
       } catch (err) {
@@ -483,7 +478,7 @@ export async function runAI(params: {
         }
       }
     } else {
-      console.log("No Gemini key — using text-only product search");
+      console.log("No OpenAI key — using text-only product search");
       try {
         ragProducts = await textOnlyProductSearch(searchText, searchLimit);
       } catch (textErr) {
@@ -667,16 +662,18 @@ export async function runAI(params: {
       const base64 = btoa(binary);
       const mimeType = imgRes.headers.get("content-type") ?? "image/jpeg";
       
-      currentParts.push({ text: "\n--- CUSTOMER'S UPLOADED PHOTO (analyze this carefully) ---\n" });
+      currentParts.push({ text: "\n--- CUSTOMER'S UPLOADED PHOTO ---\n" });
       currentParts.push({ inlineData: { mimeType, data: base64 } });
 
-      // Only add generic vision fallback if no detailed SYSTEM_INSTRUCTION was injected
-      const hasSystemInstruction = effectiveText?.includes("[SYSTEM_INSTRUCTION:");
-      if (!hasSystemInstruction) {
-        currentParts.push({ 
-          text: `Customer sent an image. Analyze it, compare with any REFERENCE PRODUCTS shown above, and reply naturally in Bengali. If it matches a product, confirm it. If not, say we don't have that exact model.` 
-        });
-      }
+      // Explicit vision prompt: match against catalog
+      currentParts.push({ 
+        text: `Customer sent an image. TASK:
+1. Analyze the CUSTOMER'S UPLOADED PHOTO carefully.
+2. If REFERENCE PRODUCTS are provided above, visually compare the customer's photo against EACH reference product photo (check shape, color, graphics, visor).
+3. If it perfectly matches one of the reference photos, set detectedProductId to that product's ID and tell the customer the product name and price.
+4. If it doesn't match any product exactly, say we don't have that exact product but suggest similar ones from the catalog.
+5. Reply in Bengali.` 
+      });
     } catch (err) {
       console.error("Failed to load image for Gemini Vision:", err);
     }
@@ -692,7 +689,7 @@ export async function runAI(params: {
 
   let aiResult: AIResult;
 
-  // 7. Call Gemini 3.1 Flash Lite (primary AI engine)
+  // 7. Call Gemini 1.5 Flash with Fallback
   try {
     const geminiRes = await fetch(
       `${GEMINI_TEXT_URL}?key=${geminiKey}`,
@@ -728,9 +725,9 @@ export async function runAI(params: {
     console.error("Gemini failed, falling back to GPT-4o-mini:", error);
     try {
       aiResult = await callOpenAIFallback(openaiKey, contents, systemPrompt);
-    } catch (fallbackError: any) {
+    } catch (fallbackError) {
       console.error("OpenAI fallback also failed:", fallbackError);
-      aiResult = { reply: "দুঃখিত, এই মুহূর্তে আমাদের সিস্টেম কিছুটা ব্যস্ত আছে। দয়া করে একটু পর আবার মেসেজ দিন।", intent: "unknown" };
+      aiResult = { reply: "দুঃখিত, এই মুহূর্তে আমাদের সিস্টেম কিছুটা ব্যস্ত আছে। দয়া করে একটু পর আবার মেসেজ দিন।", intent: "unknown" };
     }
   }
 
