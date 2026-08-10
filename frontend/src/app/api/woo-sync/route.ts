@@ -98,10 +98,10 @@ export async function POST() {
           if (varRes.ok) {
             const varJson = await varRes.json();
             variationsData = varJson.map((v: any) => {
-              // Always preserve existing manually added image_url if present (e.g., multiple comma-separated URLs)
+              // Always preserve existing manually added image_url if present
               let imgUrl = null;
               if (existing && existing.variations) {
-                const existingVar = existing.variations.find((ev: any) => ev.id === v.id);
+                const existingVar = existing.variations.find((ev: any) => ev.woo_variation_id === v.id || ev.id === v.id);
                 if (existingVar && existingVar.image_url) {
                   imgUrl = existingVar.image_url;
                 }
@@ -110,16 +110,30 @@ export async function POST() {
               if (!imgUrl) {
                 imgUrl = v.image?.src || null;
               }
+
+              // Build attributes map: { Color: "Black", Size: "L" }
+              const attrMap: Record<string, string> = {};
+              if (v.attributes && Array.isArray(v.attributes)) {
+                for (const attr of v.attributes) {
+                  attrMap[attr.name] = attr.option;
+                }
+              }
+
+              const stockQty = v.manage_stock
+                ? (v.stock_quantity ?? 0)
+                : (v.stock_status === "instock" ? 10 : 0);
+
               return {
                 id: v.id,
                 woo_variation_id: v.id,
+                regular_price: parseFloat(v.regular_price) || 0,
+                sale_price: v.sale_price ? parseFloat(v.sale_price) : null,
                 price: parseFloat(v.sale_price) || parseFloat(v.regular_price) || parseFloat(v.price) || 0,
-                stock: v.manage_stock ? v.stock_quantity : (v.stock_status === "instock" ? 10 : 0),
+                stock_quantity: stockQty,
+                in_stock: v.stock_status === "instock" || stockQty > 0,
                 image_url: imgUrl,
-                attributes: v.attributes?.reduce((acc: any, attr: any) => {
-                  acc[attr.name] = attr.option;
-                  return acc;
-                }, {}) || {}
+                sku: v.sku || null,
+                attributes: attrMap
               };
             });
           }

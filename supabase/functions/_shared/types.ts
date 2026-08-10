@@ -178,14 +178,17 @@ export interface AIResult {
   reply: string;
   intent: MessageIntent;
   detectedProductId?: string;
+  detectedVariantId?: string | null;
   detectedProductIds?: string[];
   orderData?: {
     items: Array<{
       productId: string;
+      variantId?: string;
       name: string;
       qty: number;
       unitPrice: number;
       wooProductId?: number;
+      wooVariationId?: number;
     }>;
     deliveryAddress?: string;
     totalAmount: number;
@@ -202,8 +205,10 @@ export interface AIResult {
 // ============================================================
 export interface OrderItem {
   productId: string;
+  variantId?: string;
   name: string;
   qty: number;
   unitPrice: number;
   wooProductId?: number;
+  wooVariationId?: number;
 }

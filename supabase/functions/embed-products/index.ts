@@ -61,19 +61,24 @@ async function getGeminiTextEmbedding(text: string, apiKey: string): Promise<num
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "models/text-embedding-004",
-      content: { parts: [{ text }] },
-      outputDimensionality: 768,
-    }),
+      content: { parts: [{ text: text }] },
+      outputDimensionality: 768
+    })
   });
-  if (!res.ok) throw new Error(`Gemini Text Embedding failed: ${await res.text()}`);
+  if (!res.ok) throw new Error(await res.text());
   const json = await res.json();
   return json.embedding.values;
 }
 
+interface EmbedTask {
+  productId: string;
+  variationWooId: number | null;
+  imageUrl: string;
+  productData: any;
+}
+
 serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") { return new Response("ok", { headers: corsHeaders }); }
 
   try {
     const sb = getSupabaseClient();
@@ -87,35 +92,66 @@ serve(async (req: Request) => {
       });
     }
 
-    // Fetch products and filter for those with images in JS to avoid PostgREST array format quirks
+    // Fetch active products with images and variations
     const { data: allProducts, error: prodErr } = await sb
       .from("products")
-      .select("id, name, description, category, images");
+      .select(`
+        id,
+        name,
+        description,
+        category,
+        images,
+        variations,
+        is_active
+      `);
 
     if (prodErr) throw prodErr;
-    
-    const products = (allProducts || []).filter(p => p.images && p.images.length > 0);
-    
-    if (products.length === 0) {
-      return new Response(JSON.stringify({ message: "No products with images found" }), {
+
+    const tasks: EmbedTask[] = [];
+
+    for (const p of allProducts || []) {
+      if (p.images) {
+        for (const img of p.images) {
+          tasks.push({ productId: p.id, variationWooId: null, imageUrl: img, productData: p });
+        }
+      }
+      if (p.variations) {
+        for (const v of p.variations) {
+          if (v.image_url) {
+            tasks.push({ productId: p.id, variationWooId: v.woo_variation_id || null, imageUrl: v.image_url, productData: p });
+          }
+        }
+      }
+    }
+
+    if (tasks.length === 0) {
+      return new Response(JSON.stringify({ message: "No active products with images found" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
-    // Fetch existing embedded product IDs to skip them
+    // Fetch existing embedded image_urls to skip them
     const { data: existingEmbeddings, error: embedErr } = await sb
       .from("product_embeddings")
-      .select("product_id");
+      .select("image_url")
+      .not("image_url", "is", null);
 
     if (embedErr) throw embedErr;
 
-    const existingIds = new Set(existingEmbeddings?.map(e => e.product_id) || []);
+    const existingUrls = new Set(existingEmbeddings?.map(e => e.image_url) || []);
     
-    // Filter out already embedded products and take only the first 5
-    const productsToProcess = products.filter(p => !existingIds.has(p.id)).slice(0, 5);
+    // Filter out already embedded images, deduplicate by image_url, and take only the first 10
+    const uniqueTasks = new Map<string, EmbedTask>();
+    for (const task of tasks) {
+      if (!existingUrls.has(task.imageUrl) && !uniqueTasks.has(task.imageUrl)) {
+        uniqueTasks.set(task.imageUrl, task);
+      }
+    }
 
-    if (productsToProcess.length === 0) {
-      return new Response(JSON.stringify({ success: true, message: "All products are already embedded." }), {
+    const tasksToProcess = Array.from(uniqueTasks.values()).slice(0, 10);
+
+    if (tasksToProcess.length === 0) {
+      return new Response(JSON.stringify({ success: true, message: "All images already embedded." }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
@@ -125,75 +161,42 @@ serve(async (req: Request) => {
     let errors = 0;
     const errorLogs: string[] = [];
 
-    // Process products
-    for (const product of productsToProcess) {
-
-      const imagesToProcess = product.images || [];
-      if (imagesToProcess.length === 0) {
-        skipped++;
-        continue;
-      }
-
-      let successForProduct = false;
-
-      for (const imageUrl of imagesToProcess) {
-        try {
-          // 1. Download and convert to Base64
-          const { base64, mimeType } = await urlToBase64(imageUrl);
-
-          // 2. Call Gemini
-          let embeddingValues: number[];
-          try {
-             embeddingValues = await getGeminiEmbedding(base64, mimeType, apiKey);
-          } catch (apiErr) {
-             console.warn(`Initial API call failed for ${product.id} image, retrying once...`, apiErr);
-             embeddingValues = await getGeminiEmbedding(base64, mimeType, apiKey);
-          }
-
-          // Add a delay to avoid hitting rate limits (especially for variants)
-          await new Promise(r => setTimeout(r, 2000));
-
-          // 3. Save to product_embeddings
-          const { error: insertErr } = await sb.from("product_embeddings").insert({
-            product_id: product.id,
-            embedding: embeddingValues
-          });
-
-          if (insertErr) {
-            console.error(`DB Insert Error for ${product.id}:`, insertErr);
-            throw insertErr;
-          }
-          successForProduct = true;
-        } catch (err: any) {
-          console.error(`Failed to process an image for ${product.id}:`, err);
-        }
-      }
-
-      if (successForProduct) {
-        processed++;
-        console.log(`Successfully embedded product ${product.id}`);
-      } else {
-        errors++;
-      }
-      
-      // -- Text Embedding --
+    for (const task of tasksToProcess) {
       try {
-        const textToEmbed = [product.name, product.description, product.category].filter(Boolean).join(" ");
-        if (textToEmbed) {
-          const textEmbedding = await getGeminiTextEmbedding(textToEmbed, apiKey);
-          const { error: textUpdateErr } = await sb
-            .from("products")
-            .update({ embedding: `[${textEmbedding.join(",")}]` })
-            .eq("id", product.id);
-            
-          if (textUpdateErr) {
-            console.error(`Failed to update text embedding for product ${product.id}:`, textUpdateErr);
-          } else {
-            console.log(`Successfully added text embedding for product ${product.id}`);
-          }
+        // 1. Download and convert to Base64
+        const { base64, mimeType } = await urlToBase64(task.imageUrl);
+
+        // 2. Call Gemini
+        let embeddingValues: number[];
+        try {
+           embeddingValues = await getGeminiEmbedding(base64, mimeType, apiKey);
+        } catch (apiErr) {
+           console.warn(`Initial API call failed for image ${task.imageUrl}, retrying once...`, apiErr);
+           embeddingValues = await getGeminiEmbedding(base64, mimeType, apiKey);
         }
-      } catch (textErr) {
-        console.error(`Failed to generate text embedding for product ${product.id}:`, textErr);
+
+        // Add a delay to avoid hitting rate limits
+        await new Promise(r => setTimeout(r, 2000));
+
+        // 3. Save to product_embeddings
+        const { error: insertErr } = await sb.from("product_embeddings").insert({
+          product_id: task.productId,
+          variation_woo_id: task.variationWooId,
+          image_url: task.imageUrl,
+          embedding: embeddingValues
+        });
+
+        if (insertErr) {
+          console.error(`DB Insert Error for image ${task.imageUrl}:`, insertErr);
+          throw insertErr;
+        }
+        
+        processed++;
+        console.log(`Successfully embedded image ${task.imageUrl}`);
+        
+      } catch (err: any) {
+        console.error(`Failed to process an image ${task.imageUrl}:`, err);
+        errors++;
       }
     }
 

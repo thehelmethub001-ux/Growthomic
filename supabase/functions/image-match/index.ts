@@ -13,9 +13,8 @@ async function getGeminiEmbedding(base64: string, mimeType: string, apiKey: stri
       outputDimensionality: 768
     })
   });
-  if (!res.ok) { const text = await res.text(); throw new Error(`Gemini Embedding API Error: ${text}`); }
+  if (!res.ok) throw new Error(`Gemini API Error: ${await res.text()}`);
   const json = await res.json();
-  if (!json.embedding || !json.embedding.values) { throw new Error(`Unexpected Gemini response: ${JSON.stringify(json)}`); }
   return json.embedding.values;
 }
 
@@ -39,22 +38,55 @@ serve(async (req: Request) => {
 
     const enrichedMatches: any[] = [];
     if (matches && matches.length > 0) {
-      const productIds = matches.map((m: any) => m.product_id);
+      const productIds = Array.from(new Set(matches.map((m: any) => m.product_id).filter(Boolean)));
+      
       const { data: products } = await sb
         .from("products")
-        .select("id, name, sale_price, regular_price, images, stock_quantity, is_active, variations")
+        .select(`
+          id,
+          name,
+          sale_price,
+          regular_price,
+          stock_quantity,
+          is_active,
+          images,
+          variations
+        `)
         .in("id", productIds);
+
       if (products) {
         for (const match of matches) {
-          const productInfo = products.find((p: any) => p.id === match.product_id);
-          if (productInfo) {
+          const product = products.find((p: any) => p.id === match.product_id);
+          if (product) {
+            // Find specific variation if variation_woo_id is present
+            let color = "Default";
+            let images = product.images || [];
+            let stock_quantity = product.stock_quantity;
+            let variation_woo_id = match.variation_woo_id;
+            
+            if (variation_woo_id && product.variations) {
+               const variant = product.variations.find((v: any) => v.woo_variation_id === variation_woo_id);
+               if (variant) {
+                 // Try all common color attribute key names (WooCommerce stores as pa_color, Color, color etc.)
+                 const attrs = variant.attributes || {};
+                 color = attrs["Color"] || attrs["color"] || attrs["pa_color"] || attrs["Colour"] || attrs["colour"] || "Default";
+                 images = variant.image_url ? [variant.image_url] : images;
+                 // stock_quantity is now correctly saved as stock_quantity (fixed in woo-sync)
+                 stock_quantity = typeof variant.stock_quantity === 'number' ? variant.stock_quantity : stock_quantity;
+               }
+            }
+
             enrichedMatches.push({
-              ...productInfo,
-              similarity: match.similarity,
-              // Gemini Vision will handle specific variation/color matching by looking at the actual images
-              matched_variation_id: null,
-              matched_variation_attributes: null,
-              matched_variation_in_stock: null,
+              product_id: product.id,
+              variation_woo_id: variation_woo_id,
+              product_name: product.name,
+              color: color,
+              sale_price: product.sale_price,
+              regular_price: product.regular_price,
+              images: images,
+              stock_quantity: stock_quantity,
+              is_active: product.is_active,
+              similarity: match.similarity
             });
           }
         }

@@ -39,6 +39,7 @@ export async function pushOrderToWooCommerce(params: {
     .map((i) => ({
       product_id: i.wooProductId!,
       quantity: i.qty,
+      ...(i.wooVariationId ? { variation_id: i.wooVariationId } : {})
     }));
 
   if (lineItems.length === 0) {

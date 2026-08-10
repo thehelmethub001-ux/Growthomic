@@ -408,110 +408,51 @@ HUMAN RESPONSE RULES:
             }
 
             if (isConfident) {
-              console.log(`Confirmed image match: ${topMatch.name} (ID: ${topMatch.id}, Score: ${topMatch.similarity.toFixed(3)})`);
-              preMatchedProductId = topMatch.id;
-              preMatchedProductIds = [topMatch.id];
-              // Build ALL variation images (including out-of-stock) so Gemini can identify the customer's color
-              const allVarImages: { id: string; name: string; imageUrl: string }[] = [];
-              for (const v of (topMatch.variations || [])) {
-                const url = v.image_url || v.imageUrl;
-                if (url && url.startsWith("http")) {
-                  const attrs = Object.entries(v.attributes || {}).map(([_k, val]) => `${val}`).join(" ");
-                  allVarImages.push({ id: topMatch.id, name: `${topMatch.name} - ${attrs}`, imageUrl: url });
-                }
-              }
-
-              // Build in-stock vs out-of-stock info
-              const inStockVars = (topMatch.variations || []).filter((v: any) => (v.stock ?? 1) > 0);
-              const outOfStockVars = (topMatch.variations || []).filter((v: any) => (v.stock ?? 1) <= 0);
-              const inStockColors = inStockVars.map((v: any) => Object.values(v.attributes || {}).join(" "));
-
-              if (allVarImages.length > 0) {
-                // Send ALL variation images so Gemini Vision can identify ANY color (even out of stock)
-                candidateProducts = allVarImages.slice(0, 8);
-
-                // Build full color+stock status info
-                const allColorStockInfo = (topMatch.variations || []).map((v: any) => {
-                  const colorName = Object.values(v.attributes || {}).join(" ");
-                  const price = v.sale_price || v.price || topMatch.sale_price || topMatch.regular_price;
-                  const stockStatus = (v.stock ?? 1) > 0 ? "✅ স্টকে আছে" : "❌ স্টকে নেই";
-                  return `  • ${topMatch.name} - ${colorName} (দাম: ৳${price}) — ${stockStatus}`;
-                }).join("\n");
-
-                const inStockColorNames = inStockColors.join(", ");
-
-                const instruction = `[SYSTEM_INSTRUCTION:
+              console.log(`Confirmed image match: ${topMatch.product_name} - ${topMatch.color} (ID: ${topMatch.product_id}, Variant: ${topMatch.variation_woo_id}, Score: ${topMatch.similarity.toFixed(3)})`);
+              preMatchedProductId = topMatch.product_id;
+              preMatchedProductIds = [topMatch.product_id];
+              
+              // topMatch is a specific variant, we have exact color and stock
+              const price = topMatch.sale_price || topMatch.regular_price;
+              const stockOk = (topMatch.stock_quantity ?? 0) > 0 && topMatch.is_active;
+              const fullName = `${topMatch.product_name} - ${topMatch.color}`;
+              
+              messageText = `[SYSTEM_INSTRUCTION:
 Customer sent a helmet image.
-Product identified by vector search: ${topMatch.name}
-detectedProductId = "${topMatch.id}"
-
-STEP 1 — Model confirmed: ${topMatch.name} আমাদের কাছে আছে।
-STEP 2 — সব কালারের তালিকা (stock status সহ):
-${allColorStockInfo}
-
-তোমার কাজ (৩ ধাপে):
-১. উপরের reference ছবিগুলোর সাথে customer এর helmet এর কালার মেলাও।
-   RULE: হুবহু না মিললেও সবচেয়ে কাছের কালারটাকে MATCH ধরবে। কখনো "এই কালার আমাদের কাছে নেই" বলবে না।
-২. যে কালারটা সবচেয়ে কাছে মিলেছে, সেটার stock status দেখো উপরের তালিকায়।
-৩. উত্তর দাও:
-   - যদি ✅ স্টকে আছে → বলো: "জি স্যার, এটি আমাদের ${topMatch.name} - [COLOR]। এর দাম ৳[PRICE]।"
-   - যদি ❌ স্টকে নেই → বলো: "স্যার, ${topMatch.name} - [COLOR] কালারটি এই মুহূর্তে স্টকে নেই। তবে এই কালারগুলো এখন পাওয়া যাচ্ছে: ${inStockColorNames}।"
-
-Reply in Bengali naturally. প্রতিটি product বলার সময় অবশ্যই color name সহ বলো।]`;
-                messageText = instruction + "\n" + (messageText || "");
-              } else {
-                // No variation images — simple single-image product
-                const price = topMatch.sale_price || topMatch.regular_price;
-                const stockOk = (topMatch.stock_quantity ?? 1) > 0;
-                messageText = `[SYSTEM_INSTRUCTION:
-Customer sent a helmet image.
-Product identified by system: ${topMatch.name} (দাম: ৳${price})
-detectedProductId = "${topMatch.id}"
+Product identified by system: ${fullName} (দাম: ৳${price})
+detectedProductId = "${topMatch.product_id}"
+detectedVariantId = "${topMatch.variation_woo_id || ""}"
 Stock status: ${stockOk ? "✅ স্টকে আছে" : "❌ স্টকে নেই"}
 
 Gemini Vision করবে:
-- Customer এর ছবির হেলমেটের শেপ/ডিজাইন যদি ${topMatch.name} এর মতো হয় (কালার বা স্টিকার ভিন্ন হলেও), তাহলে মিল হিসেবে ধরবে।
-- যদি মিলে এবং স্টকে আছে → বলো: "জি স্যার, এটি আমাদের ${topMatch.name}। এর দাম ৳${price}।"
-- যদি মিলে কিন্তু স্টকে নেই → বলো: "স্যার, ${topMatch.name} এর এই নির্দিষ্ট কালারটি বর্তমানে স্টকে নেই।"
-- যদি একেবারেই না মিলে (সম্পূর্ণ ভিন্ন শেপ) → বলো: "স্যার, আপনার পাঠানো নির্দিষ্ট কালার/গ্রাফিক্সটি হয়তো আমাদের কাছে নেই, তবে ${topMatch.name} মডেলটি আমাদের কাছে আছে যার দাম ৳${price}।"
+- Customer এর ছবির হেলমেটের শেপ/ডিজাইন যদি ${topMatch.product_name} এর মতো হয়, তাহলে মিল হিসেবে ধরবে।
+- যদি মিলে এবং স্টকে আছে → বলো: "জি স্যার, এটি আমাদের ${fullName}। এর দাম ৳${price}।"
+- যদি মিলে কিন্তু স্টকে নেই → বলো: "স্যার, ${fullName} এই নির্দিষ্ট কালারটি বর্তমানে স্টকে নেই।"
+- যদি একেবারেই না মিলে (সম্পূর্ণ ভিন্ন শেপ) → বলো: "স্যার, আপনার পাঠানো নির্দিষ্ট মডেলটি হয়তো আমাদের কাছে নেই, তবে কাছাকাছি ${fullName} মডেলটি আমাদের কাছে আছে যার দাম ৳${price}।"
 Reply in Bengali naturally.]` + "\n" + (messageText || "");
-              }
+
             } else {
               console.log(`Ambiguous matches found. Top score: ${topMatch.similarity.toFixed(3)}, building candidate set for Gemini Vision...`);
 
-              // Build candidate list with VARIATION images (not just product-level images)
+              // Build candidate list from returned variants
               const candidateList: { id: string; name: string; imageUrl: string }[] = [];
-              for (const m of matchData.matches.slice(0, 5)) {
-                // Add variation images first (specific colors)
-                if (m.variations && m.variations.length > 0) {
-                  for (const v of m.variations) {
-                    const vUrl = v.image_url || v.imageUrl;
-                    if (vUrl && vUrl.startsWith("http")) {
-                      const attrs = Object.entries(v.attributes || {}).map(([_k, val]) => `${val}`).join(" ");
-                      if (!candidateList.some(c => c.imageUrl === vUrl)) {
-                        candidateList.push({ id: m.id, name: `${m.name} - ${attrs}`, imageUrl: vUrl });
-                      }
+              for (const m of matchData.matches.slice(0, 8)) {
+                if (m.images && m.images.length > 0) {
+                  for (const img of m.images) {
+                    if (img && img.startsWith("http") && !candidateList.some(c => c.imageUrl === img)) {
+                      candidateList.push({ id: m.product_id, name: `${m.product_name} - ${m.color}`, imageUrl: img });
                     }
                   }
-                }
-                // Fallback: product-level image
-                if (m.images?.[0] && !candidateList.some(c => c.imageUrl === m.images[0])) {
-                  candidateList.push({ id: m.id, name: m.name, imageUrl: m.images[0] });
                 }
               }
               candidateProducts = candidateList.slice(0, 8);
 
-              // Build per-product color+stock text for ambiguous matches
-              const optionsText = matchData.matches.slice(0, 5).map((m: any) => {
+              // Build catalog text for ambiguous matches
+              const optionsText = matchData.matches.slice(0, 8).map((m: any) => {
                 const price = m.sale_price || m.regular_price;
-                const inStockVariations = (m.variations || []).filter((v: any) => (v.stock ?? 1) > 0);
-                const colorLines = inStockVariations.map((v: any) => {
-                  const colorName = Object.values(v.attributes || {}).join(" ");
-                  const vPrice = v.sale_price || v.price || price;
-                  return `    • ${m.name} - ${colorName} (৳${vPrice})`;
-                }).join("\n") || `    • ${m.name} (৳${price})`;
-                return `[${m.id}] ${m.name}:\n${colorLines}`;
-              }).join("\n\n");
+                const stockStatus = (m.stock_quantity ?? 0) > 0 && m.is_active ? "(স্টকে আছে)" : "(স্টকে নেই)";
+                return `[ID=${m.product_id} Variant=${m.variation_woo_id || ""}] ${m.product_name} - ${m.color} (৳${price}) ${stockStatus}`;
+              }).join("\n");
 
               const instruction = `[SYSTEM_INSTRUCTION:
 Customer sent a helmet image. Vector search found similar models. Reference variation images are provided above.
@@ -597,13 +538,10 @@ Reply in Bengali naturally. প্রতিটি product বলার সময
           const matchLines = multiImageMatches.map((item, idx) => {
             if (item.topMatch) {
               const price = item.topMatch.sale_price || item.topMatch.regular_price;
-              const inStockColors = (item.topMatch.variations || [])
-                .filter((v: any) => (v.stock ?? 1) > 0)
-                .map((v: any) => Object.values(v.attributes || {}).join(" "))
-                .join(", ");
-              return `  ছবি ${idx + 1}: ${item.topMatch.name}${inStockColors ? ` (স্টকে থাকা কালার: ${inStockColors})` : ""} (দাম ৳${price})`;
+              const inStock = (item.topMatch.stock_quantity ?? 0) > 0 && item.topMatch.is_active;
+              return `  ছবি ${idx + 1}: ${item.topMatch.product_name} - ${item.topMatch.color} (দাম ৳${price}) ${inStock ? "(স্টকে আছে)" : "(স্টকে নেই)"}`;
             } else if (item.matches?.length > 0) {
-              const candidateStr = item.matches.slice(0, 3).map((m: any) => `${m.name} (৳${m.sale_price || m.regular_price})`).join(", ");
+              const candidateStr = item.matches.slice(0, 3).map((m: any) => `${m.product_name} - ${m.color} (৳${m.sale_price || m.regular_price})`).join(", ");
               return `  ছবি ${idx + 1}: সম্ভাব্য মডেল: ${candidateStr}`;
             } else {
               return `  ছবি ${idx + 1}: আমাদের ক্যাটালগে এই নির্দিষ্ট পণ্যের সাথে ১০০% মিল পাওয়া যায়নি`;
@@ -620,8 +558,8 @@ ${matchLines}
           // Set preMatchedProductId to the product from the LAST confident image match in the batch (for backward compatibility)
           const confidentMatches = multiImageMatches.filter(m => m.topMatch);
           if (confidentMatches.length > 0) {
-            preMatchedProductId = confidentMatches[confidentMatches.length - 1].topMatch.id;
-            preMatchedProductIds = confidentMatches.map(m => m.topMatch.id);
+            preMatchedProductId = confidentMatches[confidentMatches.length - 1].topMatch.product_id;
+            preMatchedProductIds = confidentMatches.map(m => m.topMatch.product_id);
           }
 
           // Flatten candidate products across all images for Gemini Vision reference
@@ -629,16 +567,11 @@ ${matchLines}
           for (const mItem of multiImageMatches) {
             if (mItem.matches && mItem.matches.length > 0) {
               for (const m of mItem.matches.slice(0, 3)) {
-                // Add the main image
-                if (m.images?.[0] && !allCandidates.some(c => c.id === m.id && c.imageUrl === m.images[0])) {
-                  allCandidates.push({ id: m.id, name: m.name, imageUrl: m.images[0] });
-                }
-                // Add all variation images
-                for (const v of (m.variations || [])) {
-                  const url = v.image_url || v.imageUrl;
-                  if (url && url.startsWith("http")) {
-                    const attrs = Object.entries(v.attributes || {}).map(([_k, val]) => `${val}`).join(" ");
-                    allCandidates.push({ id: m.id, name: `${m.name} - ${attrs}`, imageUrl: url });
+                if (m.images && m.images.length > 0) {
+                  for (const img of m.images) {
+                    if (img && img.startsWith("http") && !allCandidates.some(c => c.imageUrl === img)) {
+                      allCandidates.push({ id: m.product_id, name: `${m.product_name} - ${m.color}`, imageUrl: img });
+                    }
                   }
                 }
               }
@@ -917,6 +850,12 @@ ${matchLines}
             const { data: pData } = await sb.from("products").select("woo_product_id").eq("id", item.productId).maybeSingle();
             if (pData && pData.woo_product_id) {
               item.wooProductId = pData.woo_product_id;
+            }
+          }
+          if (item.variantId) {
+            const wooVarId = parseInt(item.variantId, 10);
+            if (!isNaN(wooVarId)) {
+              item.wooVariationId = wooVarId;
             }
           }
         }
