@@ -90,7 +90,7 @@ export async function POST() {
 
       let variationsData: any[] = [];
       const existingVariations = existing?.variations || [];
-      const existingVarsMap = new Map(existingVariations.map((v: any) => [v.woo_variation_id || v.id, v]));
+      const existingVarsMap = new Map<any, any>(existingVariations.map((v: any) => [v.woo_variation_id || v.id, v]));
 
       if (wp.type === "variable" && wp.variations && wp.variations.length > 0) {
         try {
