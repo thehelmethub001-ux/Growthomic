@@ -111,7 +111,8 @@ export default function ProductsPage() {
       return_conditions: formData.return_conditions || null,
       qna_pairs: formData.qna_pairs || [],
       required_order_fields: formData.required_order_fields || [],
-      variations: formData.variations || [],
+      variations: (formData.variations || []).map((v: any) => ({ ...v, manually_edited: true })),
+      manually_edited: true,
     };
 
     if (formData.id) {

@@ -82,14 +82,16 @@ export async function POST() {
       }
 
       // We use woo_product_id to uniquely identify items
-      // Check if product already exists
       const { data: existing } = await supabase
         .from("products")
-        .select("id, variations, images")
+        .select("id, variations, images, manually_edited")
         .eq("woo_product_id", wp.id)
         .maybeSingle();
 
-      let variationsData = [];
+      let variationsData: any[] = [];
+      const existingVariations = existing?.variations || [];
+      const existingVarsMap = new Map(existingVariations.map((v: any) => [v.woo_variation_id || v.id, v]));
+
       if (wp.type === "variable" && wp.variations && wp.variations.length > 0) {
         try {
           const varRes = await fetch(
@@ -97,49 +99,53 @@ export async function POST() {
           );
           if (varRes.ok) {
             const varJson = await varRes.json();
-            variationsData = varJson.map((v: any) => {
-              // Always preserve existing manually added image_url if present
-              let imgUrl = null;
-              if (existing && existing.variations) {
-                const existingVar = existing.variations.find((ev: any) => ev.woo_variation_id === v.id || ev.id === v.id);
-                if (existingVar && existingVar.image_url) {
-                  imgUrl = existingVar.image_url;
+            for (const v of varJson) {
+              const existingVar = existingVarsMap.get(v.id);
+
+              if (existingVar?.manually_edited) {
+                // Keep the manual variation entirely, but maybe update fallback image
+                const imgUrl = existingVar.image_url || v.image?.src || null;
+                variationsData.push({
+                  ...existingVar,
+                  image_url: imgUrl,
+                });
+              } else {
+                // Not manually edited, use fresh Woo data
+                const attrMap: Record<string, string> = {};
+                if (v.attributes && Array.isArray(v.attributes)) {
+                  for (const attr of v.attributes) {
+                    attrMap[attr.name] = attr.option;
+                  }
                 }
-              }
-              // Fallback to WooCommerce image if no manual image exists
-              if (!imgUrl) {
-                imgUrl = v.image?.src || null;
-              }
+                const stockQty = v.manage_stock
+                  ? (v.stock_quantity ?? 0)
+                  : (v.stock_status === "instock" ? 10 : 0);
 
-              // Build attributes map: { Color: "Black", Size: "L" }
-              const attrMap: Record<string, string> = {};
-              if (v.attributes && Array.isArray(v.attributes)) {
-                for (const attr of v.attributes) {
-                  attrMap[attr.name] = attr.option;
-                }
+                variationsData.push({
+                  id: existingVar?.id || v.id,
+                  woo_variation_id: v.id,
+                  regular_price: parseFloat(v.regular_price) || 0,
+                  sale_price: v.sale_price ? parseFloat(v.sale_price) : null,
+                  price: parseFloat(v.sale_price) || parseFloat(v.regular_price) || parseFloat(v.price) || 0,
+                  stock_quantity: stockQty,
+                  in_stock: v.stock_status === "instock" || stockQty > 0,
+                  image_url: existingVar?.image_url || v.image?.src || null,
+                  sku: v.sku || null,
+                  attributes: attrMap
+                });
               }
-
-              const stockQty = v.manage_stock
-                ? (v.stock_quantity ?? 0)
-                : (v.stock_status === "instock" ? 10 : 0);
-
-              return {
-                id: v.id,
-                woo_variation_id: v.id,
-                regular_price: parseFloat(v.regular_price) || 0,
-                sale_price: v.sale_price ? parseFloat(v.sale_price) : null,
-                price: parseFloat(v.sale_price) || parseFloat(v.regular_price) || parseFloat(v.price) || 0,
-                stock_quantity: stockQty,
-                in_stock: v.stock_status === "instock" || stockQty > 0,
-                image_url: imgUrl,
-                sku: v.sku || null,
-                attributes: attrMap
-              };
-            });
+              // Remove from map so we know which ones were matched
+              existingVarsMap.delete(v.id);
+            }
           }
         } catch (err) {
           console.error("Failed to fetch variations for product:", wp.id, err);
         }
+      }
+
+      // Add any remaining existing variations that didn't come from Woo (manually added variations)
+      for (const [_, v] of existingVarsMap) {
+        variationsData.push(v);
       }
 
       let finalImages = images;
@@ -147,7 +153,7 @@ export async function POST() {
         finalImages = Array.from(new Set([...existing.images, ...images]));
       }
 
-      const payload = {
+      const payload: any = {
         woo_product_id: wp.id,
         name: wp.name,
         sku: wp.sku || null,
@@ -163,7 +169,17 @@ export async function POST() {
 
       if (existing) {
         // Prevent overwriting manual description edits from Growthomic Dashboard
-        delete (payload as any).description;
+        delete payload.description;
+
+        // Manually edited products/variations are protected from sync overwrite. Only dashboard delete removes them.
+        if (existing.manually_edited) {
+          delete payload.regular_price;
+          delete payload.sale_price;
+          delete payload.stock_quantity;
+          delete payload.category;
+          delete payload.is_active;
+        }
+
         await supabase.from("products").update(payload).eq("id", existing.id);
       } else {
         await supabase.from("products").insert([payload]);
