@@ -613,6 +613,7 @@ ${matchLines}
         if (parsed.sendProductImage) aiResult.sendProductImage = true;
         if (parsed.productImageUrls?.length) aiResult.productImageUrls = parsed.productImageUrls;
         if (parsed.detectedProductId) aiResult.detectedProductId = parsed.detectedProductId;
+        if (parsed.detectedVariantId) aiResult.detectedVariantId = parsed.detectedVariantId;
       }
     } catch (aiErr) {
       console.error("AI engine failed:", aiErr);
@@ -634,6 +635,30 @@ ${matchLines}
       const reason = aiResult.intent === "return_intent" ? "return" : aiResult.intent;
       await setConversationStatus(conversation.id, "human_queue");
       await addToHumanQueue(conversation.id, reason, `AI detected: ${aiResult.intent}`);
+    }
+
+    // ── Step 6.4: Variant Confirmation Gate
+    if (aiResult.intent === "order_intent") {
+      const hasResolvedProduct = messageText?.includes("detectedProductId =") || messageText?.includes("detectedVariantId =");
+      if (!hasResolvedProduct) {
+        let isWaitingForVariant = false;
+        for (let i = history.length - 1; i >= 0; i--) {
+          if (history[i].role === "ai" && history[i].content) {
+            if (history[i].content.includes("স্ক্রিনশট") || history[i].content.includes("ss")) {
+              isWaitingForVariant = true;
+            }
+            break; // Check only the most recent AI message
+          }
+        }
+        
+        if (isWaitingForVariant && !aiResult.detectedVariantId) {
+          console.log(`Intercepting order_intent due to pending variant selection.`);
+          aiResult.intent = "product_inquiry";
+          aiResult.orderData = undefined;
+          aiResult.reply = "স্যার, অর্ডার কনফার্ম করার আগে অনুগ্রহ করে জানাবেন আপনি কোন কালার বা মডেলটি নিতে চাচ্ছেন? (ছবি বা স্ক্রিনশট দিলে ভালো হয়)";
+          aiResult.sendProductImage = false;
+        }
+      }
     }
 
     // ── Step 6.5: Required pre-order field gate
@@ -719,7 +744,7 @@ ${matchLines}
       // Save a hidden context message so AI knows which product was shown
       // Also saves the platform_message_id so reply_to lookups work
       // Try detectedProductId first, then fall back to image URL lookup
-      let productForContext: { id: string; name: string; salePrice?: number; regularPrice: number; category?: string; images?: string[] } | null = null;
+      let productForContext: { id: string; name: string; salePrice?: number; regularPrice: number; category?: string; images?: string[]; variations?: any[] } | null = null;
       
       if (aiResult.detectedProductId) {
         const { getProductById } = await import("../_shared/supabase-client.ts");
@@ -732,6 +757,7 @@ ${matchLines}
             salePrice: fullProduct.salePrice,
             category: fullProduct.category,
             images: fullProduct.images,
+            variations: fullProduct.variations,
           };
         }
       } else if (validUrls.length === 1 && validUrls[0]) {
@@ -764,9 +790,18 @@ ${matchLines}
       // FALLBACK: If AI failed to provide any valid URLs but detected the product, send its main image
       if (validUrls.length === 0 && productForContext) {
         try {
-          // No valid image URL found, try to use the main image of the product
-          if (productForContext.images && productForContext.images.length > 0) {
-            const fallbackUrl = productForContext.images[0];
+          // Try to use the variant image first, otherwise fallback to main image
+          let fallbackUrl = (productForContext.images && productForContext.images.length > 0) ? productForContext.images[0] : null;
+          
+          if (aiResult.detectedVariantId && productForContext.variations) {
+            const variant = productForContext.variations.find((v: any) => String(v.id) === String(aiResult.detectedVariantId));
+            if (variant && variant.image_url) {
+              fallbackUrl = variant.image_url;
+              console.log(`Fallback: using variant image for ${productForContext.name}`);
+            }
+          }
+
+          if (fallbackUrl) {
             const mid = await sendImageMessage(platform as Platform, platformId, fallbackUrl);
             if (mid) sentImageMid = mid;
             
@@ -777,7 +812,7 @@ ${matchLines}
               mediaUrl: fallbackUrl,
               platformMessageId: mid,
             });
-            console.log(`Fallback: sent main product image for ${productForContext.name}`);
+            console.log(`Fallback: sent image for ${productForContext.name}`);
           }
         } catch (fbErr) {
           console.error("Failed to send fallback image:", fbErr);
