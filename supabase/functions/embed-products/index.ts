@@ -110,16 +110,16 @@ serve(async (req: Request) => {
     const tasks: EmbedTask[] = [];
 
     for (const p of allProducts || []) {
-      if (p.images) {
-        for (const img of p.images) {
-          tasks.push({ productId: p.id, variationWooId: null, imageUrl: img, productData: p });
-        }
-      }
       if (p.variations) {
         for (const v of p.variations) {
           if (v.image_url) {
             tasks.push({ productId: p.id, variationWooId: v.woo_variation_id || null, imageUrl: v.image_url, productData: p });
           }
+        }
+      }
+      if (p.images) {
+        for (const img of p.images) {
+          tasks.push({ productId: p.id, variationWooId: null, imageUrl: img, productData: p });
         }
       }
     }
