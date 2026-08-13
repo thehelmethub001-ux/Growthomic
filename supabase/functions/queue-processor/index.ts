@@ -431,6 +431,12 @@ Gemini Vision করবে:
 - যদি একেবারেই না মিলে (সম্পূর্ণ ভিন্ন শেপ) → বলো: "স্যার, আপনার পাঠানো নির্দিষ্ট মডেলটি হয়তো আমাদের কাছে নেই, তবে কাছাকাছি ${fullName} মডেলটি আমাদের কাছে আছে যার দাম ৳${price}।"
 Reply in Bengali naturally.]` + "\n" + (messageText || "");
 
+              await saveMessage({
+                conversationId: conversation.id,
+                role: "ai",
+                content: `[PRODUCT_CONTEXT: ID=${topMatch.product_id} | Name=${topMatch.product_name} | Color=${topMatch.color} | Price=৳${price} | Stock=${stockOk ? "in_stock" : "out_of_stock"}]`,
+              });
+
             } else {
               console.log(`Ambiguous matches found. Top score: ${topMatch.similarity.toFixed(3)}, building candidate set for Gemini Vision...`);
 
