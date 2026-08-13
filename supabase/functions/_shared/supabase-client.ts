@@ -646,6 +646,7 @@ export async function createOrder(params: {
   items: unknown[];
   totalAmount: number;
   deliveryAddress?: string;
+  customerPhone?: string;
 }): Promise<string> {
   const sb = getSupabaseClient();
   const { data, error } = await sb
@@ -656,6 +657,7 @@ export async function createOrder(params: {
       items: params.items,
       total_amount: params.totalAmount,
       delivery_address: params.deliveryAddress ?? null,
+      customer_phone: params.customerPhone ?? null,
       payment_method: "cod",
       status: "new",
       woo_sync_status: "pending",
