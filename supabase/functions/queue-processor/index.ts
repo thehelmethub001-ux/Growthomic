@@ -667,14 +667,29 @@ ${matchLines}
       }
     }
 
-    // ── New Gate: Order intent-e product confidently identify na hole SS chaite badhyo koro
-    if (aiResult.intent === "order_intent" && !aiResult.detectedProductId && !preMatchedProductId) {
-      const recentAiMsgs = history.slice(-8).filter(h => h.role === "ai");
-      const recentImageCount = recentAiMsgs.filter(h => h.media_type === "image").length;
-      const mentionedSS = recentAiMsgs.some(h => h.content?.includes("স্ক্রিনশট") || h.content?.includes("SS"));
+    // ── New Gate: order_intent-e detectedVariantId na thakle SS chaite badhyo koro
+    // Exception: customer explicitly color mention korle (text match), AI already set detectedVariantId
+    if (aiResult.intent === "order_intent" && !aiResult.detectedVariantId) {
+      // Check if recent AI messages had multiple images (multi-color scenario)
+      const recentAiMsgs = history.slice(-10).filter(h => h.role === "ai");
+      const recentAiImageCount = recentAiMsgs.filter(h => h.media_type === "image").length;
+      const recentAiSentMultipleImages = recentAiImageCount > 1 ||
+        recentAiMsgs.some(h => (h.productImageUrls?.length ?? 0) > 1);
 
-      if (recentImageCount > 1 || mentionedSS) {
-        console.log("Order intent-e product confirm na hoyeo confirm kora hocche na — SS gate trigger");
+      // Check if customer explicitly mentioned a color in their latest message
+      const colorKeywords = /লাল|কালো|সাদা|ধূসর|গ্রে|নীল|সবুজ|হলুদ|red|black|white|gray|grey|blue|green|yellow/i;
+      const customerMentionedColor = colorKeywords.test(messageText || "");
+
+      if (recentAiSentMultipleImages && !customerMentionedColor) {
+        // Multiple images were shown, customer didn't name a color AND AI couldn't identify variant
+        console.log("SS gate: multiple images sent, no color mentioned, no detectedVariantId — asking for SS");
+        aiResult.reply = "স্যার, আপনি ঠিক কোন কালারটি নিতে চাচ্ছেন? একটু বলবেন বা সেটির স্ক্রিনশট (SS) বা ছবি পাঠিয়ে দিন, আমরা এখনই কনফার্ম করে দিচ্ছি।";
+        aiResult.intent = "product_inquiry";
+        aiResult.orderData = null;
+        aiResult.sendProductImage = false;
+      } else if (!recentAiSentMultipleImages && !aiResult.detectedProductId && !preMatchedProductId) {
+        // No multiple images, no product identified at all — need SS
+        console.log("SS gate: no product identified, no variant — asking for SS");
         aiResult.reply = "স্যার, দুঃখিত। আপনি ঠিক কোন প্রোডাক্টটি অর্ডার করতে চাচ্ছেন তার একটি স্ক্রিনশট (SS) বা ছবি পাঠিয়ে দিন, আমরা নিশ্চিত করে দিচ্ছি।";
         aiResult.intent = "product_inquiry";
         aiResult.orderData = null;
