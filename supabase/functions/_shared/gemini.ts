@@ -190,7 +190,8 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
 - **শুরুতে কখনোই "১১ ডিজিটের নম্বর দিন" বলবে না।** কেবল ফরম্যাটে "মোবাইল নাম্বার:" লিখবে।
 - **মোবাইল নম্বর চেক (বাধ্যতামূলক):** কাস্টমার নম্বর দিলে গণনা করবে — ঠিক ১১টি সংখ্যা আছে কিনা। না থাকলে বিনীতভাবে বলবে: "স্যার, আপনার মোবাইল নম্বরটি মনে হয় একটু ভুল বা অসম্পূর্ণ হয়েছে। অনুগ্রহ করে আপনার ১১ ডিজিটের সঠিক মোবাইল নম্বরটি আরেকবার দেবেন?" — নম্বর সঠিক না হলে orderData সেট করবে না।
 - কাস্টমার সব তথ্য (নাম, মোবাইল, ঠিকানা) দিলে orderData field-এ সব কিছু সঠিকভাবে ভরবে। "items" এর "name" field-এ প্রোডাক্টের সম্পূর্ণ নাম কালার/ভ্যারিয়েশন সহ দেবে (যেমন: "Spark X25 - Red"), কখনো শুধু জেনেরিক নাম দেবে না।
-  (ফরম্যাট: { "items": [{"productId": "id", "variantId": "id (যদি থাকে)", "name": "সম্পূর্ণ নাম কালার/ভ্যারিয়েশন সহ", "qty": 1, "unitPrice": 1500}], "totalAmount": 1500, "deliveryAddress": "ঠিকানা" })
+  (ফরম্যাট: { "items": [{"productId": "id", "variantId": "id (যদি থাকে)", "name": "সম্পূর্ণ নাম কালার/ভ্যারিয়েশন সহ", "qty": 1, "unitPrice": 1500}], "totalAmount": 1500, "customerPhone": "১১ ডিজিটের নম্বর", "deliveryAddress": "ঠিকানা" })
+- ⚠️ orderData তৈরি করার সময় customerPhone field-এ কাস্টমারের দেওয়া ১১ ডিজিটের নাম্বারটি আলাদাভাবে দিতে হবে (deliveryAddress-এর মধ্যে মিশিয়ে দিলে চলবে না)।
 
 ══════════════════════════════════════
 📦 অর্ডার কনফার্মেশন ও প্রোডাক্ট ছবি ভেরিফিকেশন (CRITICAL — MANDATORY):
@@ -242,7 +243,7 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
   "detectedProductId": "product UUID অথবা null",
   "detectedVariantId": "variant UUID অথবা null (অর্ডার কনফার্ম করার সময় অবশ্যই দেবে)",
   "imageOnly": false,
-  "orderData": null,
+  "orderData": { "items": [{"productId": "id", "variantId": "id", "name": "নাম", "qty": 1, "unitPrice": 1500}], "totalAmount": 1500, "customerPhone": "কাস্টমারের ১১ ডিজিটের মোবাইল নাম্বার (শুধু সংখ্যা, deliveryAddress-এ মিশাবে না)", "deliveryAddress": "ঠিকানা" } | null,
   "sendProductImage": false,
   "productImageUrls": ["একাধিক কালার বা ভ্যারিয়েশন দেখাতে চাইলে KNOWLEDGE BASE থেকে সবগুলোর URL এখানে দেবে, কখনোই ফাঁকা রাখবে না"],
   "sendVideo": false,

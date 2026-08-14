@@ -692,6 +692,50 @@ ${matchLines}
       }
     }
 
+    // ── Order Validation Gate: LLM-er data blindly trust na kore, DB-theke verify koro
+    if (aiResult.intent === "order_intent" && aiResult.orderData) {
+      const sb = getSupabaseClient();
+      const validationErrors: string[] = [];
+
+      // 1. Mobile number format check (LLM-er counting-er upor bhorosha na kore regex)
+      const phone = (aiResult.orderData as any).customerPhone || "";
+      const phoneDigits = phone.replace(/\D/g, "");
+      if (phoneDigits.length !== 11 || !phoneDigits.startsWith("01")) {
+        validationErrors.push("invalid_phone");
+      }
+
+      // 2. Proti item-er stock ar price actual DB theke verify koro
+      for (const item of aiResult.orderData.items || []) {
+        if (!item.productId) { validationErrors.push("missing_product_id"); continue; }
+        const { data: prod } = await sb.from("products")
+          .select("id, name, is_active, stock_quantity, regular_price, sale_price, variations")
+          .eq("id", item.productId).maybeSingle();
+        if (!prod || !prod.is_active) { validationErrors.push(`product_not_found:${item.productId}`); continue; }
+
+        let actualStock = prod.stock_quantity;
+        let actualPrice = prod.sale_price || prod.regular_price;
+        if (item.variantId && prod.variations) {
+          const v = (prod.variations as any[]).find((x: any) => x.woo_variation_id == item.variantId || x.id == item.variantId);
+          if (v) { actualStock = v.stock_quantity; actualPrice = v.sale_price || v.price; }
+        }
+
+        if (actualStock <= 0) validationErrors.push(`out_of_stock:${prod.name}`);
+        if (Math.abs((item.unitPrice ?? 0) - actualPrice) > 1) {
+          console.warn(`Price mismatch for ${prod.name}: AI said ${item.unitPrice}, actual ${actualPrice}`);
+          item.unitPrice = actualPrice; // Auto-correct, don't trust AI's number
+        }
+      }
+
+      if (validationErrors.length > 0) {
+        console.error("Order validation failed:", validationErrors);
+        aiResult.reply = "স্যার, দুঃখিত। আপনার অর্ডারের তথ্যে কিছু সমস্যা হয়েছে (স্টক/নম্বর যাচাই করতে হবে)। আমাদের একজন প্রতিনিধি শীঘ্রই যোগাযোগ করবেন।";
+        aiResult.intent = "human_queue_needed";
+        aiResult.orderData = undefined;
+        await setConversationStatus(conversation.id, "human_queue");
+        await addToHumanQueue(conversation.id, "order_validation_failed", validationErrors.join(", "));
+      }
+    }
+
     // Ensure closing prompt for multi-image responses
     if (aiResult.sendProductImage && (aiResult.productImageUrls?.length ?? 0) > 1 && aiResult.reply) {
       if (!aiResult.reply.includes("স্ক্রিনশট") && !aiResult.reply.includes("ss")) {
@@ -853,6 +897,7 @@ ${matchLines}
         items: orderData.items,
         totalAmount: orderData.totalAmount,
         deliveryAddress: orderData.deliveryAddress,
+        customerPhone: (orderData as any).customerPhone,
       });
 
       if (!cachedSettings) cachedSettings = await getBusinessSettings();
@@ -865,10 +910,10 @@ ${matchLines}
             order_id: orderId,
             date: new Date().toISOString(),
             customer_name: customer.name,
-            customer_phone: platform === "whatsapp" ? platformId : "N/A",
+            customer_phone: (orderData as any).customerPhone || (platform === "whatsapp" ? platformId : "N/A"),
             delivery_address: orderData.deliveryAddress,
             total_amount: orderData.totalAmount,
-            items: orderData.items.map(i => `${i.name} (Qty: ${i.qty})`).join(", ")
+            items: orderData.items.map((i: any) => `${i.name} (Qty: ${i.qty})`).join(", ")
           };
           
           await fetch(settings.googleSheetsWebhookUrl, {
@@ -901,11 +946,10 @@ ${matchLines}
           }
         }
 
-        // Push to WooCommerce
         const wooResult = await pushOrderToWooCommerce({
           items: orderData.items,
           customerName: customer.name,
-          customerPhone: platform === "whatsapp" ? platformId : undefined,
+          customerPhone: (orderData as any).customerPhone || (platform === "whatsapp" ? platformId : undefined),
           deliveryAddress: orderData.deliveryAddress,
           totalAmount: orderData.totalAmount,
         });
