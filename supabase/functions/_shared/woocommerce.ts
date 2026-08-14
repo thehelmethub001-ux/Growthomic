@@ -36,11 +36,33 @@ export async function pushOrderToWooCommerce(params: {
   // Build WooCommerce order payload
   const lineItems = params.items
     .filter((i) => i.wooProductId) // only push items with a known WooCommerce product ID
-    .map((i) => ({
-      product_id: i.wooProductId!,
-      quantity: i.qty,
-      ...(i.wooVariationId ? { variation_id: i.wooVariationId } : {})
-    }));
+    .map((i) => {
+      const item: any = {
+        product_id: i.wooProductId!,
+        quantity: i.qty,
+      };
+
+      // Attach variation ID if available (required to show variant image in WooCommerce)
+      if (i.wooVariationId) {
+        item.variation_id = i.wooVariationId;
+      }
+
+      // Attach variant SKU if available
+      if ((i as any).variantSku) {
+        item.sku = (i as any).variantSku;
+      }
+
+      // Attach variation attributes (e.g. Color: Red) — makes WooCommerce show SKU + color in order
+      const attrs = (i as any).variantAttributes;
+      if (attrs && typeof attrs === "object") {
+        item.meta_data = Object.entries(attrs).map(([key, value]) => ({
+          key: `attribute_pa_${key.toLowerCase().replace(/\s+/g, "-")}`,
+          value: String(value),
+        }));
+      }
+
+      return item;
+    });
 
   if (lineItems.length === 0) {
     return {

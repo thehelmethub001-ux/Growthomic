@@ -987,16 +987,30 @@ ${matchLines}
 
       // 2. WooCommerce Sync Control
       if (settings.wooSyncEnabled) {
-        // Fetch woo_product_id for each item
+        // Fetch woo_product_id, variant SKU, and attributes for each item
         const sb = getSupabaseClient();
         for (const item of orderData.items) {
           if (item.productId) {
-            const { data: pData } = await sb.from("products").select("woo_product_id").eq("id", item.productId).maybeSingle();
+            const { data: pData } = await sb.from("products").select("woo_product_id, variations").eq("id", item.productId).maybeSingle();
             if (pData && pData.woo_product_id) {
               item.wooProductId = pData.woo_product_id;
             }
+            // Fetch variant-level SKU and attributes from variations array
+            if (item.variantId && pData?.variations) {
+              const variant = (pData.variations as any[]).find(
+                (v: any) => String(v.id) === String(item.variantId) || String(v.woo_variation_id) === String(item.variantId)
+              );
+              if (variant) {
+                if (variant.sku) (item as any).variantSku = variant.sku;
+                if (variant.attributes) (item as any).variantAttributes = variant.attributes;
+                // Also store woo_variation_id if present
+                if (variant.woo_variation_id) {
+                  item.wooVariationId = parseInt(variant.woo_variation_id, 10);
+                }
+              }
+            }
           }
-          if (item.variantId) {
+          if (item.variantId && !item.wooVariationId) {
             const wooVarId = parseInt(item.variantId, 10);
             if (!isNaN(wooVarId)) {
               item.wooVariationId = wooVarId;
