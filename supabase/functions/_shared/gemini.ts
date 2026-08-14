@@ -13,6 +13,7 @@ import {
   getAllOffers,
   getAllActiveProducts,
   getAllInStockProducts,
+  getSupabaseClient,
 } from "./supabase-client.ts";
 import type { AIResult, BusinessSettings, LearnedResponse, MessageIntent, Product, Offer } from "./types.ts";
 
@@ -807,6 +808,28 @@ export async function runAI(params: {
     aiResult.detectedProductIds = Array.from(new Set(params.preMatchedProductIds));
   } else if (aiResult.detectedProductId) {
     aiResult.detectedProductIds = [aiResult.detectedProductId];
+  }
+
+  // Color hallucination check
+  if (aiResult.detectedProductId) {
+    try {
+      const sb = getSupabaseClient();
+      const { data: prod } = await sb.from("products")
+        .select("name, variations").eq("id", aiResult.detectedProductId).maybeSingle();
+      if (prod?.variations?.length > 0) {
+        const validColors = (prod.variations as any[])
+          .map((v: any) => Object.values(v.attributes || {}).join(" "))
+          .filter(Boolean);
+        const replyLower = (aiResult.reply || "").toLowerCase();
+        const mentionsKnownColor = validColors.some((c: string) => replyLower.includes(c.toLowerCase()));
+        const mentionsAnyColorWord = /red|black|blue|gray|white|green|yellow|রেড|ব্ল্যাক|ব্লু|গ্রে|সাদা|কালো/i.test(aiResult.reply || "");
+        if (mentionsAnyColorWord && !mentionsKnownColor) {
+          console.warn(`[COLOR_HALLUCINATION_CHECK] Product "${prod.name}" reply mentions a color not in known variations. Reply: "${aiResult.reply}". Valid colors: ${validColors.join(", ")}`);
+        }
+      }
+    } catch (checkErr) {
+      console.error("Color hallucination check failed (non-blocking):", checkErr);
+    }
   }
 
   return aiResult;
