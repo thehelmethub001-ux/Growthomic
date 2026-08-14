@@ -761,11 +761,38 @@ ${matchLines}
     if (aiResult.sendProductImage) {
       const urls: string[] = [];
       
-      // Collect all image URLs
-      if (aiResult.productImageUrls && aiResult.productImageUrls.length > 0) {
-        urls.push(...aiResult.productImageUrls);
-      } else if ((aiResult as any).productImageUrl) {
-        urls.push((aiResult as any).productImageUrl);
+      // Override for order_intent to avoid AI hallucinated URLs
+      let dbOverridden = false;
+      if (aiResult.intent === "order_intent" && aiResult.detectedProductId) {
+        const sb = getSupabaseClient();
+        const { data: pData } = await sb.from("products").select("images, variations").eq("id", aiResult.detectedProductId).maybeSingle();
+        if (pData) {
+          let finalImg = null;
+          if (aiResult.detectedVariantId && pData.variations) {
+            const variant = (pData.variations as any[]).find((v: any) => String(v.id) === String(aiResult.detectedVariantId) || String(v.woo_variation_id) === String(aiResult.detectedVariantId));
+            if (variant && variant.image_url) {
+              finalImg = variant.image_url;
+            }
+          }
+          if (!finalImg && pData.images && pData.images.length > 0) {
+            finalImg = pData.images[0];
+          }
+          
+          if (finalImg) {
+            urls.push(finalImg);
+            dbOverridden = true;
+            console.log(`[Order Intent Image Override] Used DB image instead of AI prediction: ${finalImg}`);
+          }
+        }
+      }
+
+      if (!dbOverridden) {
+        // Collect all image URLs
+        if (aiResult.productImageUrls && aiResult.productImageUrls.length > 0) {
+          urls.push(...aiResult.productImageUrls);
+        } else if ((aiResult as any).productImageUrl) {
+          urls.push((aiResult as any).productImageUrl);
+        }
       }
 
       // Filter out invalid URLs (in case AI hallucinates placeholder text)
