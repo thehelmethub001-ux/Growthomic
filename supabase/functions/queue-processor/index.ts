@@ -761,49 +761,50 @@ ${matchLines}
     if (aiResult.sendProductImage) {
       const urls: string[] = [];
       
-      // Override for order_intent to avoid AI hallucinated URLs
-      let dbOverridden = false;
-      if (aiResult.intent === "order_intent" && aiResult.detectedProductId) {
-        const sb = getSupabaseClient();
-        const { data: pData } = await sb.from("products").select("images, variations").eq("id", aiResult.detectedProductId).maybeSingle();
-        if (pData) {
-          let finalImg = null;
-          if (aiResult.detectedVariantId && pData.variations) {
-            const variant = (pData.variations as any[]).find((v: any) => String(v.id) === String(aiResult.detectedVariantId) || String(v.woo_variation_id) === String(aiResult.detectedVariantId));
-            if (variant && variant.image_url) {
-              finalImg = variant.image_url;
-            }
-          }
-          if (!finalImg && pData.images && pData.images.length > 0) {
-            finalImg = pData.images[0];
-          }
-          
-          if (finalImg) {
-            urls.push(finalImg);
-            dbOverridden = true;
-            console.log(`[Order Intent Image Override] Used DB image instead of AI prediction: ${finalImg}`);
-          }
-        }
-      }
-
-      if (!dbOverridden) {
-        // Collect all image URLs
-        if (aiResult.productImageUrls && aiResult.productImageUrls.length > 0) {
-          urls.push(...aiResult.productImageUrls);
-        } else if ((aiResult as any).productImageUrl) {
-          urls.push((aiResult as any).productImageUrl);
-        }
+      // Collect all image URLs
+      if (aiResult.productImageUrls && aiResult.productImageUrls.length > 0) {
+        urls.push(...aiResult.productImageUrls);
+      } else if ((aiResult as any).productImageUrl) {
+        urls.push((aiResult as any).productImageUrl);
       }
 
       // Filter out invalid URLs (in case AI hallucinates placeholder text)
       const validUrls = urls.filter(u => typeof u === "string" && u.startsWith("http"));
 
+      // ── Order-intent-e image AI-r upor trust na kore, server-verified variant image use koro
+      let finalUrls = validUrls;
+      if (aiResult.intent === "order_intent" && aiResult.detectedProductId) {
+        try {
+          const sbImg = getSupabaseClient();
+          const { data: orderProd } = await sbImg.from("products")
+            .select("id, images, variations")
+            .eq("id", aiResult.detectedProductId).maybeSingle();
+          if (orderProd) {
+            let verifiedUrl: string | null = null;
+            if (aiResult.detectedVariantId && orderProd.variations) {
+              const v = (orderProd.variations as any[]).find(
+                (x: any) => String(x.id) === String(aiResult.detectedVariantId) || 
+                            String(x.woo_variation_id) === String(aiResult.detectedVariantId)
+              );
+              if (v?.image_url) verifiedUrl = v.image_url;
+            }
+            if (!verifiedUrl && orderProd.images?.length > 0) verifiedUrl = orderProd.images[0];
+            if (verifiedUrl) {
+              console.log(`Order confirm: overriding AI image with server-verified: ${verifiedUrl}`);
+              finalUrls = [verifiedUrl];
+            }
+          }
+        } catch (verifyErr) {
+          console.error("Order image verification failed:", verifyErr);
+        }
+      }
+
       // Send each image — capture the returned mid and save image message to DB
       let sentImageMid: string | undefined = undefined;
-      for (const imgUrl of validUrls) {
+      for (const imgUrl of finalUrls) {
         try {
           const mid = await sendImageMessage(platform as Platform, platformId, imgUrl);
-          if (mid && urls.length === 1) sentImageMid = mid; // only track mid for single image
+          if (mid && finalUrls.length === 1) sentImageMid = mid; // only track mid for single image
           
           // Save image message entry to DB for accurate reply lookup
           await saveMessage({
@@ -837,11 +838,11 @@ ${matchLines}
             variations: fullProduct.variations,
           };
         }
-      } else if (validUrls.length === 1 && validUrls[0]) {
+      } else if (finalUrls.length === 1 && finalUrls[0]) {
         // AI sent exactly one image but didn't set detectedProductId — look up by image URL
         try {
           const sbProd = getSupabaseClient();
-          const imageUrlToSearch = validUrls[0];
+          const imageUrlToSearch = finalUrls[0];
           const { data: prodByImage } = await sbProd
             .from("products")
             .select("id, name, regular_price, sale_price, category, images")
