@@ -667,6 +667,21 @@ ${matchLines}
       }
     }
 
+    // ── New Gate: Order intent-e product confidently identify na hole SS chaite badhyo koro
+    if (aiResult.intent === "order_intent" && !aiResult.detectedProductId && !preMatchedProductId) {
+      const recentAiMsgs = history.slice(-8).filter(h => h.role === "ai");
+      const recentImageCount = recentAiMsgs.filter(h => h.media_type === "image").length;
+      const mentionedSS = recentAiMsgs.some(h => h.content?.includes("স্ক্রিনশট") || h.content?.includes("SS"));
+
+      if (recentImageCount > 1 || mentionedSS) {
+        console.log("Order intent-e product confirm na hoyeo confirm kora hocche na — SS gate trigger");
+        aiResult.reply = "স্যার, দুঃখিত। আপনি ঠিক কোন প্রোডাক্টটি অর্ডার করতে চাচ্ছেন তার একটি স্ক্রিনশট (SS) বা ছবি পাঠিয়ে দিন, আমরা নিশ্চিত করে দিচ্ছি।";
+        aiResult.intent = "product_inquiry";
+        aiResult.orderData = null;
+        aiResult.sendProductImage = false;
+      }
+    }
+
     // ── Step 6.5: Required pre-order field gate
     if (aiResult.intent === "order_intent" && aiResult.orderData && aiResult.detectedProductId) {
       // Check if all required fields for this product are answered
