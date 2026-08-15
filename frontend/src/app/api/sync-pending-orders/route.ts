@@ -101,30 +101,47 @@ export async function POST(req: Request) {
         const rawLineItems = [];
         for (const i of (order.items || [])) {
           let resolvedWooProductId = i.wooProductId;
+          let resolvedVariationId = i.wooVariationId;
+          let variantSku: string | undefined;
+          let variantAttrs: Record<string, string> | undefined;
 
-          // Lookup woo_product_id if missing but we have internal productId
-          if (!resolvedWooProductId && i.productId) {
+          if (i.productId) {
             const { data } = await supabase
               .from("products")
-              .select("woo_product_id")
+              .select("woo_product_id, variations")
               .eq("id", i.productId)
               .maybeSingle();
 
-            if (data && data.woo_product_id) {
-              resolvedWooProductId = data.woo_product_id;
+            if (data?.woo_product_id) resolvedWooProductId = data.woo_product_id;
+
+            if (i.variantId && data?.variations) {
+              const variant = (data.variations as any[]).find(
+                (v: any) => String(v.id) === String(i.variantId) || String(v.woo_variation_id) === String(i.variantId)
+              );
+              if (variant) {
+                if (variant.woo_variation_id) resolvedVariationId = variant.woo_variation_id;
+                if (variant.sku) variantSku = variant.sku;
+                if (variant.attributes) variantAttrs = variant.attributes;
+              }
             }
           }
 
           const itemTotal = String((i.unitPrice || 0) * (i.qty || 1));
-          
-          rawLineItems.push({
+          const lineItem: any = {
             product_id: resolvedWooProductId,
-            variation_id: i.wooVariationId,
+            variation_id: resolvedVariationId,
             quantity: i.qty || 1,
-            name: i.name,
             total: itemTotal,
-            subtotal: itemTotal
-          });
+            subtotal: itemTotal,
+          };
+          if (variantSku) lineItem.sku = variantSku;
+          if (variantAttrs) {
+            lineItem.meta_data = Object.entries(variantAttrs).map(([key, value]) => ({
+              key: `attribute_pa_${key.toLowerCase().replace(/\s+/g, "-")}`,
+              value: String(value),
+            }));
+          }
+          rawLineItems.push(lineItem);
         }
 
         const lineItems = rawLineItems.filter((i: any) => i.product_id);
