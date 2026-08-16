@@ -379,6 +379,7 @@ HUMAN RESPONSE RULES:
     if (batchStartIndex === history.length) batchStartIndex = 0;
     const currentBatchMsgs = history.slice(batchStartIndex);
     const batchImageMsgs = currentBatchMsgs.filter(m => m.media_type === "image" && m.media_url);
+    let directReply: string | undefined = undefined; // deterministic reply for multi-image batch
 
     // If current triggering payload has mediaType === "image" and is not in batchImageMsgs, add it
     if (mediaType === "image" && mediaUrl && !batchImageMsgs.some(m => m.media_url === mediaUrl)) {
@@ -577,6 +578,22 @@ Reply in Bengali naturally. প্রতিটি product বলার সময
             }
           }).join("\n");
 
+          // Build the customer-facing reply DIRECTLY in code (deterministic, Gemini-nir-bhor na)
+          const replyLines = multiImageMatches.map((item, idx) => {
+            if (item.topMatch) {
+              const price = item.topMatch.sale_price || item.topMatch.regular_price;
+              const inStock = (item.topMatch.stock_quantity ?? 0) > 0 && item.topMatch.is_active;
+              return `${idx + 1}️⃣ ${item.topMatch.product_name} - ${item.topMatch.color}\n💰 ৳${price} ${inStock ? "(স্টকে আছে)" : "(স্টকে নেই)"}`;
+            } else if (item.matches?.length > 0) {
+              const m = item.matches[0];
+              return `${idx + 1}️⃣ সম্ভবত: ${m.product_name} - ${m.color} (৳${m.sale_price || m.regular_price})`;
+            } else {
+              return `${idx + 1}️⃣ দুঃখিত, এই মডেলটি আমাদের ক্যাটালগে খুঁজে পাওয়া যায়নি।`;
+            }
+          }).join("\n\n———\n\n");
+
+          directReply = `স্যার, আপনার পাঠানো ${multiImageMatches.length}টি ছবির তথ্য:\n\n${replyLines}\n\nযেটি নিতে চান সেটির নাম্বার বা রং বলুন।`;
+
           messageText = `[SYSTEM_INSTRUCTION: কাস্টমার একসাথে ${multiImageMatches.length}টি ছবি পাঠিয়েছেন। প্রতিটির তথ্য নিচে দেওয়া হলো:
 ${matchLines}
 
@@ -643,6 +660,12 @@ ${matchLines}
         if (parsed.productImageUrls?.length) aiResult.productImageUrls = parsed.productImageUrls;
         if (parsed.detectedProductId) aiResult.detectedProductId = parsed.detectedProductId;
         if (parsed.detectedVariantId) aiResult.detectedVariantId = parsed.detectedVariantId;
+      }
+
+      // ── Multi-image batch: override with deterministic reply (Gemini-র reply নয়)
+      if (batchImageMsgs.length > 1 && typeof directReply !== "undefined") {
+        aiResult.reply = directReply;
+        aiResult.sendProductImage = false; // text-ই যথেষ্ট, follow-up-এ image চাইলে দেবে
       }
     } catch (aiErr) {
       console.error("AI engine failed:", aiErr);
