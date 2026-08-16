@@ -32,6 +32,7 @@ function getDisplayName(name?: string | null, platform_id?: string, platform?: s
 export default function InboxPage() {
   const [convs, setConvs] = useState<Conv[]>([]);
   const [selId, setSelId] = useState<string|null>(null);
+  const [pendingPid, setPendingPid] = useState<{pid:string;platform:string}|null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
@@ -85,12 +86,34 @@ export default function InboxPage() {
       .catch(err => console.error("Customer sync error:", err));
   }, [loadConvs]);
 
-  // Read ?chat= parameter on mount
+  // Resolve pendingPid: once convs are loaded, find the conversation for this platform_id
+  useEffect(() => {
+    if (!pendingPid || convs.length === 0) return;
+    const match = convs.find(c =>
+      c.customers.platform_id === pendingPid.pid &&
+      (pendingPid.platform === "" || c.platform === pendingPid.platform)
+    );
+    if (match) {
+      setSelId(match.id);
+      setPendingPid(null);
+    }
+  }, [convs, pendingPid]);
+
+  // Read ?chat= or ?pid= parameter on mount — auto-select the matching conversation
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const chatParam = params.get("chat");
+    const pidParam = params.get("pid");
+    const platformParam = params.get("platform");
+
     if (chatParam) {
+      // Direct conversation ID — set immediately
       setSelId(chatParam);
+      window.history.replaceState({}, '', '/inbox');
+    } else if (pidParam) {
+      // platform_id given — need to find the conversation after convs load
+      // We'll store it in a ref-like state and resolve after convs are fetched
+      setPendingPid({ pid: pidParam, platform: platformParam || "" });
       window.history.replaceState({}, '', '/inbox');
     }
   }, []);
