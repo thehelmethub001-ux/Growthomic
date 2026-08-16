@@ -93,6 +93,7 @@ Deno.serve(async (req: Request) => {
     customerName,
     mediaType,
     mediaUrl,
+    mediaUrls,
     platformMessageId,
     replyToMid,
   } = payload;
@@ -146,15 +147,37 @@ Deno.serve(async (req: Request) => {
     return errorResponse("Conversation upsert failed", 500);
   }
 
-  // Save incoming customer message to DB (regardless of further processing)
-  await saveMessage({
-    conversationId: conversation.id,
-    role: "customer",
-    content: messageText,
-    mediaType,
-    mediaUrl,
-    platformMessageId,
-  });
+  // Save incoming customer message(s) to DB — jodi multiple image ekসাথে ase (mediaUrls), 
+  // protyekটা আলাদা row hisebe save koro; na hole normal single mediaUrl save koro.
+  if (mediaType === "image" && Array.isArray(mediaUrls) && mediaUrls.length > 1) {
+    for (const url of mediaUrls) {
+      await saveMessage({
+        conversationId: conversation.id,
+        role: "customer",
+        content: undefined,
+        mediaType: "image",
+        mediaUrl: url,
+        platformMessageId: url === mediaUrls[0] ? platformMessageId : undefined,
+      });
+    }
+    // messageText (jodi thake, e.g. caption) alada text row hisebe save koro
+    if (messageText) {
+      await saveMessage({
+        conversationId: conversation.id,
+        role: "customer",
+        content: messageText,
+      });
+    }
+  } else {
+    await saveMessage({
+      conversationId: conversation.id,
+      role: "customer",
+      content: messageText,
+      mediaType,
+      mediaUrl,
+      platformMessageId,
+    });
+  }
 
   // ── Reply-to Context: If customer replied to a specific AI image, inject product context
   // When a customer clicks "Reply" on a product image and asks "Price?", we need to tell

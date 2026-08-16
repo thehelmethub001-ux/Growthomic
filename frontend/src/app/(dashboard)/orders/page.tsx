@@ -12,6 +12,7 @@ type Order = {
   woo_order_id:number|null; woo_sync_status:string; created_at:string; items:OrderItem[];
   customers:{ name:string|null; platform:string; platform_id:string };
   delivery_address?:string;
+  customer_phone?: string | null;
 };
 
 const TABS = ["all","new","confirmed","shipped","delivered","returned","cancelled","failed"];
@@ -43,27 +44,9 @@ export default function OrdersPage() {
   const sb = createClient();
 
   const openEditModal = (o: Order) => {
-    const rawAddr = o.delivery_address || "";
-    const phoneMatch = rawAddr.match(/(?:01\d{9})|(?:\+?8801\d{9})/);
-    const phone = phoneMatch ? phoneMatch[0] : (o.customers?.platform === "whatsapp" ? o.customers.platform_id : "");
-    
-    let cleanAddr = rawAddr;
-    if (phone) cleanAddr = cleanAddr.replace(phone, "");
-
-    const parts = rawAddr.split(",").map(p => p.trim());
-    let name = o.customers?.name || "";
-    if (parts.length > 2 && !parts[0].match(/\d/) && parts[0].length < 30) {
-      if (!name || name === o.customers?.platform_id) {
-        name = parts[0];
-      }
-      cleanAddr = parts.slice(1).join(", ");
-    }
-    cleanAddr = cleanAddr.replace(phone || "", "").replace(/^[\s,]+|[\s,]+$/g, "").replace(/,\s*,/g, ",");
-    if (!cleanAddr) cleanAddr = rawAddr;
-
-    setEditCustomerName(name);
-    setEditCustomerPhone(phone);
-    setEditDeliveryAddress(cleanAddr);
+    setEditCustomerName(o.customers?.name || "");
+    setEditCustomerPhone(o.customer_phone || (o.customers?.platform === "whatsapp" ? o.customers.platform_id : "") || "");
+    setEditDeliveryAddress(o.delivery_address || "");
     setEditOrder(o);
   };
 
@@ -380,27 +363,12 @@ export default function OrdersPage() {
                               <div style={{fontSize:12,fontWeight:700,color:"#34d399"}}>৳{(item.unitPrice * item.qty).toLocaleString()}</div>
                             </div>
                           ))}
-                          {(() => {
-                            if (!o.delivery_address) return null;
-                            const phoneMatch = o.delivery_address.match(/(?:01\d{9})|(?:\+?8801\d{9})/);
-                            const phone = phoneMatch ? phoneMatch[0] : null;
-                            
-                            let cleanAddress = o.delivery_address;
-                            if (phone) cleanAddress = cleanAddress.replace(phone, "");
-                            const parts = o.delivery_address.split(",").map(p => p.trim());
-                            if (parts.length > 2 && !parts[0].match(/\d/) && parts[0].length < 30) {
-                              cleanAddress = parts.slice(1).join(", ");
-                            }
-                            cleanAddress = cleanAddress.replace(phone || "", "").replace(/^[\s,]+|[\s,]+$/g, "").replace(/,\s*,/g, ",");
-                            if (!cleanAddress) cleanAddress = o.delivery_address;
-
-                            return (
-                              <div style={{marginTop:8, paddingTop:6, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11}}>
-                                {phone && <div style={{marginBottom:3, color:C.brandLight, fontWeight:600}}>📞 {phone}</div>}
-                                <div style={{color:C.textMuted}}>📍 {cleanAddress}</div>
-                              </div>
-                            );
-                          })()}
+                          {(o.customer_phone || o.delivery_address) && (
+                            <div style={{marginTop:8, paddingTop:6, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11}}>
+                              {o.customer_phone && <div style={{marginBottom:3, color:C.brandLight, fontWeight:600}}>📞 {o.customer_phone}</div>}
+                              {o.delivery_address && <div style={{color:C.textMuted}}>📍 {o.delivery_address}</div>}
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>
