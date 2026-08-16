@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, btnSecondary, skeletonStyle, thStyle, tdStyle } from "@/lib/styles";
-import { CheckCircle2, RefreshCcw, Search, ShoppingCart } from "lucide-react";
+import { CheckCircle2, MessageCircle, RefreshCcw, Search, ShoppingCart } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -26,6 +27,7 @@ const statusColors: Record<string,[string,string]> = {
 };
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
@@ -216,6 +218,27 @@ export default function OrdersPage() {
 
   const shown = orders.filter(o=>!search||(o.customers.name||"").toLowerCase().includes(search.toLowerCase()));
 
+  // ── Duplicate detection: same customer (platform_id) who has 2+ orders within 3 days of each other
+  const duplicateIds = new Set<string>();
+  const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+  const ordersByCustomer: Record<string, Order[]> = {};
+  for (const o of orders) {
+    const key = o.customers.platform_id;
+    if (!ordersByCustomer[key]) ordersByCustomer[key] = [];
+    ordersByCustomer[key].push(o);
+  }
+  for (const group of Object.values(ordersByCustomer)) {
+    if (group.length < 2) continue;
+    const sorted = [...group].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    for (let i = 1; i < sorted.length; i++) {
+      const gap = new Date(sorted[i].created_at).getTime() - new Date(sorted[i-1].created_at).getTime();
+      if (gap <= THREE_DAYS_MS) {
+        duplicateIds.add(sorted[i].id);
+        duplicateIds.add(sorted[i-1].id);
+      }
+    }
+  }
+
   return (
     <div style={pageWrap}>
       <div style={pageHeader}>
@@ -324,8 +347,9 @@ export default function OrdersPage() {
               ) : shown.map(o=>{
                 const [sc,sbg] = statusColors[o.status]??[C.textMuted,C.elevated];
                 const isSelected = selectedOrderIds.has(o.id);
+                const isDuplicate = duplicateIds.has(o.id);
                 return (
-                  <tr key={o.id} style={{transition:"background 0.12s", background: isSelected ? "rgba(124,92,252,0.08)" : "transparent"}}>
+                  <tr key={o.id} style={{transition:"background 0.12s", background: isSelected ? "rgba(124,92,252,0.08)" : isDuplicate ? "rgba(251,191,36,0.04)" : "transparent"}}>
                     <td style={{ ...tdStyle, width: 40, textAlign: "center" }}>
                       <input 
                         type="checkbox"
@@ -335,7 +359,12 @@ export default function OrdersPage() {
                       />
                     </td>
                     <td style={tdStyle}>
-                      <div style={{fontWeight:600,fontSize:12,color:C.textPrimary,fontFamily:"monospace"}}>#{o.id.slice(0,8)}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <div style={{fontWeight:600,fontSize:12,color:C.textPrimary,fontFamily:"monospace"}}>#{o.id.slice(0,8)}</div>
+                        {isDuplicate && (
+                          <span title="Same customer ordered within 3 days" style={{fontSize:9,fontWeight:700,background:"rgba(251,191,36,0.18)",color:"#fbbf24",borderRadius:6,padding:"2px 6px",border:"1px solid rgba(251,191,36,0.35)",letterSpacing:"0.04em"}}>🔁 DUP</span>
+                        )}
+                      </div>
                       <div style={{fontSize:11,color:C.textMuted,marginTop:2}}>{format(new Date(o.created_at),"MMM d, h:mm a")}</div>
                     </td>
                     <td style={tdStyle}>
@@ -396,7 +425,21 @@ export default function OrdersPage() {
                       )}
                     </td>
                     <td style={tdStyle}>
-                      <button onClick={() => openEditModal(o)} style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${C.border}`, color: C.textPrimary, padding: "5px 12px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "background 0.2s" }} onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"} onMouseOut={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}>Edit</button>
+                      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                        <button
+                          onClick={() => openEditModal(o)}
+                          style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${C.border}`, color: C.textPrimary, padding: "5px 12px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "background 0.2s" }}
+                          onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
+                          onMouseOut={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
+                        >Edit</button>
+                        <button
+                          title="View conversation"
+                          onClick={() => router.push(`/inbox?pid=${encodeURIComponent(o.customers.platform_id)}&platform=${o.customers.platform}`)}
+                          style={{ background: "rgba(124,92,252,0.12)", border: `1px solid rgba(124,92,252,0.3)`, color: C.brandLight, padding: "5px 8px", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", transition: "background 0.2s" }}
+                          onMouseOver={e => e.currentTarget.style.background = "rgba(124,92,252,0.25)"}
+                          onMouseOut={e => e.currentTarget.style.background = "rgba(124,92,252,0.12)"}
+                        ><MessageCircle size={13}/></button>
+                      </div>
                     </td>
                   </tr>
                 );
