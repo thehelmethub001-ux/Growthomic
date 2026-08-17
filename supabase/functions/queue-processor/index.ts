@@ -416,8 +416,10 @@ HUMAN RESPONSE RULES:
           if (matchData?.success && matchData.matches?.length > 0) {
             const topMatch = matchData.matches[0];
             let isConfident = false;
-            // Lowered threshold: 0.75 similarity is sufficient for a confident match
-            if (topMatch.similarity >= 0.75) {
+            if (topMatch.similarity >= 0.90) {
+              // Khub high similarity — sibling color close thakleo trust koro
+              isConfident = true;
+            } else if (topMatch.similarity >= 0.75) {
               if (matchData.matches.length > 1) {
                 const secondMatch = matchData.matches[1];
                 // Reduced gap requirement: 0.08 is enough to distinguish two different products
@@ -430,6 +432,7 @@ HUMAN RESPONSE RULES:
                 isConfident = true;
               }
             }
+            console.log(`Single image check: similarity=${topMatch.similarity.toFixed(3)}, confident=${isConfident}`);
 
             if (isConfident) {
               console.log(`Confirmed image match: ${topMatch.product_name} - ${topMatch.color} (ID: ${topMatch.product_id}, Variant: ${topMatch.variation_woo_id}, Score: ${topMatch.similarity.toFixed(3)})`);
@@ -537,7 +540,10 @@ Reply in Bengali naturally. প্রতিটি product বলার সময
               if (matchData?.success && matchData.matches?.length > 0) {
                 const topMatch = matchData.matches[0];
                 let isConfident = false;
-                if (topMatch.similarity >= 0.75) {
+                if (topMatch.similarity >= 0.90) {
+                  // Khub high similarity — sibling color close thakleo trust koro
+                  isConfident = true;
+                } else if (topMatch.similarity >= 0.75) {
                   if (matchData.matches.length > 1) {
                     const secondMatch = matchData.matches[1];
                     if (topMatch.similarity - secondMatch.similarity >= 0.08) {
@@ -547,6 +553,7 @@ Reply in Bengali naturally. প্রতিটি product বলার সময
                     isConfident = true;
                   }
                 }
+                console.log(`Batch image ${idx+1}: similarity=${topMatch.similarity.toFixed(3)}, confident=${isConfident}`);
                 multiImageMatches.push({
                   imageUrl: imgMsg.media_url!,
                   topMatch: isConfident ? topMatch : null,
