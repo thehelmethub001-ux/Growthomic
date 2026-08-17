@@ -308,6 +308,8 @@ HUMAN RESPONSE RULES:
     .update({ platform_window_expires_at: windowExpiry })
     .eq("id", conversation.id);
 
+  conversation.platformWindowExpiresAt = windowExpiry; // ← NOTUN LINE: stale object fix
+
   // ── isLockedForAI check: if another human is handling this, skip AI
   if (conversation.isLockedForAI) {
     console.log(`Conversation ${conversation.id} locked for AI — human is handling`);
