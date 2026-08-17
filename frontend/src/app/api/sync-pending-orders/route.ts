@@ -152,12 +152,25 @@ export async function POST(req: Request) {
           continue;
         }
 
-        const { firstName, lastName, phone, cleanAddress } = parseOrderContactInfo(
+        // ── Priority: Use DB columns (customer_name, customer_phone) over parsing delivery_address
+        const dbPhone = order.customer_phone || "";
+        const dbName = order.customer_name || order.customers?.name || "";
+        const { firstName: parsedFirst, lastName: parsedLast, phone: parsedPhone, cleanAddress } = parseOrderContactInfo(
           order.delivery_address || "",
-          order.customers?.name || "",
+          dbName,
           order.customers?.platform_id || "",
           order.customers?.platform || ""
         );
+
+        // Use DB phone first, then parsed from address, then WhatsApp platform_id
+        const finalPhone = dbPhone || parsedPhone || (order.customers?.platform === "whatsapp" ? order.customers.platform_id : "");
+        // Use DB name first, then parsed
+        const finalName = dbName || `${parsedFirst} ${parsedLast}`.trim() || "Customer";
+        const nameParts = finalName.split(" ");
+        const firstName = nameParts[0] || "Customer";
+        const lastName = nameParts.slice(1).join(" ") || "";
+        // Use clean address — strip phone and name from raw delivery_address
+        const finalAddress = cleanAddress || order.delivery_address || "";
 
         const payload = {
           payment_method: order.payment_method === "cod" ? "cod" : "bacs",
@@ -167,14 +180,14 @@ export async function POST(req: Request) {
           billing: {
             first_name: firstName,
             last_name: lastName,
-            phone: phone,
-            address_1: cleanAddress,
+            phone: finalPhone,
+            address_1: finalAddress,
             country: "BD",
           },
           shipping: {
             first_name: firstName,
             last_name: lastName,
-            address_1: cleanAddress,
+            address_1: finalAddress,
             country: "BD",
           },
           line_items: lineItems,

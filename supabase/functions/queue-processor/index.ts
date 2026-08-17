@@ -1004,6 +1004,7 @@ ${matchLines}
       const { orderData } = aiResult;
 
       // Save to local orders table first (source of truth)
+      const customerNameForOrder = (orderData as any).customerName || customer.name || undefined;
       const orderId = await createOrder({
         customerId: customer.id,
         conversationId: conversation.id,
@@ -1011,7 +1012,19 @@ ${matchLines}
         totalAmount: orderData.totalAmount,
         deliveryAddress: orderData.deliveryAddress,
         customerPhone: (orderData as any).customerPhone,
+        customerName: customerNameForOrder,
       });
+
+      // Also update the customer name in DB if AI captured a better name
+      if ((orderData as any).customerName && (!customer.name || customer.name === customer.platformId)) {
+        try {
+          const sbCust = getSupabaseClient();
+          await sbCust.from("customers").update({ name: (orderData as any).customerName }).eq("id", customer.id);
+          console.log(`Customer name updated from orderData: "${(orderData as any).customerName}"`);
+        } catch (custNameErr) {
+          console.error("Failed to update customer name:", custNameErr);
+        }
+      }
 
       if (!cachedSettings) cachedSettings = await getBusinessSettings();
       const settings = cachedSettings;
@@ -1075,8 +1088,8 @@ ${matchLines}
 
         const wooResult = await pushOrderToWooCommerce({
           items: orderData.items,
-          customerName: customer.name,
-          customerPhone: (orderData as any).customerPhone || (platform === "whatsapp" ? platformId : undefined),
+          customerName: customerNameForOrder || (platform === "whatsapp" ? platformId : "Customer"),
+          customerPhone: (orderData as any).customerPhone || (platform === "whatsapp" ? platformId : ""),
           deliveryAddress: orderData.deliveryAddress,
           totalAmount: orderData.totalAmount,
         });
