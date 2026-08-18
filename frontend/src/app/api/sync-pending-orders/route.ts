@@ -137,7 +137,7 @@ export async function POST(req: Request) {
           if (variantSku) lineItem.sku = variantSku;
           if (variantAttrs) {
             lineItem.meta_data = Object.entries(variantAttrs).map(([key, value]) => ({
-              key: `attribute_pa_${key.toLowerCase().replace(/\s+/g, "-")}`,
+              key: `attribute_${key.toLowerCase().replace(/\s+/g, "-")}`,
               value: String(value),
             }));
           }
