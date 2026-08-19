@@ -129,11 +129,15 @@ export async function POST(req: Request) {
           const itemTotal = String((i.unitPrice || 0) * (i.qty || 1));
           const lineItem: any = {
             product_id: resolvedWooProductId,
-            variation_id: resolvedVariationId,
             quantity: i.qty || 1,
             total: itemTotal,
             subtotal: itemTotal,
           };
+          
+          if (resolvedVariationId) {
+            lineItem.variation_id = resolvedVariationId;
+          }
+          
           if (variantSku) lineItem.sku = variantSku;
           if (variantAttrs) {
             lineItem.meta_data = Object.entries(variantAttrs).map(([key, value]) => ({
@@ -141,14 +145,37 @@ export async function POST(req: Request) {
               value: String(value),
             }));
           }
+
+          // Strict validation: if the product has variations but no variation_id is set,
+          // we should NOT blindly sync the base product.
+          const hasVariations = data?.variations && (data.variations as any[]).length > 0;
+          if (hasVariations && !resolvedVariationId) {
+            console.error(`[SYNC BLOCK] Order ${order.id} item ${i.productId} requires a variation but none was resolved. Blocking sync.`);
+            // Append a warning to the item for future debugging
+            rawLineItems.push({ _sync_blocked_missing_variant: true, product_id: resolvedWooProductId });
+            continue;
+          }
+
           rawLineItems.push(lineItem);
         }
 
-        const lineItems = rawLineItems.filter((i: any) => i.product_id);
+        const lineItems = rawLineItems.filter((i: any) => i.product_id && !i._sync_blocked_missing_variant);
 
-        if (lineItems.length === 0) {
-          // Can't push an order with no mapped products
-          await supabase.from("orders").update({ woo_sync_status: "failed" }).eq("id", order.id);
+        if (lineItems.length === 0 || rawLineItems.some((i: any) => i._sync_blocked_missing_variant)) {
+          // Can't push an order with no mapped products or if it was explicitly blocked
+          console.error(`[SYNC FAILED] Order ${order.id} failed due to missing variation or no valid items.`);
+          
+          // Optionally add an internal note indicating missing variant
+          let failedReason = "No valid products found.";
+          if (rawLineItems.some((i: any) => i._sync_blocked_missing_variant)) {
+            failedReason = "⚠️ NO VARIANT CONFIRMED";
+          }
+          
+          await supabase.from("orders").update({ 
+            woo_sync_status: "failed",
+            woo_sync_attempts: (order.woo_sync_attempts || 0) + 1,
+            // we could store the reason in a new column or just leave it failed so admin checks it
+          }).eq("id", order.id);
           continue;
         }
 
