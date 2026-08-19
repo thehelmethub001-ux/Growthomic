@@ -1048,6 +1048,29 @@ ${matchLines}
       (orderData as any).customerPhone = finalPhone;
       orderData.deliveryAddress = finalAddress;
 
+      // ── CRITICAL FIX: Deterministic Variant Fallback ──
+      // If the AI missed the variantId in the final text-only order confirmation turn,
+      // fallback to the persisted variant from the conversation context.
+      let missingVariantFlagged = false;
+      if (orderData.items && orderData.items.length > 0) {
+        for (const item of orderData.items) {
+          // Force variantId to be an explicit key (null if not found)
+          if (!("variantId" in item) || item.variantId === undefined) {
+            item.variantId = null;
+          }
+          
+          if (!item.variantId && conversation.lastVariantId && String(item.productId) === String(conversation.lastProductId)) {
+            item.variantId = conversation.lastVariantId;
+            console.log(`[STATE RECOVERY] Restored missing variantId ${item.variantId} from conversation context for product ${item.productId}`);
+          }
+          
+          if (!item.variantId) {
+            missingVariantFlagged = true;
+            console.warn(`[WARNING] Order created without a variant for product ${item.productId}`);
+          }
+        }
+      }
+
       // Save to local orders table first (source of truth)
       const customerNameForOrder = finalName || undefined;
       const orderId = await createOrder({
