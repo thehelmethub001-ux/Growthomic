@@ -407,8 +407,10 @@ export async function runAI(params: {
   preMatchedProductId?: string;
   preMatchedProductIds?: string[];
   candidateProducts?: { id: string; name: string; imageUrl: string }[];
+  lastProductId?: string;
+  lastVariantId?: string | null;
 }): Promise<AIResult> {
-  const { conversationId, messageText, mediaType, mediaUrl, platform, preMatchedProductId, preMatchedProductIds, candidateProducts } = params;
+  const { conversationId, messageText, mediaType, mediaUrl, platform, preMatchedProductId, preMatchedProductIds, candidateProducts, lastProductId, lastVariantId } = params;
 
   // 1. Load business settings
   const settings = await getBusinessSettings();
@@ -441,7 +443,20 @@ export async function runAI(params: {
   const currentBatch = history.slice(batchStartIndex);
 
   // Combine text from the current batch, fallback to params.messageText
-  const combinedText = currentBatch.map(m => m.content).filter(Boolean).join("\n").trim();
+  let combinedText = currentBatch.map(m => m.content).filter(Boolean).join("\n").trim();
+  
+  // ── Deterministic Conversation Context Injection
+  // If the user sent a short text (order confirm) without an image, and we have previous context, anchor the LLM
+  if (lastProductId && !mediaType && !preMatchedProductId && !combinedText.includes("[SYSTEM_INSTRUCTION:")) {
+    const orderPhrases = /eita|ei ta|order korbo|confirm|nibo|hae|yes|yep|order|neta|humm|hm|thik/i;
+    const isShortText = (combinedText || messageText || "").length < 50;
+    
+    if (isShortText && orderPhrases.test(combinedText || messageText || "")) {
+       const variantContext = lastVariantId ? ` এবং ভ্যারিয়েশন আইডি (variantId): ${lastVariantId}` : "";
+       combinedText = `[SYSTEM_INSTRUCTION: কাস্টমার সম্ভবত তার আগের পছন্দের পণ্যটিই কনফার্ম করছেন। সর্বশেষ চিহ্নিত পণ্য আইডি (productId): ${lastProductId}${variantContext}। যদি কাস্টমার স্পষ্ট করে অন্য কোনো নতুন পণ্যের কথা না বলে থাকে, তবে শুধুমাত্র এই পণ্যটির প্রসঙ্গেই উত্তর দিন এবং অর্ডার তৈরি করুন।] ` + combinedText;
+    }
+  }
+
   let effectiveText = combinedText || messageText;
 
   // Find the latest image/voice in the batch

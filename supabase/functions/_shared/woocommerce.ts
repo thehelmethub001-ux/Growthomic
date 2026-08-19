@@ -163,3 +163,50 @@ export function requiredFieldGate(params: {
 
   return { complete: true };
 }
+
+// ============================================================
+// parseOrderContactInfo()
+// Shared deterministic utility to clean delivery address
+// ============================================================
+export function parseOrderContactInfo(
+  rawAddress: string = "",
+  customerName: string = "",
+  platformId: string = "",
+  platform: string = ""
+) {
+  // 1. Extract 11-digit phone number using regex
+  let phone = "";
+  const phoneMatch = rawAddress.match(/(?:01\d{9})|(?:\+?8801\d{9})/);
+  if (phoneMatch) {
+    phone = phoneMatch[0];
+  } else if (platform === "whatsapp" && platformId) {
+    phone = platformId;
+  }
+
+  // 2. Extract customer name
+  let name = customerName || "";
+  const parts = rawAddress.split(",").map((p: string) => p.trim());
+  if (parts.length > 0 && !parts[0].match(/\d/) && parts[0].length < 30) {
+    if (!name || name === platformId) {
+      name = parts[0];
+    }
+  }
+  if (!name) name = "Customer";
+
+  const nameParts = name.split(" ");
+  const firstName = nameParts[0] || "Customer";
+  const lastName = nameParts.slice(1).join(" ") || "";
+
+  // 3. Clean delivery address: remove name part and phone number part
+  let cleanAddress = rawAddress;
+  if (phone) {
+    cleanAddress = cleanAddress.replace(phone, "");
+  }
+  if (parts.length > 2 && parts[0] === nameParts[0]) {
+    cleanAddress = parts.slice(1).join(", ");
+  }
+  cleanAddress = cleanAddress.replace(/^[\s,]+|[\s,]+$/g, "").replace(/,\s*,/g, ",");
+  if (!cleanAddress) cleanAddress = rawAddress;
+
+  return { firstName, lastName, phone, cleanAddress };
+}

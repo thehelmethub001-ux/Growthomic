@@ -253,6 +253,18 @@ export async function getMetaSettings() {
   return data || {};
 }
 
+export async function updateConversationContext(
+  conversationId: string,
+  productId: string,
+  variantId: string | null
+): Promise<void> {
+  const sb = getSupabaseClient();
+  await sb
+    .from("conversations")
+    .update({ last_product_id: productId, last_variant_id: variantId })
+    .eq("id", conversationId);
+}
+
 function mapConversation(data: Record<string, unknown>): Conversation {
   return {
     id: data.id as string,
@@ -264,6 +276,8 @@ function mapConversation(data: Record<string, unknown>): Conversation {
     platformWindowExpiresAt: data.platform_window_expires_at as string | undefined,
     customerAnswers:
       (data.customer_answers as Record<string, Record<string, string>>) ?? {},
+    lastProductId: data.last_product_id as string | undefined,
+    lastVariantId: data.last_variant_id as string | undefined,
   };
 }
 

@@ -34,6 +34,7 @@ import {
   setConversationStatus,
   updateOrderWooSync,
   upsertConversation,
+  updateConversationContext,
   upsertCustomer,
   getBusinessSettings,
   getSupabaseClient,
@@ -43,6 +44,7 @@ import { runAI } from "../_shared/gemini.ts";
 import {
   pushOrderToWooCommerce,
   requiredFieldGate,
+  parseOrderContactInfo,
 } from "../_shared/woocommerce.ts";
 import {
   sendImageMessage,
@@ -646,6 +648,18 @@ ${matchLines}
       console.log(`[Layer2-SKIP] replyToMid present but Layer1 lookup failed. AI will ask for clarification.`);
     }
 
+      // ── NEW FIX: Reset pending order state if a new image was matched ──
+      // If the customer sent a new image that was matched to a product, we MUST discard 
+      // any existing 'waiting for address' or 'order_intent' state for a previous product.
+      if (batchImageMsgs.length > 0 && preMatchedProductId) {
+        console.log(`[STATE RESET] New image matched (Product ${preMatchedProductId}). Resetting previous order_intent state.`);
+        conversation.lastProductId = undefined;
+        conversation.lastVariantId = undefined;
+        
+        // Add a system note to force Gemini to drop the old context
+        messageText = `[SYSTEM NOTE: The customer just uploaded a NEW photo of a different product. Abort any previous pending order/address collection. Start fresh identifying THIS new product.]\n\n${messageText || ""}`;
+      }
+
     // ── Step 7: AI Engine
     let aiResult;
     try {
@@ -658,6 +672,8 @@ ${matchLines}
         preMatchedProductId,
         preMatchedProductIds,
         candidateProducts,
+        lastProductId: conversation.lastProductId,
+        lastVariantId: conversation.lastVariantId,
       });
 
       // Safety Net: Ensure aiResult.reply is never a raw JSON string
@@ -669,6 +685,16 @@ ${matchLines}
         if (parsed.productImageUrls?.length) aiResult.productImageUrls = parsed.productImageUrls;
         if (parsed.detectedProductId) aiResult.detectedProductId = parsed.detectedProductId;
         if (parsed.detectedVariantId) aiResult.detectedVariantId = parsed.detectedVariantId;
+      }
+
+      // ── Persist Deterministic Conversation Context
+      if (aiResult.detectedProductId) {
+        // Only save variant if product is also detected
+        await updateConversationContext(
+          conversation.id,
+          aiResult.detectedProductId,
+          aiResult.detectedVariantId ?? null
+        );
       }
 
       // ── Multi-image batch: override with deterministic reply (Gemini-র reply নয়)
@@ -1003,24 +1029,43 @@ ${matchLines}
     if (aiResult.intent === "order_intent" && aiResult.orderData) {
       const { orderData } = aiResult;
 
+      // Clean delivery address using the deterministic utility
+      const rawName = (orderData as any).customerName || customer.name || "";
+      const rawPhone = (orderData as any).customerPhone || "";
+      const { firstName, lastName, phone: parsedPhone, cleanAddress } = parseOrderContactInfo(
+        orderData.deliveryAddress || "",
+        rawName,
+        platformId,
+        platform
+      );
+      
+      const finalPhone = rawPhone || parsedPhone || (platform === "whatsapp" ? platformId : "");
+      const finalName = rawName || `${firstName} ${lastName}`.trim() || "Customer";
+      const finalAddress = cleanAddress || orderData.deliveryAddress || "";
+      
+      // Update orderData to clean values before passing to DB and Webhook
+      (orderData as any).customerName = finalName;
+      (orderData as any).customerPhone = finalPhone;
+      orderData.deliveryAddress = finalAddress;
+
       // Save to local orders table first (source of truth)
-      const customerNameForOrder = (orderData as any).customerName || customer.name || undefined;
+      const customerNameForOrder = finalName || undefined;
       const orderId = await createOrder({
         customerId: customer.id,
         conversationId: conversation.id,
         items: orderData.items,
         totalAmount: orderData.totalAmount,
-        deliveryAddress: orderData.deliveryAddress,
-        customerPhone: (orderData as any).customerPhone,
+        deliveryAddress: finalAddress,
+        customerPhone: finalPhone,
         customerName: customerNameForOrder,
       });
 
       // Also update the customer name in DB if AI captured a better name
-      if ((orderData as any).customerName && (!customer.name || customer.name === customer.platformId)) {
+      if (finalName && finalName !== "Customer" && (!customer.name || customer.name === customer.platformId)) {
         try {
           const sbCust = getSupabaseClient();
-          await sbCust.from("customers").update({ name: (orderData as any).customerName }).eq("id", customer.id);
-          console.log(`Customer name updated from orderData: "${(orderData as any).customerName}"`);
+          await sbCust.from("customers").update({ name: finalName }).eq("id", customer.id);
+          console.log(`Customer name updated from orderData: "${finalName}"`);
         } catch (custNameErr) {
           console.error("Failed to update customer name:", custNameErr);
         }

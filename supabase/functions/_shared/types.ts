@@ -156,6 +156,8 @@ export interface Conversation {
     string,
     Record<string, string>
   >; // {productId: {fieldName: answer}}
+  lastProductId?: string;
+  lastVariantId?: string;
 }
 
 // ============================================================

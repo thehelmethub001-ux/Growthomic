@@ -14,6 +14,7 @@ type Order = {
   customers:{ name:string|null; platform:string; platform_id:string };
   delivery_address?:string;
   customer_phone?: string | null;
+  customer_name?: string | null;
 };
 
 const TABS = ["all","new","confirmed","shipped","delivered","returned","cancelled","failed"];
@@ -46,7 +47,7 @@ export default function OrdersPage() {
   const sb = createClient();
 
   const openEditModal = (o: Order) => {
-    setEditCustomerName(o.customers?.name || "");
+    setEditCustomerName(o.customer_name || o.customers?.name || "");
     setEditCustomerPhone(o.customer_phone || (o.customers?.platform === "whatsapp" ? o.customers.platform_id : "") || "");
     setEditDeliveryAddress(o.delivery_address || "");
     setEditOrder(o);
@@ -185,14 +186,13 @@ export default function OrdersPage() {
       }, 500);
       return;
     }
-
-    const fullDeliveryAddress = `${editCustomerName ? editCustomerName + ", " : ""}${editCustomerPhone ? editCustomerPhone + ", " : ""}${editDeliveryAddress}`;
-
     const { error } = await sb.from("orders").update({ 
       status: editOrder.status,
       total_amount: editOrder.total_amount,
       payment_method: editOrder.payment_method,
-      delivery_address: fullDeliveryAddress
+      customer_name: editCustomerName || null,
+      customer_phone: editCustomerPhone || null,
+      delivery_address: editDeliveryAddress
     }).eq("id", editOrder.id);
     
     if (editCustomerName && editOrder.customers?.platform_id) {
@@ -208,7 +208,9 @@ export default function OrdersPage() {
         status: editOrder.status, 
         total_amount: editOrder.total_amount,
         payment_method: editOrder.payment_method,
-        delivery_address: fullDeliveryAddress,
+        customer_name: editCustomerName || null,
+        customer_phone: editCustomerPhone || null,
+        delivery_address: editDeliveryAddress,
         customers: { ...o.customers, name: editCustomerName || o.customers.name }
       } : o));
       setEditOrder(null);
