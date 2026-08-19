@@ -104,6 +104,8 @@ export async function POST(req: Request) {
           let resolvedVariationId = i.wooVariationId;
           let variantSku: string | undefined;
           let variantAttrs: Record<string, string> | undefined;
+          
+          let productData: any = null;
 
           if (i.productId) {
             const { data } = await supabase
@@ -111,6 +113,8 @@ export async function POST(req: Request) {
               .select("woo_product_id, variations")
               .eq("id", i.productId)
               .maybeSingle();
+              
+            productData = data;
 
             if (data?.woo_product_id) resolvedWooProductId = data.woo_product_id;
 
@@ -148,7 +152,7 @@ export async function POST(req: Request) {
 
           // Strict validation: if the product has variations but no variation_id is set,
           // we should NOT blindly sync the base product.
-          const hasVariations = data?.variations && (data.variations as any[]).length > 0;
+          const hasVariations = productData?.variations && (productData.variations as any[]).length > 0;
           if (hasVariations && !resolvedVariationId) {
             console.error(`[SYNC BLOCK] Order ${order.id} item ${i.productId} requires a variation but none was resolved. Blocking sync.`);
             // Append a warning to the item for future debugging
