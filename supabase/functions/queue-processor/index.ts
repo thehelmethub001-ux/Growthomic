@@ -640,6 +640,7 @@ ${matchLines}
         }
       } catch (imgErr) {
         console.error("Image vector search failed, falling back to Vision LLM:", imgErr);
+        messageText = `[SYSTEM_INSTRUCTION: কাস্টমার একটি ছবি পাঠিয়েছে কিন্তু আমাদের ইমেজ সার্চ সিস্টেমে (API error) সমস্যার কারণে ছবিটি স্ক্যান করা সম্ভব হয়নি। কাস্টমারকে বিনীতভাবে বলুন: "স্যার, দুঃখিত। আমাদের সিস্টেমে একটু ওভারলোডের কারণে আপনার ছবিটি এই মুহূর্তে স্ক্যান করতে পারছি না। আপনি কি কষ্ট করে প্রোডাক্টের নামটি একটু লিখে জানাবেন?"]\n` + (messageText || "");
       }
     }
 
