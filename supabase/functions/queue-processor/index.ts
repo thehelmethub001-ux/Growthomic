@@ -1259,24 +1259,29 @@ ${matchLines}
         // ── PARITY GUARD: Block WooCommerce push if product has variations but none was resolved ──
         // (Same protection that exists in the manual sync path — must exist here too)
         let blockedByMissingVariant = false;
-        for (const item of orderData.items) {
-          if (!item.wooVariationId) {
-            // Check if this product actually HAS variations
-            const sb2 = getSupabaseClient();
-            const { data: pCheck } = await sb2.from("products").select("variations").eq("id", item.productId).maybeSingle();
-            const hasVariations = pCheck?.variations && Array.isArray(pCheck.variations) && pCheck.variations.length > 0;
-            if (hasVariations) {
-              console.error(`[BLOCK] ⚠️ NO VARIANT CONFIRMED for product ${item.productId} — blocking WooCommerce push to prevent wrong-item fulfillment.`);
-              await updateOrderWooSync(orderId, null, "failed", 0);
-              const sbBlock = getSupabaseClient();
-              await sbBlock.from("orders").update({
-                woo_sync_status: "failed",
-                woo_sync_error: "⚠️ NO VARIANT CONFIRMED — order blocked to prevent wrong-item fulfillment. Human review required."
-              }).eq("id", orderId);
-              blockedByMissingVariant = true;
-              break;
+        try {
+          for (const item of orderData.items) {
+            if (!item.wooVariationId) {
+              // Check if this product actually HAS variations
+              const sb2 = getSupabaseClient();
+              const { data: pCheck } = await sb2.from("products").select("variations").eq("id", item.productId).maybeSingle();
+              const hasVariations = pCheck?.variations && Array.isArray(pCheck.variations) && pCheck.variations.length > 0;
+              if (hasVariations) {
+                console.error(`[BLOCK] ⚠️ NO VARIANT CONFIRMED for product ${item.productId} — blocking WooCommerce push to prevent wrong-item fulfillment.`);
+                await updateOrderWooSync(orderId, null, "failed", 0);
+                const sbBlock = getSupabaseClient();
+                await sbBlock.from("orders").update({
+                  woo_sync_status: "failed",
+                  woo_sync_error: "⚠️ NO VARIANT CONFIRMED — order blocked to prevent wrong-item fulfillment. Human review required."
+                }).eq("id", orderId);
+                blockedByMissingVariant = true;
+                break;
+              }
             }
           }
+        } catch (guardErr) {
+          console.error(`[PARITY GUARD ERROR] Failed while checking variation confirmation:`, guardErr);
+          // Don't crash the whole function; we want the customer to still get a reply
         }
 
         if (blockedByMissingVariant) {
