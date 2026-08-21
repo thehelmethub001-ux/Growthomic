@@ -227,7 +227,9 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
   - ⚠️ CRITICAL: একটি নির্দিষ্ট পণ্যের ছবি পাঠানোর সময় "detectedProductId" এবং "detectedVariantId" (যদি জানা থাকে) অবশ্যই দিতে হবে।
   - IMAGE ONLY MODE: শুধু ছবি চাইলে (কোনো কথা ছাড়া) — "imageOnly": true, "reply": "", "sendProductImage": true, "productImageUrls": ["সবগুলো কালারের URL..."], "detectedProductId": "<ID>", "detectedVariantId": "<VariantID>"
 - কাস্টমার যদি কোনো নির্দিষ্ট ক্যাটাগরির (যেমন: full face, half face, modular) ছবি দেখতে চায়:
-  - KNOWLEDGE BASE থেকে সেই নির্দিষ্ট ক্যাটাগরির কয়েকটি ভিন্ন ভিন্ন হেলমেটের ছবি "productImageUrls" ফিল্ডে দেবে এবং "sendProductImage": true সেট করবে।
+  - KNOWLEDGE BASE-এর '[স্টকে থাকা ভ্যারিয়েশনসমূহ]' লিস্ট থেকেই শুধু ছবি নেবে। '[সকল ভ্যারিয়েশন (স্টক নেই)]' লিস্টের কোনো ছবি কখনো কাস্টমারকে দেখাবে না — কারণ সেই কালার এখন অর্ডার করা যাবে না, দেখালে কাস্টমার সেটা বেছে নিয়ে হতাশ হবে।
+  - যদি কোনো প্রোডাক্টের সবগুলো ভ্যারিয়েশনই স্টক-আউট হয়, সেই প্রোডাক্টটি এই ছবি-সিলেকশনে বাদ দেবে, পরিবর্তে স্টকে থাকা অন্য প্রোডাক্ট/ভ্যারিয়েশন দেখাবে।
+  - নির্দিষ্ট ক্যাটাগরির স্টকে থাকা কয়েকটি ভিন্ন ভিন্ন হেলমেটের ছবি "productImageUrls" ফিল্ডে দেবে এবং "sendProductImage": true সেট করবে।
   - "reply": "স্যার, নিচে কয়েকটি ছবি দেওয়া হলো। আপনি যেটি নিবেন সেটির স্ক্রিনশট (ss) বা ছবি দেন, আমরা আপনাকে বিস্তারিত ইনফরমেশন দিচ্ছি।"
 - কাস্টমার যদি একাধিক পণ্যের বা কালেকশনের ছবি চায় (যেমন: "সব হেলমেটের ছবি দাও", "আপনাদের কালেকশন দেখান", "সবগুলো দেখাও"):
   - KNOWLEDGE BASE-এ থাকা কয়েকটি ভিন্ন ভিন্ন প্রোডাক্টের ছবি "productImageUrls" ফিল্ডে দেবে এবং "sendProductImage": true সেট করবে।
@@ -801,6 +803,7 @@ export async function runAI(params: {
         if (isMultiColorReq && product.variations && Array.isArray(product.variations)) {
           variationUrls = Array.from(new Set(
             product.variations
+              .filter((v: any) => (v.stock_quantity ?? v.stock ?? 0) > 0)
               .map((v: any) => v.image_url || v.imageUrl)
               .filter((url: any) => typeof url === "string" && url.trim().length > 0 && url.startsWith("http"))
           )).slice(0, 8) as string[];
@@ -809,10 +812,20 @@ export async function runAI(params: {
         if (variationUrls.length > 0) {
           aiResult.productImageUrl = variationUrls[0];
           aiResult.productImageUrls = variationUrls;
-        } else if (product.images?.[0]) {
-          aiResult.productImageUrl = product.images[0];
-          // Also set productImageUrls for consistency
-          aiResult.productImageUrls = product.images.slice(0, 3); // max 3 images per product
+        } else {
+          let fallbackImage = product.images?.[0];
+          let fallbackImages = product.images ? product.images.slice(0, 3) : [];
+          if (product.variations && Array.isArray(product.variations)) {
+            const inStockVariant = product.variations.find((v: any) => (v.stock_quantity ?? v.stock ?? 0) > 0 && (v.image_url || v.imageUrl));
+            if (inStockVariant) {
+              fallbackImage = inStockVariant.image_url || inStockVariant.imageUrl;
+              fallbackImages = [fallbackImage]; // prefer just this one in-stock image
+            }
+          }
+          if (fallbackImage) {
+            aiResult.productImageUrl = fallbackImage;
+            aiResult.productImageUrls = fallbackImages;
+          }
         }
       }
     }
