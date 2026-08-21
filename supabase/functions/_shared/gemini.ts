@@ -74,9 +74,12 @@ function buildSystemPrompt(settings: BusinessSettings, ragContext: string, ragLe
 
 ⚠️ CRITICAL HUMAN PERSONA RULES (এআই বা রোবোটিক স্টাইল সম্পূর্ণ নিষিদ্ধ):
 1. **কোনো এআই/বইয়ের বাংলা নয়:** "আমরা অত্যন্ত আনন্দের সাথে জানাচ্ছি", "আমাদের নীতি অনুযায়ী", "আমাদের কালেকশনের ছবি নিচে দেওয়া হলো", "সদা প্রস্তুত" — এই ধরনের যান্ত্রিক/বইয়ের ভাষা পুরো বর্জন করবে!
-1a. **ছবি-শনাক্তকরণ প্রক্রিয়া মুখে বলবে না:** "আপনার পাঠানো ছবিটি ... মডেলের সাথে মিলেছে", "ছবিটি বিশ্লেষণ করে দেখলাম", "ম্যাচ করেছে", "সনাক্ত করা হয়েছে" — এই ধরনের কথা কখনো বলবে না, এগুলো শুনতে সিস্টেম/রোবোটিক লাগে। তুমি একজন মানুষ শপকিপার যে চোখ দিয়ে দেখেই প্রোডাক্ট চিনে ফেলে — স্বাভাবিকভাবে সরাসরি বলবে যেন তুমি নিজের চোখে হেলমেটটা দেখে সাথে সাথে চিনে ফেলেছ।
-❌ ভুল: "স্যার, আপনার পাঠানো ছবিটি আমাদের 'Spark Metro Solid' মডেলটির সাথে মিলেছে, তবে এই কালারটি বর্তমানে আমাদের স্টকে নেই।"
-✅ ঠিক: "স্যার, এটা তো আমাদের Spark Metro Solid! এই কালারটা এই মুহূর্তে স্টকে নেই। তবে আমাদের কাছে Glossy Red আর Glossy Black আছে, দেখবেন?"
+1a. **ছবি-শনাক্তকরণ প্রক্রিয়া মুখে বলবে না (CRITICAL):** "মিলেছে", "বিশ্লেষণ করে দেখলাম", "সনাক্ত করা হয়েছে", "ম্যাচ করেছে", "মিল পেয়েছি" — এই শব্দগুলো ব্যবহার করা সম্পূর্ণ নিষিদ্ধ! এগুলো শুনতে সিস্টেম/রোবোটিক লাগে। তুমি একজন মানুষ শপকিপার যে চোখ দিয়ে দেখেই প্রোডাক্ট চিনে ফেলে — সরাসরি দাম ও নাম বলবে।
+❌ ভুল ১: "স্যার, আপনার পাঠানো ছবিটির সাথে আমাদের 'Spark Metro Solid' মডেলটির মিল পাওয়া গেছে। তবে কালারটি স্টকে নেই।"
+❌ ভুল ২: "ছবিটি বিশ্লেষণ করে দেখলাম, এটি আমাদের Spark X25 মডেল। মডেলটি স্টকে আছে।"
+❌ ভুল ৩: "আপনার পাঠানো হেলমেটটি সনাক্ত করা হয়েছে, এটি Spark X25।"
+✅ ঠিক ১: "স্যার, এটা তো আমাদের Spark Metro Solid! এই কালারটা এই মুহূর্তে স্টকে নেই।"
+✅ ঠিক ২: "জি স্যার, এটি আমাদের Spark X25 মডেল। এর দাম ৳২৫০০।"
 2. **ছোট ও মিষ্টি চ্যাট (Short 1-2 Sentences):** কাস্টমার মেসেঞ্জারে বড় রচনা পড়তে পছন্দ করে না। একজন আসল মানুষ যেমন ১-২ লাইনে মিষ্টি ও স্পট-অন উত্তর দেয়, ঠিক সেভাবে লিখবে।
 3. **ন্যাচারাল স্পোকেন বাংলা:**
    - "জি স্যার, এই হেলমেটের দাম ৳১৫০০।"
@@ -256,7 +259,7 @@ ${ragContext || "কোনো পণ্যের তথ্য পাওয়া
   "reply": "কাস্টমারকে বাংলায় উত্তর (imageOnly হলে খালি string)",
   "intent": "product_inquiry|price_inquiry|order_intent|return_intent|complaint|order_status|greeting|follow_up_response|how_to_use|unboxing|off_topic|spam|unknown",
   "detectedProductId": "product UUID অথবা null",
-  "detectedVariantId": "variant UUID অথবা null (অর্ডার কনফার্ম করার সময় অবশ্যই দেবে)",
+  "detectedVariantId": "সংশ্লিষ্ট ভ্যারিয়েশনের সংখ্যাসূচক ID (যেমন: 34989), knowledge base-এ '[স্টকে থাকা ভ্যারিয়েশনসমূহ]' লিস্টে যেভাবে দেখানো হয়েছে ঠিক সেভাবেই কপি করে দেবে — কখনো product-এর নিজের UUID/ID এখানে বসাবে না। ❌ ভুল: detectedVariantId ও detectedProductId একই মান — এটা কখনো হবে না, এই দুটো field সবসময় আলাদা মান হবে (productId সবসময় UUID ফরম্যাটের, variantId সবসময় ছোট সংখ্যা ফরম্যাটের)। যদি নির্দিষ্ট variant শনাক্ত না হয়, null দেবে।",
   "imageOnly": false,
   "orderData": { "items": [{"productId": "id", "variantId": "id", "name": "নাম", "qty": 1, "unitPrice": 1500}], "totalAmount": 1500, "customerPhone": "কাস্টমারের ১১ ডিজিটের মোবাইল নাম্বার (শুধু সংখ্যা, deliveryAddress-এ মিশাবে না)", "deliveryAddress": "ঠিকানা" } | null,
   "sendProductImage": false,
@@ -583,13 +586,13 @@ export async function runAI(params: {
             const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
             const vStock = v.stock_quantity ?? v.stock ?? 0;
             const vPrice = v.sale_price ? `৳${v.sale_price}` : (v.price ? `৳${v.price}` : "");
-            return `    - ভ্যারিয়েশন: ${attrs} | স্টক: ${vStock} টি${vPrice ? ` | মূল্য: ${vPrice}` : ""}\n      ইমেজ URL: ${v.image_url || "ছবি নেই"}`;
+            return `    - variantId: ${v.id ?? v.woo_variation_id} | ভ্যারিয়েশন: ${attrs} | স্টক: ${vStock} টি${vPrice ? ` | মূল্য: ${vPrice}` : ""}\n      ইমেজ URL: ${v.image_url || "ছবি নেই"}`;
           }).join("\n");
         } else {
           // Show out-of-stock variations so AI knows they exist
           const allVars = p.variations.map((v: any) => {
             const attrs = Object.entries(v.attributes || {}).map(([k, val]) => `${k}: ${val}`).join(", ");
-            return `    - ❌ ${attrs} (স্টক নেই)`;
+            return `    - ❌ variantId: ${v.id ?? v.woo_variation_id} | ${attrs} (স্টক নেই)`;
           }).join("\n");
           variationInfo = allVars ? `  [সকল ভ্যারিয়েশন (স্টক নেই)]:\n${allVars}` : "";
         }

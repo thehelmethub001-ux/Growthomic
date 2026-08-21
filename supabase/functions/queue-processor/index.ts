@@ -687,6 +687,12 @@ ${matchLines}
         if (parsed.detectedVariantId) aiResult.detectedVariantId = parsed.detectedVariantId;
       }
 
+      // ── BUG FIX VALIDATION: Discard variantId if it matches productId ──
+      if (aiResult.detectedVariantId && aiResult.detectedProductId && aiResult.detectedVariantId === aiResult.detectedProductId) {
+        console.warn(`[INVALID VARIANT] Gemini returned variantId identical to productId (${aiResult.detectedProductId}) — discarding.`);
+        aiResult.detectedVariantId = null;
+      }
+
       // ── Persist Deterministic Conversation Context
       if (aiResult.detectedProductId) {
         // Only save variant if product is also detected
@@ -851,6 +857,97 @@ ${matchLines}
     if (aiResult.sendProductImage && (aiResult.productImageUrls?.length ?? 0) > 1 && aiResult.reply) {
       if (!aiResult.reply.includes("স্ক্রিনশট") && !aiResult.reply.includes("ss")) {
         aiResult.reply = aiResult.reply.trim() + "\n\nআপনি যেটি নিবেন সেটির স্ক্রিনশট (ss) বা ছবি আমাদের দেন, আমরা আপনাকে বিস্তারিত ইনফরমেশন দিচ্ছি।";
+      }
+    }
+
+    // ── Post-Processing Filters (Rule Compliance) ──
+    if (aiResult.reply && typeof aiResult.reply === "string") {
+      const originalReply = aiResult.reply;
+      let modifiedReply = originalReply;
+      const ruleViolations: string[] = [];
+
+      // BUG 2: Robotic Image-Identification Language
+      const roboticPhrases = ["মিলেছে", "বিশ্লেষণ করে দেখলাম", "সনাক্ত করা হয়েছে", "ম্যাচ করেছে", "শনাক্ত করা হয়েছে", "মিল পেয়েছি", "মিল পাওয়া গেছে", "মিল পাওয়া যাচ্ছে"];
+      let hasRobotic = false;
+      for (const p of roboticPhrases) {
+        if (modifiedReply.includes(p)) {
+          hasRobotic = true;
+          modifiedReply = modifiedReply.split(p).join("");
+        }
+      }
+      if (hasRobotic) {
+        ruleViolations.push("rule_1a_robotic_language");
+      }
+
+      // BUG 1: Forbidden Stock Language when IN STOCK
+      // IMPORTANT: Only match EXACT in-stock phrases — NOT "স্টকে নেই" or "এভেইলেবল নেই"
+      const stockPhrases = ["স্টকে আছে", "এভেইলেবল আছে", "পাওয়া যাচ্ছে"];
+      let hasStockPhrase = false;
+      for (const p of stockPhrases) {
+        if (modifiedReply.includes(p)) {
+          hasStockPhrase = true;
+          break;
+        }
+      }
+
+      if (hasStockPhrase && (aiResult.detectedProductId || preMatchedProductId)) {
+        const prodIdToCheck = aiResult.detectedProductId || preMatchedProductId;
+        if (prodIdToCheck) {
+          try {
+            const { getProductById } = await import("../_shared/supabase-client.ts");
+            const product = await getProductById(prodIdToCheck);
+            // Product type has no is_active field; use stockQuantity > 0 as the in-stock check
+            if (product) {
+              let actualStock = product.stockQuantity ?? 0;
+              const varIdToCheck = aiResult.detectedVariantId || conversation.lastVariantId;
+              if (varIdToCheck && product.variations) {
+                const v = (product.variations as any[]).find((x: any) => String(x.id) === String(varIdToCheck) || String(x.woo_variation_id) === String(varIdToCheck));
+                if (v && v.stock_quantity !== undefined) {
+                  actualStock = v.stock_quantity;
+                }
+              }
+              if (actualStock > 0) {
+                // Item IS in stock → strip the forbidden phrases
+                for (const p of stockPhrases) {
+                  modifiedReply = modifiedReply.split(p).join("");
+                }
+                ruleViolations.push("rule_5_stock_language_in_stock");
+              }
+            }
+          } catch (e) {
+            console.error("Failed to check stock for rule 5 filter:", e);
+          }
+        }
+      }
+
+      // Cleanup if modified
+      if (modifiedReply !== originalReply) {
+        modifiedReply = modifiedReply.replace(/\s+/g, ' '); // collapse spaces
+        modifiedReply = modifiedReply.replace(/ ,/g, ','); // fix commas
+        modifiedReply = modifiedReply.replace(/ \./g, '.'); // fix periods
+        modifiedReply = modifiedReply.replace(/ ।/g, '।'); // fix dari
+        modifiedReply = modifiedReply.replace(/, \./g, '.');
+        modifiedReply = modifiedReply.replace(/, ।/g, '।');
+        // Clean trailing weird chars if they got orphaned at the end
+        modifiedReply = modifiedReply.replace(/[,\s]+$/, '');
+        
+        aiResult.reply = modifiedReply.trim();
+        
+        // Log violation
+        try {
+          const sb = getSupabaseClient();
+          await sb.from("rule_violations").insert({
+            conversation_id: conversation.id,
+            rules_triggered: ruleViolations,
+            original_text: originalReply,
+            modified_text: modifiedReply
+          });
+          console.log(`[Rule Violation Filter] Applied filters: ${ruleViolations.join(", ")}`);
+          console.log(`- Original: ${originalReply}`);
+          console.log(`- Modified: ${modifiedReply}`);
+        } catch (e) {
+          console.error("Failed to log rule violation to DB:", e);
+        }
       }
     }
 
@@ -1060,8 +1157,13 @@ ${matchLines}
           }
           
           if (!item.variantId && conversation.lastVariantId && String(item.productId) === String(conversation.lastProductId)) {
-            item.variantId = conversation.lastVariantId;
-            console.log(`[STATE RECOVERY] Restored missing variantId ${item.variantId} from conversation context for product ${item.productId}`);
+            // BUG FIX VALIDATION: Ensure the context variant is not actually the product ID
+            if (String(conversation.lastVariantId) === String(conversation.lastProductId)) {
+              console.warn(`[INVALID VARIANT CONTEXT] Ignored lastVariantId because it equals productId (${conversation.lastProductId})`);
+            } else {
+              item.variantId = conversation.lastVariantId;
+              console.log(`[STATE RECOVERY] Restored missing variantId ${item.variantId} from conversation context for product ${item.productId}`);
+            }
           }
           
           if (!item.variantId) {
@@ -1141,18 +1243,45 @@ ${matchLines}
                 if (variant.attributes) (item as any).variantAttributes = variant.attributes;
                 // Also store woo_variation_id if present
                 if (variant.woo_variation_id) {
-                  item.wooVariationId = parseInt(variant.woo_variation_id, 10);
+                  // Use Number() which returns NaN for UUID strings — safe
+                  const parsed = Number(variant.woo_variation_id);
+                  if (!isNaN(parsed) && parsed > 0) item.wooVariationId = parsed;
                 }
               }
             }
           }
-          if (item.variantId && !item.wooVariationId) {
-            const wooVarId = parseInt(item.variantId, 10);
-            if (!isNaN(wooVarId)) {
-              item.wooVariationId = wooVarId;
+          // ❌ REMOVED: parseInt(item.variantId) fallback.
+          // Parsing a UUID-format variantId with parseInt() can silently produce a garbage
+          // numeric ID if the UUID happens to start with digits — causing WRONG-item fulfillment
+          // in WooCommerce (worse than no variant). Only use woo_variation_id resolved above.
+        }
+
+        // ── PARITY GUARD: Block WooCommerce push if product has variations but none was resolved ──
+        // (Same protection that exists in the manual sync path — must exist here too)
+        let blockedByMissingVariant = false;
+        for (const item of orderData.items) {
+          if (!item.wooVariationId) {
+            // Check if this product actually HAS variations
+            const sb2 = getSupabaseClient();
+            const { data: pCheck } = await sb2.from("products").select("variations").eq("id", item.productId).maybeSingle();
+            const hasVariations = pCheck?.variations && Array.isArray(pCheck.variations) && pCheck.variations.length > 0;
+            if (hasVariations) {
+              console.error(`[BLOCK] ⚠️ NO VARIANT CONFIRMED for product ${item.productId} — blocking WooCommerce push to prevent wrong-item fulfillment.`);
+              await updateOrderWooSync(orderId, null, "failed", 0);
+              const sbBlock = getSupabaseClient();
+              await sbBlock.from("orders").update({
+                woo_sync_status: "failed",
+                woo_sync_error: "⚠️ NO VARIANT CONFIRMED — order blocked to prevent wrong-item fulfillment. Human review required."
+              }).eq("id", orderId);
+              blockedByMissingVariant = true;
+              break;
             }
           }
         }
+
+        if (blockedByMissingVariant) {
+          console.warn(`[BLOCK] WooCommerce push skipped for order ${orderId} — no variant resolved.`);
+        } else {
 
         const wooResult = await pushOrderToWooCommerce({
           items: orderData.items,
@@ -1177,6 +1306,7 @@ ${matchLines}
             retries: 0,
           });
         }
+        } // end if (!blockedByMissingVariant)
       } else {
         // Auto-sync is off, just leave it as pending
         console.log(`WooCommerce Auto-Sync is OFF. Order ${orderId} saved locally as pending.`);
