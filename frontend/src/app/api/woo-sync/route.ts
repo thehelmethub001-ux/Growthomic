@@ -178,6 +178,8 @@ export async function POST() {
           delete payload.stock_quantity;
           delete payload.category;
           delete payload.is_active;
+          delete payload.name;
+          delete payload.sku;
         }
 
         await supabase.from("products").update(payload).eq("id", existing.id);

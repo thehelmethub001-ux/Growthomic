@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, skeletonStyle, thStyle, tdStyle } from "@/lib/styles";
-import { Plus, Search, Package, Edit2, Trash2, Tag, ToggleLeft, ToggleRight, X, Save, Image as ImageIcon } from "lucide-react";
+import { Plus, Search, Package, Edit2, Trash2, Tag, ToggleLeft, ToggleRight, X, Save, Image as ImageIcon, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 type QnAPair = { question: string; answer: string };
@@ -14,7 +14,7 @@ type Product = {
   is_active: boolean; images: string[];
   description?: string; return_conditions?: string;
   qna_pairs?: QnAPair[]; required_order_fields?: OrderField[];
-  variations?: any[];
+  variations?: any[]; manually_edited?: boolean;
 };
 
 export default function ProductsPage() {
@@ -237,7 +237,15 @@ export default function ProductsPage() {
                           }
                         </div>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: C.textPrimary, marginBottom: 2 }}>{p.name}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: C.textPrimary }}>{p.name}</div>
+                            {p.manually_edited && (
+                              <div title="Manually edited — won't auto-update from WooCommerce" style={{ display: "flex", alignItems: "center", background: "rgba(245,158,11,0.15)", padding: "2px 6px", borderRadius: 4, gap: 4 }}>
+                                <Lock size={10} color="#fbbf24" />
+                                <span style={{ fontSize: 9, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase" }}>Locked</span>
+                              </div>
+                            )}
+                          </div>
                           <div style={{ fontSize: 11, color: C.textMuted }}>{p.sku ? `SKU: ${p.sku}` : "No SKU"}</div>
                         </div>
                       </div>
