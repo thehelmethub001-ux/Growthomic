@@ -701,6 +701,11 @@ ${matchLines}
           aiResult.detectedProductId,
           aiResult.detectedVariantId ?? null
         );
+      } else if (aiResult.sendProductImage && aiResult.productImageUrls?.length) {
+        // AI is sending product images but has no specific detectedProductId
+        // → Clear the stale lastProductId to prevent wrong product being assumed on next turn
+        console.log(`[CONTEXT CLEAR] AI sending images without detectedProductId — clearing stale lastProductId`);
+        await updateConversationContext(conversation.id, null, null);
       }
 
       // ── Multi-image batch: override with deterministic reply (Gemini-র reply নয়)
@@ -784,7 +789,50 @@ ${matchLines}
       }
     }
 
-    // ── Step 6.5: Required pre-order field gate
+    // ── Product-Mismatch Gate (Safety Net) ──
+    // If AI recently showed images of product X but is now trying to create an order for product Y,
+    // something went wrong (stale context) — force clarification
+    if (aiResult.intent === "order_intent" && aiResult.detectedProductId) {
+      try {
+        const recentAiMsgs = history.slice(-8).filter(h => h.role === "ai");
+        // Find the most recent AI image message
+        const lastAiImageMsg = [...recentAiMsgs].reverse().find(h => h.media_type === "image");
+        
+        if (lastAiImageMsg) {
+          // AI recently sent images — check if the ordered product's name appears in nearby AI text messages
+          // Look for the text message that accompanied the images (usually just before the image)
+          const lastAiImageIdx = history.lastIndexOf(lastAiImageMsg);
+          const nearbyAiText = history.slice(Math.max(0, lastAiImageIdx - 2), lastAiImageIdx + 1)
+            .filter(h => h.role === "ai" && h.content)
+            .map(h => h.content)
+            .join(" ");
+          
+          // Check if customer messages since the image are all short/generic (eita, nibo, etc.)
+          const customerMsgsSinceImage = history.slice(lastAiImageIdx + 1).filter(h => h.role === "customer");
+          const allShortGeneric = customerMsgsSinceImage.every(h => (h.content || "").length < 50);
+          
+          if (allShortGeneric && customerMsgsSinceImage.length <= 3) {
+            const { getProductById: getProductForCheck } = await import("../_shared/supabase-client.ts");
+            const orderedProduct = await getProductForCheck(aiResult.detectedProductId);
+            if (orderedProduct && nearbyAiText) {
+              // Check if the product name (or at least a significant chunk) appears in the AI's image context
+              const nameSnippet = orderedProduct.name.toLowerCase().slice(0, 15);
+              if (!nearbyAiText.toLowerCase().includes(nameSnippet)) {
+                console.log(`[PRODUCT MISMATCH GATE] AI showed images of something else but ordering "${orderedProduct.name}". Forcing SS.`);
+                aiResult.reply = "স্যার, আপনি ঠিক কোন প্রোডাক্টটি অর্ডার করতে চাচ্ছেন তার একটি স্ক্রিনশট (SS) বা ছবি পাঠিয়ে দিন, অথবা প্রোডাক্টের নাম বলুন — আমরা নিশ্চিত করে দিচ্ছি।";
+                aiResult.intent = "product_inquiry";
+                aiResult.orderData = null;
+                aiResult.sendProductImage = false;
+              }
+            }
+          }
+        }
+      } catch (mismatchErr) {
+        console.error("[PRODUCT MISMATCH GATE] Error checking product mismatch:", mismatchErr);
+        // Don't crash — this is a safety net, not critical path
+      }
+    }
+
     if (aiResult.intent === "order_intent" && aiResult.orderData && aiResult.detectedProductId) {
       // Check if all required fields for this product are answered
       const { getProductById } = await import("../_shared/supabase-client.ts");

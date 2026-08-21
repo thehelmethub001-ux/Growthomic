@@ -255,7 +255,7 @@ export async function getMetaSettings() {
 
 export async function updateConversationContext(
   conversationId: string,
-  productId: string,
+  productId: string | null,
   variantId: string | null
 ): Promise<void> {
   const sb = getSupabaseClient();

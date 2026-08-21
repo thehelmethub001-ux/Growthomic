@@ -457,8 +457,32 @@ export async function runAI(params: {
     const isShortText = (combinedText || messageText || "").length < 50;
     
     if (isShortText && orderPhrases.test(combinedText || messageText || "")) {
-       const variantContext = lastVariantId ? ` এবং ভ্যারিয়েশন আইডি (variantId): ${lastVariantId}` : "";
-       combinedText = `[SYSTEM_INSTRUCTION: কাস্টমার সম্ভবত তার আগের পছন্দের পণ্যটিই কনফার্ম করছেন। সর্বশেষ চিহ্নিত পণ্য আইডি (productId): ${lastProductId}${variantContext}। যদি কাস্টমার স্পষ্ট করে অন্য কোনো নতুন পণ্যের কথা না বলে থাকে, তবে শুধুমাত্র এই পণ্যটির প্রসঙ্গেই উত্তর দিন এবং অর্ডার তৈরি করুন।] ` + combinedText;
+      // ── Check if AI recently showed product images (context may be stale) ──
+      // If AI sent images after the lastProductId was set, "eita nibo" likely refers
+      // to those shown images, NOT the old lastProductId
+      let contextIsStale = false;
+      const recentMessages = history.slice(-8);
+      for (let i = recentMessages.length - 1; i >= 0; i--) {
+        const msg = recentMessages[i];
+        if (msg.role === "customer") continue; // skip customer messages, look for AI image sends
+        if (msg.role === "ai" && (msg.media_type === "image" || (msg as any).productImageUrls?.length > 0)) {
+          // AI sent product images recently → customer's "eita" likely refers to THOSE images
+          contextIsStale = true;
+          break;
+        }
+        if (msg.role === "ai" && msg.content) {
+          // Found a non-image AI message first — context is likely still valid
+          break;
+        }
+      }
+      
+      if (contextIsStale) {
+        console.log(`[STALE CONTEXT] AI recently sent product images — skipping lastProductId (${lastProductId}) injection. Customer's "eita nibo" likely refers to the most recently shown product.`);
+        // Don't inject SYSTEM_INSTRUCTION — let Gemini handle naturally from chat history
+      } else {
+        const variantContext = lastVariantId ? ` এবং ভ্যারিয়েশন আইডি (variantId): ${lastVariantId}` : "";
+        combinedText = `[SYSTEM_INSTRUCTION: কাস্টমার সম্ভবত তার আগের পছন্দের পণ্যটিই কনফার্ম করছেন। সর্বশেষ চিহ্নিত পণ্য আইডি (productId): ${lastProductId}${variantContext}। যদি কাস্টমার স্পষ্ট করে অন্য কোনো নতুন পণ্যের কথা না বলে থাকে, তবে শুধুমাত্র এই পণ্যটির প্রসঙ্গেই উত্তর দিন এবং অর্ডার তৈরি করুন।] ` + combinedText;
+      }
     }
   }
 
