@@ -192,6 +192,8 @@ Deno.serve(async (req: Request) => {
       const sbCtx = getSupabaseClient();
       const cleanMid = replyToMid.replace(/^m_/, "");
       
+      console.log(`[DIAGNOSTIC] Starting reply-to resolution for replyToMid: ${replyToMid} (clean: ${cleanMid})`);
+      
       // 1. DB Lookup: check exact mid, m_ prefixed, and clean mid
       const { data: repliedMsgs } = await sbCtx
         .from("messages")
@@ -199,6 +201,11 @@ Deno.serve(async (req: Request) => {
         .eq("conversation_id", conversation.id)
         .or(`platform_message_id.eq.${replyToMid},platform_message_id.eq.m_${cleanMid},platform_message_id.eq.${cleanMid},platform_message_id.ilike.%${cleanMid}%`)
         .limit(5);
+
+      console.log(`[DIAGNOSTIC] DB query for repliedMsgs returned ${repliedMsgs?.length || 0} rows.`);
+      if (repliedMsgs && repliedMsgs.length > 0) {
+        console.log(`[DIAGNOSTIC] Matched rows:`, JSON.stringify(repliedMsgs));
+      }
 
       let foundContextNote: string | undefined = undefined;
       let foundMediaUrl: string | undefined = undefined;
@@ -218,6 +225,7 @@ Deno.serve(async (req: Request) => {
       }
 
       if (foundContextNote) {
+        console.log(`[DIAGNOSTIC] Branch taken: foundContextNote`);
         const ctxMatch = foundContextNote.match(/\[PRODUCT_CONTEXT: ID=([^\|]+) \| Name=([^\|]+) \| Price=([^\|]+) \| Category=([^\]]+)\]/);
         if (ctxMatch) {
           const [, prodId, prodName, prodPrice] = ctxMatch;
@@ -226,9 +234,11 @@ Deno.serve(async (req: Request) => {
           console.log(`Reply-to DB context injected: Product "${prodName.trim()}" (ID: ${prodId.trim()})`);
         }
       } else if (foundMediaUrl) {
+        console.log(`[DIAGNOSTIC] Branch taken: foundMediaUrl`);
         resolvedRepliedMediaUrl = foundMediaUrl;
         console.log(`Reply-to DB mediaUrl resolved: ${foundMediaUrl}`);
       } else if (foundRepliedText) {
+        console.log(`[DIAGNOSTIC] Branch taken: foundRepliedText`);
         const replyContext = `[SYSTEM_INSTRUCTION: কাস্টমার আপনার এই আগের মেসেজটিতে সরাসরি Reply দিয়ে প্রশ্ন বা মন্তব্য করেছে: "${foundRepliedText}"। কাস্টমারের নতুন মেসেজের উত্তর এই মেসেজের প্রেক্ষাপট বজায় রেখে দিন।]\n`;
         messageText = replyContext + (messageText || "");
         console.log(`Reply-to DB text context injected: "${foundRepliedText}"`);
@@ -236,6 +246,7 @@ Deno.serve(async (req: Request) => {
 
       // 2. Fallback: if mid lookup didn't find an explicit match, search conversation history for the most recent message with media_url
       if (!foundContextNote && !resolvedRepliedMediaUrl && !foundRepliedText) {
+        console.log(`[DIAGNOSTIC] Branch taken: Fallback to most recent media message`);
         const { data: recentMediaMsgs } = await sbCtx
           .from("messages")
           .select("media_url, content")
@@ -247,6 +258,8 @@ Deno.serve(async (req: Request) => {
         if (recentMediaMsgs?.[0]?.media_url) {
           resolvedRepliedMediaUrl = recentMediaMsgs[0].media_url;
           console.log(`Reply-to fallback from history mediaUrl: ${resolvedRepliedMediaUrl}`);
+        } else {
+          console.log(`[DIAGNOSTIC] Fallback failed: no recent media messages found in history.`);
         }
       }
 
@@ -1056,31 +1069,8 @@ ${matchLines}
         }
       }
 
-      // Send each image — capture the returned mid and save image message to DB
-      let sentImageMid: string | undefined = undefined;
-      for (const imgUrl of finalUrls) {
-        try {
-          const mid = await sendImageMessage(platform as Platform, platformId, imgUrl);
-          if (mid && finalUrls.length === 1) sentImageMid = mid; // only track mid for single image
-          
-          // Save image message entry to DB for accurate reply lookup
-          await saveMessage({
-            conversationId: conversation.id,
-            role: "ai",
-            mediaType: "image",
-            mediaUrl: imgUrl,
-            platformMessageId: mid,
-          });
-        } catch (imgErr) {
-          console.error("Failed to send image:", imgUrl, imgErr);
-        }
-      }
-
-      // Save a hidden context message so AI knows which product was shown
-      // Also saves the platform_message_id so reply_to lookups work
-      // Try detectedProductId first, then fall back to image URL lookup
+      // 1. Pre-resolve productForContext if detectedProductId is present
       let productForContext: { id: string; name: string; salePrice?: number; regularPrice: number; category?: string; images?: string[]; variations?: any[] } | null = null;
-      
       if (aiResult.detectedProductId) {
         const { getProductById } = await import("../_shared/supabase-client.ts");
         const fullProduct = await getProductById(aiResult.detectedProductId);
@@ -1095,30 +1085,72 @@ ${matchLines}
             variations: fullProduct.variations,
           };
         }
-      } else if (finalUrls.length === 1 && finalUrls[0]) {
-        // AI sent exactly one image but didn't set detectedProductId — look up by image URL
+      }
+
+      // 2. Pre-fetch all products for multi-image lookup if needed
+      let allProdsCache: any[] | null = null;
+      if (finalUrls.length > 0) {
         try {
-          const sbProd = getSupabaseClient();
-          const imageUrlToSearch = finalUrls[0];
-          const { data: prodByImage } = await sbProd
-            .from("products")
-            .select("id, name, regular_price, sale_price, category, images")
-            .contains("images", JSON.stringify([imageUrlToSearch]))
-            .limit(1)
-            .maybeSingle();
-          if (prodByImage) {
-            productForContext = {
-              id: prodByImage.id,
-              name: prodByImage.name,
-              regularPrice: prodByImage.regular_price,
-              salePrice: prodByImage.sale_price,
-              category: prodByImage.category,
-              images: prodByImage.images,
-            };
-            console.log(`[CTX] Product found by image URL: ${prodByImage.name}`);
+          const { data } = await getSupabaseClient().from("products").select("id, name, regular_price, sale_price, category, images, variations");
+          if (data) allProdsCache = data;
+        } catch (e) {
+          console.error("Failed to fetch products cache for image lookups:", e);
+        }
+      }
+
+      // Send each image — capture the returned mid and save image message to DB
+      let sentImageMid: string | undefined = undefined;
+      for (const imgUrl of finalUrls) {
+        try {
+          const mid = await sendImageMessage(platform as Platform, platformId, imgUrl);
+          if (mid && finalUrls.length === 1) sentImageMid = mid; // only track mid for single image fallback
+
+          // Save image message entry to DB for accurate reply lookup
+          await saveMessage({
+            conversationId: conversation.id,
+            role: "ai",
+            mediaType: "image",
+            mediaUrl: imgUrl,
+            platformMessageId: mid,
+          });
+
+          // NEW FIX: Save PRODUCT_CONTEXT note for EACH image in a multi-image batch
+          if (mid) {
+            let matchedProd: any = null;
+            if (productForContext && finalUrls.length === 1) {
+              matchedProd = productForContext;
+            } else if (allProdsCache) {
+              const found = allProdsCache.find(p => 
+                (p.images && p.images.includes(imgUrl)) || 
+                (p.variations && p.variations.some((v: any) => v.image_url === imgUrl))
+              );
+              if (found) {
+                matchedProd = {
+                  id: found.id,
+                  name: found.name,
+                  regularPrice: found.regular_price,
+                  salePrice: found.sale_price,
+                  category: found.category
+                };
+              }
+            }
+
+            if (matchedProd) {
+              const pSale = matchedProd.salePrice ?? matchedProd.sale_price;
+              const pReg = matchedProd.regularPrice ?? matchedProd.regular_price;
+              const price = pSale ?? pReg;
+              const contextNote = `[PRODUCT_CONTEXT: ID=${matchedProd.id} | Name=${matchedProd.name} | Price=৳${price} | Category=${matchedProd.category ?? "-"}]`;
+              await saveMessage({
+                conversationId: conversation.id,
+                role: "ai",
+                content: contextNote,
+                platformMessageId: mid,
+              });
+              console.log(`[CTX] Saved PRODUCT_CONTEXT for image: "${matchedProd.name}" mid=${mid}`);
+            }
           }
-        } catch (imgLookupErr) {
-          console.error("Image URL product lookup failed:", imgLookupErr);
+        } catch (imgErr) {
+          console.error("Failed to send image:", imgUrl, imgErr);
         }
       }
 
@@ -1148,21 +1180,21 @@ ${matchLines}
               platformMessageId: mid,
             });
             console.log(`Fallback: sent image for ${productForContext.name}`);
+            
+            if (mid) {
+              const contextNote = `[PRODUCT_CONTEXT: ID=${productForContext.id} | Name=${productForContext.name} | Price=৳${productForContext.salePrice ?? productForContext.regularPrice} | Category=${productForContext.category ?? "-"}]`;
+              await saveMessage({
+                conversationId: conversation.id,
+                role: "ai",
+                content: contextNote,
+                platformMessageId: mid,
+              });
+              console.log(`[CTX] Saved PRODUCT_CONTEXT for fallback image: "${productForContext.name}" mid=${mid}`);
+            }
           }
         } catch (fbErr) {
           console.error("Failed to send fallback image:", fbErr);
         }
-      }
-
-      if (productForContext) {
-        const contextNote = `[PRODUCT_CONTEXT: ID=${productForContext.id} | Name=${productForContext.name} | Price=৳${productForContext.salePrice ?? productForContext.regularPrice} | Category=${productForContext.category ?? "-"}]`;
-        await saveMessage({
-          conversationId: conversation.id,
-          role: "ai",
-          content: contextNote,
-          platformMessageId: sentImageMid, // link the FB mid to this context
-        });
-        console.log(`[CTX] Saved PRODUCT_CONTEXT: "${productForContext.name}" mid=${sentImageMid ?? "none"}`);
       }
     }
 

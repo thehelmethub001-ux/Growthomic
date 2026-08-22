@@ -3,5 +3,9 @@
   "private": true,
   "scripts": {
     "vercel-build": "cd frontend && npm install && npm run build"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
+    "dotenv": "^17.4.2"
   }
 }
