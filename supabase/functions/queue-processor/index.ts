@@ -1162,8 +1162,16 @@ ${matchLines}
       let allProdsCache: any[] | null = null;
       if (finalUrls.length > 0) {
         try {
-          const { data } = await getSupabaseClient().from("products").select("id, name, regular_price, sale_price, category, images, variations");
-          if (data) allProdsCache = data;
+          const { data, error } = await getSupabaseClient().from("products").select("id, name, regular_price, sale_price, category, images, variations");
+          if (error) {
+            console.error("[CTX-DEBUG] Error fetching products for cache:", error);
+          }
+          if (data) {
+            allProdsCache = data;
+            console.log(`[CTX-DEBUG] allProdsCache loaded successfully. Size: ${allProdsCache.length}`);
+          } else {
+            console.log("[CTX-DEBUG] allProdsCache is empty or null.");
+          }
         } catch (e) {
           console.error("Failed to fetch products cache for image lookups:", e);
         }
@@ -1176,16 +1184,8 @@ ${matchLines}
           const mid = await sendImageMessage(platform as Platform, platformId, imgUrl);
           if (mid && finalUrls.length === 1) sentImageMid = mid; // only track mid for single image fallback
 
-          // Save image message entry to DB for accurate reply lookup
-          await saveMessage({
-            conversationId: conversation.id,
-            role: "ai",
-            mediaType: "image",
-            mediaUrl: imgUrl,
-            platformMessageId: mid,
-          });
-
-          // NEW FIX: Save PRODUCT_CONTEXT note for EACH image in a multi-image batch
+          // Resolve the product context for this specific image BEFORE saving the message
+          let contextNote = undefined;
           if (mid) {
             let matchedProd: any = null;
             if (productForContext && finalUrls.length === 1) {
@@ -1193,7 +1193,7 @@ ${matchLines}
             } else if (allProdsCache) {
               const found = allProdsCache.find(p => 
                 (p.images && p.images.includes(imgUrl)) || 
-                (p.variations && p.variations.some((v: any) => v.image_url === imgUrl))
+                (p.variations && Array.isArray(p.variations) && p.variations.some((v: any) => v.image_url === imgUrl))
               );
               if (found) {
                 matchedProd = {
@@ -1205,21 +1205,28 @@ ${matchLines}
                 };
               }
             }
-
+            
             if (matchedProd) {
               const pSale = matchedProd.salePrice ?? matchedProd.sale_price;
               const pReg = matchedProd.regularPrice ?? matchedProd.regular_price;
               const price = pSale ?? pReg;
-              const contextNote = `[PRODUCT_CONTEXT: ID=${matchedProd.id} | Name=${matchedProd.name} | Price=৳${price} | Category=${matchedProd.category ?? "-"}]`;
-              await saveMessage({
-                conversationId: conversation.id,
-                role: "ai",
-                content: contextNote,
-                platformMessageId: mid,
-              });
-              console.log(`[CTX] Saved PRODUCT_CONTEXT for image: "${matchedProd.name}" mid=${mid}`);
+              contextNote = `[PRODUCT_CONTEXT: ID=${matchedProd.id} | Name=${matchedProd.name} | Price=৳${price} | Category=${matchedProd.category ?? "-"}]`;
+              console.log(`[CTX] Injecting PRODUCT_CONTEXT for image: "${matchedProd.name}" mid=${mid}`);
+            } else {
+              console.log(`[CTX-DEBUG] Did not find matchedProd for ${imgUrl}`);
             }
           }
+
+          // Save image message entry to DB (with contextNote included so it saves in one go)
+          await saveMessage({
+            conversationId: conversation.id,
+            role: "ai",
+            mediaType: "image",
+            mediaUrl: imgUrl,
+            content: contextNote,
+            platformMessageId: mid,
+          });
+
         } catch (imgErr) {
           console.error("Failed to send image:", imgUrl, imgErr);
         }

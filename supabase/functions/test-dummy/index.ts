@@ -4,9 +4,20 @@ import { getSupabaseClient } from "../_shared/supabase-client.ts";
 serve(async (req) => {
   try {
     const sb = getSupabaseClient();
-    const { data: order } = await sb.from("orders").select("*").eq("woo_order_id", 55476).single();
+    
+    // 1. Fetch messages for the conversation
+    const { data: messages } = await sb.from("messages")
+      .select("id, role, content, media_url, platform_message_id, created_at")
+      .eq("conversation_id", "4181dfd8-0631-4bea-8109-57388d57aca0")
+      .order("created_at", { ascending: false })
+      .limit(20);
 
-    return new Response(JSON.stringify({ order }), {
+    // 2. Fetch a few products to check URL format
+    const { data: prods } = await sb.from("products")
+      .select("id, name, images, variations")
+      .limit(5);
+
+    return new Response(JSON.stringify({ messages, prods }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err: any) {
@@ -15,3 +26,4 @@ serve(async (req) => {
     });
   }
 });
+
