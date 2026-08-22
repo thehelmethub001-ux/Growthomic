@@ -1039,7 +1039,78 @@ ${matchLines}
       }
 
       // Filter out invalid URLs (in case AI hallucinates placeholder text)
-      const validUrls = urls.filter(u => typeof u === "string" && u.startsWith("http"));
+      let validUrls = urls.filter(u => typeof u === "string" && u.startsWith("http"));
+
+      // ── NEW FIX: DETERMINISTIC SERVER-SIDE STOCK VALIDATION ──
+      // Catch and substitute out-of-stock variation images if the AI hallucinated them.
+      if (validUrls.length > 0) {
+        try {
+          const sbStock = getSupabaseClient();
+          const { data: allProds } = await sbStock.from("products").select("name, images, variations");
+          
+          if (allProds) {
+            const filteredUrls: string[] = [];
+            for (const url of validUrls) {
+              // Find which product and variation this URL belongs to
+              let mappedProd = null;
+              let mappedVar = null;
+              
+              for (const p of allProds) {
+                if (p.variations && Array.isArray(p.variations)) {
+                  const vMatch = p.variations.find((v: any) => v.image_url === url);
+                  if (vMatch) {
+                    mappedProd = p;
+                    mappedVar = vMatch;
+                    break;
+                  }
+                }
+              }
+              
+              if (mappedVar && mappedProd) {
+                // We found the specific variation for this image URL
+                // Safely treat null stock as in-stock, otherwise strict check.
+                const isOutOfStock = mappedVar.stock_quantity === 0 || mappedVar.in_stock === false;
+                
+                if (isOutOfStock) {
+                  // Find an alternative IN-STOCK variation for this SAME product
+                  const inStockVars = mappedProd.variations.filter((v: any) => 
+                     (v.stock_quantity === null || v.stock_quantity > 0 || v.in_stock === true) && 
+                     v.stock_quantity !== 0 &&
+                     v.image_url && 
+                     typeof v.image_url === "string" && 
+                     v.image_url.startsWith("http") &&
+                     v.image_url !== url
+                  );
+                  
+                  const validInStockVar = inStockVars.length > 0 ? inStockVars[0] : null;
+                  const getColor = (v: any) => {
+                    const attr = Array.isArray(v?.attributes) ? v.attributes.find((a: any) => a.name?.toLowerCase() === 'color' || a.name?.toLowerCase() === 'colour') : null;
+                    return attr?.option || v?.sku || v?.id;
+                  };
+                  const oldColor = getColor(mappedVar);
+                  
+                  if (validInStockVar) {
+                     filteredUrls.push(validInStockVar.image_url);
+                     const newColor = getColor(validInStockVar);
+                     console.log(`[STOCK-FILTER] Dropped OOS image for ${mappedProd.name} (${oldColor}), substituted with ${newColor}`);
+                  } else {
+                     console.log(`[STOCK-FILTER] Dropped OOS image for ${mappedProd.name} (${oldColor}), NO in-stock alternatives found. Skipping product.`);
+                  }
+                } else {
+                  // It's in stock
+                  filteredUrls.push(url);
+                }
+              } else {
+                // If it's a main image or from a product with no variations, let it pass
+                filteredUrls.push(url);
+              }
+            }
+            validUrls = Array.from(new Set(filteredUrls)); // remove duplicates
+          }
+        } catch (stockErr) {
+          console.error("Failed to run stock validation filter:", stockErr);
+        }
+      }
 
       // ── Order-intent-e image AI-r upor trust na kore, server-verified variant image use koro
       let finalUrls = validUrls;
