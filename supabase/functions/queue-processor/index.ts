@@ -429,8 +429,7 @@ HUMAN RESPONSE RULES:
                }
             } else {
                await sendTextMessage(platform as Platform, platformId, `দুঃখিত, ${product.name} বর্তমানে স্টকে নেই।`);
-            }
-          } else {
+        } else {
             // Show variations
             if (platform === "whatsapp") {
               const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
@@ -462,12 +461,55 @@ HUMAN RESPONSE RULES:
         }
       } 
       else if (cmd === "CMD_SELECT_VARIANT" && arg1 && arg2) {
+        // STEP: Show confirmation BEFORE adding to cart
         const productId = arg1;
         const variantId = arg2;
 
         const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
         if (!product) {
-          await sendTextMessage(platform as Platform, platformId, "দুঃখিত, প্রোডাক্টটি পাওয়া যায়নি।");
+          await sendTextMessage(platform as Platform, platformId, "দুঃখিত, প্রোডাক্টটি পাওয়া যায়নি।");
+        } else {
+          const variant = (product.variations || []).find((v: any) => String(v.id) === variantId || String(v.woo_variation_id) === variantId);
+          const price = variant ? (variant.sale_price || variant.regular_price) : (product.sale_price || product.regular_price);
+          const colorName = variant?.attributes?.Color || "";
+          const vName = colorName ? `${product.name} - ${colorName}` : product.name;
+
+          // Show confirmation prompt - do NOT add to cart yet
+          const confirmMsg = `🛍️ *${vName}*\n💰 দাম: ৳${price}\n\nএটা কি নেবেন?`;
+          const confirmPayload = `CMD_CONFIRM_ADD:${productId}:${variantId}`;
+
+          if (platform === "whatsapp") {
+            const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+            await sendWhatsAppInteractiveButtons(
+              platformId,
+              confirmMsg,
+              [
+                { id: confirmPayload, title: "✅ হ্যাঁ, নেবো" },
+                { id: `CMD_VIEW:${productId}`, title: "🔙 অন্য কালার দেখি" }
+              ]
+            );
+          } else {
+            const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+            await sendQuickReplies(
+              platform as "messenger" | "instagram",
+              platformId,
+              confirmMsg,
+              [
+                { title: "✅ হ্যাঁ, নেবো", payload: confirmPayload },
+                { title: "🔙 অন্য কালার", payload: `CMD_VIEW:${productId}` }
+              ]
+            );
+          }
+        }
+      }
+      else if (cmd === "CMD_CONFIRM_ADD" && arg1 && arg2) {
+        // STEP: Customer confirmed — NOW add to cart
+        const productId = arg1;
+        const variantId = arg2;
+
+        const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
+        if (!product) {
+          await sendTextMessage(platform as Platform, platformId, "দুঃখিত, প্রোডাক্টটি পাওয়া যায়নি।");
         } else {
           const variant = (product.variations || []).find((v: any) => String(v.id) === variantId || String(v.woo_variation_id) === variantId);
           const price = variant ? (variant.sale_price || variant.regular_price) : (product.sale_price || product.regular_price);
@@ -481,8 +523,7 @@ HUMAN RESPONSE RULES:
           await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
           
           const cartCount = cart.reduce((acc: number, c: any) => acc + c.qty, 0);
-
-          const msg = `✅ ${vName} কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
+          const msg = `✅ ${vName} কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
           
           if (platform === "whatsapp") {
             const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
@@ -532,6 +573,12 @@ HUMAN RESPONSE RULES:
       }
       
       if (cmd !== "CMD_CHECKOUT" && cmd !== "CMD_BROWSE_MORE") {
+        await releaseConversationLock(conversation.id);
+        return jsonResponse({ status: "cmd_executed" });
+      }
+      // CMD_VIEW re-trigger from confirmation back button
+      if (cmd === "CMD_VIEW" && arg1) {
+        // Already handled above, but in case it reaches here via non-CMD path
         await releaseConversationLock(conversation.id);
         return jsonResponse({ status: "cmd_executed" });
       }
@@ -1777,6 +1824,37 @@ ${matchLines}
       } else {
         // Auto-sync is off, just leave it as pending
         console.log(`WooCommerce Auto-Sync is OFF. Order ${orderId} saved locally as pending.`);
+      }
+    }
+
+    // ── Step 8.9: Cart reminder — re-show cart buttons after any AI free-text reply
+    // Ensures customers who type free text mid-flow (e.g. price question) still see their cart
+    const latestCart = conversation.cart_state;
+    const cartWasCleared = (conversation as any)._bypassItemsLLM && aiResult.intent === "order_intent";
+    if (!cartWasCleared && latestCart && latestCart.length > 0 && aiResult.intent !== "order_intent") {
+      try {
+        let cartSummary = `🛒 আপনার কার্টে আছে:\n`;
+        for (const item of latestCart) {
+          cartSummary += `• ${item.name} × ${item.qty} — ৳${(item.unitPrice * item.qty)}\n`;
+        }
+        cartSummary += `\nঅর্ডার করবেন নাকি আরও দেখবেন?`;
+
+        if (platform === "whatsapp") {
+          const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+          await sendWhatsAppInteractiveButtons(platformId, cartSummary, [
+            { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
+            { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
+          ]);
+        } else {
+          const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+          await sendQuickReplies(platform as "messenger" | "instagram", platformId, cartSummary, [
+            { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
+            { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
+          ]);
+        }
+        console.log(`[CART REMINDER] Sent cart reminder with ${latestCart.length} items for conversation ${conversation.id}`);
+      } catch (cartReminderErr) {
+        console.error("Cart reminder failed (non-critical):", cartReminderErr);
       }
     }
 
