@@ -70,6 +70,7 @@ export async function getBusinessSettings(): Promise<BusinessSettings> {
     openaiApiKey: openaiKey,
     wooSyncEnabled: data.woo_sync_enabled ?? true,
     googleSheetsWebhookUrl: data.google_sheets_webhook_url,
+    metaCatalogId: data.meta_catalog_id,
   };
 }
 
@@ -278,6 +279,8 @@ function mapConversation(data: Record<string, unknown>): Conversation {
       (data.customer_answers as Record<string, Record<string, string>>) ?? {},
     lastProductId: data.last_product_id as string | undefined,
     lastVariantId: data.last_variant_id as string | undefined,
+    cart_state: data.cart_state as any,
+    search_cursor: data.search_cursor as number | undefined,
   };
 }
 
@@ -526,6 +529,7 @@ function mapProduct(data: Record<string, unknown>): Product {
     relatedProductIds: (data.related_product_ids as string[]) ?? [],
     wooProductId: data.woo_product_id as number | undefined,
     variations: (data.variations as any[]) ?? [],
+    catalogSyncedAt: data.catalog_synced_at as string | null | undefined,
   };
 }
 

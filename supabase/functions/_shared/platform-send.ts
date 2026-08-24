@@ -75,6 +75,115 @@ export async function sendImageMessage(
 }
 
 // ============================================================
+// Send a product carousel (Messenger / Instagram Generic Template)
+// Native swipeable carousel — up to 10 cards, each with image + title +
+// subtitle (price) + optional buttons. No extra Meta setup required beyond
+// what's already used for text/image sends.
+// ============================================================
+export interface CarouselElement {
+  title: string;
+  subtitle?: string;
+  imageUrl: string;
+  buttonTitle?: string; // e.g. "অর্ডার করুন" — omitted if no buttonPayload
+  buttonPayload?: string; // postback payload the webhook will receive on tap
+}
+
+export async function sendCarouselMessage(
+  platform: "messenger" | "instagram",
+  platformId: string,
+  elements: CarouselElement[]
+): Promise<string | undefined> {
+  const capped = elements.slice(0, 10); // Meta Generic Template limit
+  const payload = {
+    attachment: {
+      type: "template",
+      payload: {
+        template_type: "generic",
+        image_aspect_ratio: "square",
+        elements: capped.map((el) => ({
+          title: el.title.slice(0, 80),
+          subtitle: el.subtitle?.slice(0, 80),
+          image_url: el.imageUrl,
+          default_action: {
+            type: "web_url",
+            url: el.imageUrl, // tapping the card opens the full-size image
+          },
+          ...(el.buttonTitle && el.buttonPayload
+            ? {
+                buttons: [
+                  {
+                    type: "postback",
+                    title: el.buttonTitle.slice(0, 20),
+                    payload: el.buttonPayload,
+                  },
+                ],
+              }
+            : {}),
+        })),
+      },
+    },
+  };
+
+  if (platform === "messenger") return await sendMessengerMessage(platformId, payload);
+  return await sendInstagramMessage(platformId, payload);
+}
+
+// ============================================================
+// WhatsApp product carousel (Commerce Catalog required)
+// Sends a "product_list" interactive message referencing items already
+// synced into the connected Meta Commerce Catalog (see _shared/meta-catalog.ts
+// and the catalog-sync edge function). retailerIds are product.id values.
+// ============================================================
+export async function sendWhatsAppProductList(
+  phoneNumber: string,
+  catalogId: string,
+  retailerIds: string[],
+  headerText?: string,
+  bodyText?: string
+): Promise<void> {
+  const phoneNumberId = WHATSAPP_PHONE_NUMBER_ID();
+  const capped = retailerIds.slice(0, 30); // Meta multi-product limit
+
+  const interactive =
+    capped.length === 1
+      ? {
+          type: "product",
+          body: { text: bodyText || "আপনার জন্য এই প্রোডাক্টটি পাওয়া গেছে:" },
+          action: { catalog_id: catalogId, product_retailer_id: capped[0] },
+        }
+      : {
+          type: "product_list",
+          header: { type: "text", text: headerText || "প্রোডাক্টসমূহ" },
+          body: { text: bodyText || "আপনার জন্য এই প্রোডাক্টগুলো পাওয়া গেছে, দেখে নিন:" },
+          action: {
+            catalog_id: catalogId,
+            sections: [{ title: "প্রোডাক্টসমূহ", product_items: capped.map((id) => ({ product_retailer_id: id })) }],
+          },
+        };
+
+  const res = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${await getMetaAccessToken()}`,
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: phoneNumber,
+      type: "interactive",
+      interactive,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error(`[WhatsApp] Product list send failed for ${phoneNumber}: ${err}`);
+    throw new Error(`WhatsApp product list send failed: ${err}`);
+  }
+}
+
+// ============================================================
 // Send a video to a customer
 // ============================================================
 export async function sendVideoMessage(
@@ -227,6 +336,124 @@ async function sendWhatsAppMediaMessage(
     const err = await res.text();
     console.error(`[WhatsApp] Media send failed for ${phoneNumber}: ${err}`);
     throw new Error(`WhatsApp media send failed: ${err}`);
+  }
+}
+
+// ============================================================
+// Quick Replies for Messenger/Instagram
+// ============================================================
+export async function sendQuickReplies(
+  platform: "messenger" | "instagram",
+  platformId: string,
+  text: string,
+  replies: Array<{ title: string; payload: string }>
+): Promise<string | undefined> {
+  const payload = {
+    text,
+    quick_replies: replies.slice(0, 13).map((r) => ({
+      content_type: "text",
+      title: r.title.slice(0, 20),
+      payload: r.payload,
+    })),
+  };
+
+  if (platform === "messenger") return await sendMessengerMessage(platformId, payload);
+  return await sendInstagramMessage(platformId, payload);
+}
+
+// ============================================================
+// Interactive Buttons for WhatsApp (Max 3 buttons)
+// ============================================================
+export async function sendWhatsAppInteractiveButtons(
+  phoneNumber: string,
+  text: string,
+  buttons: Array<{ id: string; title: string }>
+): Promise<void> {
+  const phoneNumberId = WHATSAPP_PHONE_NUMBER_ID();
+  const res = await fetch(
+    `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${await getMetaAccessToken()}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: phoneNumber,
+        type: "interactive",
+        interactive: {
+          type: "button",
+          body: { text },
+          action: {
+            buttons: buttons.slice(0, 3).map((b) => ({
+              type: "reply",
+              reply: {
+                id: b.id,
+                title: b.title.slice(0, 20),
+              },
+            })),
+          },
+        },
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error(`[WhatsApp] Interactive buttons failed for ${phoneNumber}: ${err}`);
+  }
+}
+
+// ============================================================
+// Interactive List for WhatsApp (Max 10 rows)
+// ============================================================
+export async function sendWhatsAppInteractiveList(
+  phoneNumber: string,
+  text: string,
+  buttonText: string,
+  sections: Array<{
+    title: string;
+    rows: Array<{ id: string; title: string; description?: string }>;
+  }>
+): Promise<void> {
+  const phoneNumberId = WHATSAPP_PHONE_NUMBER_ID();
+  const res = await fetch(
+    `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${await getMetaAccessToken()}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: phoneNumber,
+        type: "interactive",
+        interactive: {
+          type: "list",
+          body: { text },
+          action: {
+            button: buttonText.slice(0, 20),
+            sections: sections.map((s) => ({
+              title: s.title.slice(0, 24),
+              rows: s.rows.slice(0, 10).map((r) => ({
+                id: r.id,
+                title: r.title.slice(0, 24),
+                ...(r.description ? { description: r.description.slice(0, 72) } : {}),
+              })),
+            })),
+          },
+        },
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error(`[WhatsApp] Interactive list failed for ${phoneNumber}: ${err}`);
   }
 }
 

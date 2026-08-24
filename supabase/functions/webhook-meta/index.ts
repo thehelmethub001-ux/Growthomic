@@ -64,21 +64,19 @@ function parseMessengerEvent(
 ): QueuePayload | null {
   try {
     const entry = (body.entry as unknown[])?.[0] as Record<string, unknown>;
-    const messaging = (
-      platform === "instagram"
-        ? (entry?.messaging as unknown[])
-        : (entry?.messaging as unknown[])
-    )?.[0] as Record<string, unknown>;
+    const messaging = (entry?.messaging as unknown[])?.[0] as Record<string, unknown>;
 
     if (!messaging) return null;
 
     const sender = messaging.sender as Record<string, string>;
-    const message = messaging.message as Record<string, unknown>;
+    const message = messaging.message as Record<string, unknown> | undefined;
+    const postback = messaging.postback as Record<string, unknown> | undefined;
 
-    if (!sender?.id || !message) return null;
+    if (!sender?.id) return null;
+    if (!message && !postback) return null;
 
     // Handle echo (bot's own messages) to link image message IDs
-    if (message.is_echo) {
+    if (message?.is_echo) {
       handleMessengerEcho(message, (entry?.id as string) || "").catch((err) =>
         console.error("handleMessengerEcho error:", err)
       );
@@ -86,22 +84,28 @@ function parseMessengerEvent(
     }
 
     const payload: QueuePayload = {
-      platformMessageId: message.mid as string,
+      platformMessageId: (message?.mid || postback?.mid || String(Date.now())) as string,
       platform,
       platformId: sender.id,
-      text: message.text as string | undefined,
       timestamp: messaging.timestamp as number,
       pageId: entry?.id as string | undefined,
     };
 
-    // Handle attachments (images, voice, video)
-    const attachments = message.attachments as
-      | Array<{ type: string; payload: { url?: string } }>
-      | undefined;
+    // ── Handle Quick Replies and Postbacks ──
+    const quickReply = message?.quick_reply as { payload?: string } | undefined;
+    if (quickReply?.payload) {
+      payload.text = quickReply.payload;
+    } else if (postback?.payload) {
+      payload.text = postback.payload as string;
+    } else if (message?.text) {
+      payload.text = message.text as string;
+    }
+
+    // ── Handle Attachments (images, voice, video) ──
+    if (message?.attachments) {
+      const attachments = message.attachments as Array<{ type: string; payload: { url?: string } }>;
       
-    if (attachments && attachments.length > 0) {
       const imageAtts = attachments.filter(a => a.type === "image" && a.payload?.url);
-      
       if (imageAtts.length > 0) {
         payload.mediaType = "image";
         payload.mediaUrls = imageAtts.map(a => a.payload.url!);
@@ -118,9 +122,8 @@ function parseMessengerEvent(
       }
     }
 
-    // Capture reply_to reference — when customer replies to a specific message
-    // Facebook sends: message.reply_to = { mid: "mid.xxx..." }
-    const replyTo = message.reply_to as { mid?: string } | undefined;
+    // ── Capture reply_to reference ──
+    const replyTo = message?.reply_to as { mid?: string } | undefined;
     if (replyTo?.mid) {
       payload.replyToMid = replyTo.mid;
     }
@@ -206,6 +209,13 @@ function parseWhatsAppEvent(body: Record<string, unknown>): QueuePayload | null 
     if (msg.type === "text") {
       const textObj = msg.text as Record<string, string>;
       payload.text = textObj?.body;
+    } else if (msg.type === "interactive") {
+      const interactive = msg.interactive as Record<string, unknown>;
+      if (interactive.type === "button_reply") {
+        payload.text = (interactive.button_reply as Record<string, string>)?.id;
+      } else if (interactive.type === "list_reply") {
+        payload.text = (interactive.list_reply as Record<string, string>)?.id;
+      }
     } else if (msg.type === "image") {
       const imgObj = msg.image as Record<string, string>;
       payload.mediaType = "image";

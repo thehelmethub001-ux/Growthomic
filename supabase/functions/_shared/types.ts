@@ -80,6 +80,7 @@ export interface BusinessSettings {
   openaiApiKey?: string | null;
   wooSyncEnabled: boolean;
   googleSheetsWebhookUrl?: string | null;
+  metaCatalogId?: string | null;
 }
 
 export interface LearnedResponse {
@@ -108,6 +109,7 @@ export interface Product {
   relatedProductIds: string[];
   wooProductId?: number;
   variations?: any[];
+  catalogSyncedAt?: string | null;
 }
 
 // ============================================================
@@ -141,6 +143,12 @@ export interface Customer {
   isDeleted: boolean;
 }
 
+export interface CartItem {
+  productId: string;
+  variantId?: string | null;
+  qty: number;
+}
+
 // ============================================================
 // Conversation (from DB)
 // ============================================================
@@ -158,6 +166,8 @@ export interface Conversation {
   >; // {productId: {fieldName: answer}}
   lastProductId?: string;
   lastVariantId?: string;
+  cart_state?: CartItem[];
+  search_cursor?: number;
 }
 
 // ============================================================

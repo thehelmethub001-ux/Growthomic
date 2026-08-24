@@ -47,9 +47,11 @@ import {
   parseOrderContactInfo,
 } from "../_shared/woocommerce.ts";
 import {
+  sendCarouselMessage,
   sendImageMessage,
   sendTextMessage,
   sendVideoMessage,
+  sendWhatsAppProductList,
 } from "../_shared/platform-send.ts";
 import type { Platform, QueuePayload } from "../_shared/types.ts";
 
@@ -378,6 +380,121 @@ HUMAN RESPONSE RULES:
       await setConversationStatus(conversation.id, "spam_queue");
       await releaseConversationLock(conversation.id);
       return jsonResponse({ status: "spam_blocked" });
+    }
+
+    // ── 6.1 Deterministic Command Interception (Cart/Guided Flow)
+    if (messageText?.startsWith("CMD_")) {
+      console.log(`[DETERMINISTIC COMMAND] Intercepted: ${messageText}`);
+      const [cmd, arg1, arg2] = messageText.split(":");
+
+      if (cmd === "CMD_VIEW" && arg1) {
+        const productId = arg1;
+        // Fetch product and its active variants
+        const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
+        const { data: variants } = await sb
+          .from("product_variations")
+          .select("*")
+          .eq("product_id", productId)
+          .eq("is_active", true)
+          .gt("stock_quantity", 0); // only in-stock
+
+        if (!product) {
+          await sendTextMessage(platform as Platform, platformId, "দুঃখিত, এই প্রোডাক্টটি পাওয়া যাচ্ছে না।");
+        } else if (!variants || variants.length === 0) {
+          await sendTextMessage(platform as Platform, platformId, `দুঃখিত, ${product.name} বর্তমানে স্টকে নেই।`);
+        } else {
+          // Update lastProductId
+          await updateConversationContext(conversation.id, productId, null);
+
+          if (platform === "whatsapp") {
+            const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
+            const rows = variants.map(v => ({
+              id: `CMD_SELECT_VARIANT:${productId}:${v.variation_woo_id || v.id}`,
+              title: v.color.slice(0, 24),
+              description: `৳${v.sale_price || v.regular_price}`,
+            }));
+            await sendWhatsAppInteractiveList(
+              platformId,
+              `${product.name}-এর কালার বেছে নিন:`,
+              "কালার দেখুন",
+              [{ title: "Available Colors", rows }]
+            );
+          } else {
+            const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+            const replies = variants.map(v => ({
+              title: v.color.slice(0, 20),
+              payload: `CMD_SELECT_VARIANT:${productId}:${v.variation_woo_id || v.id}`,
+            }));
+            await sendQuickReplies(
+              platform as "messenger" | "instagram",
+              platformId,
+              `${product.name}-এর কালার বেছে নিন:`,
+              replies
+            );
+          }
+        }
+      } 
+      else if (cmd === "CMD_SELECT_VARIANT" && arg1 && arg2) {
+        const productId = arg1;
+        const variantId = arg2;
+
+        const cart = conversation.cart_state || [];
+        const existing = cart.find(c => c.productId === productId && c.variantId === variantId);
+        if (existing) existing.qty += 1;
+        else cart.push({ productId, variantId, qty: 1 });
+
+        await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
+        
+        const cartCount = cart.reduce((acc, c) => acc + c.qty, 0);
+
+        if (platform === "whatsapp") {
+          const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+          await sendWhatsAppInteractiveButtons(
+            platformId,
+            `✅ কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`,
+            [
+              { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
+              { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
+            ]
+          );
+        } else {
+          const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+          await sendQuickReplies(
+            platform as "messenger" | "instagram",
+            platformId,
+            `✅ কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`,
+            [
+              { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
+              { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
+            ]
+          );
+        }
+      }
+      else if (cmd === "CMD_CHECKOUT") {
+        if (!conversation.cart_state || conversation.cart_state.length === 0) {
+          await sendTextMessage(platform as Platform, platformId, "আপনার কার্ট খালি।");
+        } else {
+          // Format cart for Gemini
+          let cartText = "কার্টের বিবরণ:\n";
+          for (const item of conversation.cart_state) {
+            cartText += `- ProductID: ${item.productId}, VariantID: ${item.variantId}, Qty: ${item.qty}\n`;
+          }
+          
+          messageText = `[SYSTEM_INSTRUCTION: কাস্টমার কার্টের আইটেমগুলো অর্ডার করতে চান (CMD_CHECKOUT)।\n${cartText}\n\nআপনার কাজ:\n১. এই আইটেমগুলো দিয়ে orderData তৈরি করুন।\n২. কাস্টমারের নাম, ফোন নম্বর এবং সম্পূর্ণ ঠিকানা (জেলা, থানা/উপজেলা, গ্রাম/রোড) জানতে চান।\n৩. কাস্টমারকে একটি সুন্দর মেসেজ দিয়ে বলুন যে তারা চাইলে ক্যাশ অন ডেলিভারিতে অর্ডার করতে পারবেন।]`;
+          console.log(`[CHECKOUT] Injecting cart state into AI context.`);
+          mediaUrl = undefined;
+          mediaUrls = undefined;
+          mediaType = undefined;
+        }
+      }
+      else if (cmd === "CMD_BROWSE_MORE") {
+        messageText = "আমি আরও প্রোডাক্ট দেখতে চাই। আপনাদের কি কি কালেকশন আছে দেখান।";
+      }
+      
+      if (cmd !== "CMD_CHECKOUT" && cmd !== "CMD_BROWSE_MORE") {
+        await releaseConversationLock(conversation.id);
+        return jsonResponse({ status: "cmd_executed" });
+      }
     }
 
     // ── Step 6.5: Image Embedding Match (New Vector Search)
@@ -778,10 +895,27 @@ ${matchLines}
     // If multiple different products were recently shown AND the user did not send a fresh image,
     // ALWAYS force them to send a screenshot, unconditionally.
     
-    const recentAiMsgs = history.slice(-10).filter(h => h.role === "ai");
-    const recentAiImageCount = recentAiMsgs.filter(h => h.media_type === "image").length;
-    // We consider "multiple images sent" if AI sent > 1 distinct image message or an array of images.
-    const recentAiSentMultipleImages = recentAiImageCount > 1 || recentAiMsgs.some(h => (h.productImageUrls?.length ?? 0) > 1);
+    let recentAiImageCount = 0;
+    let recentAiSentMultipleImagesArray = false;
+    let foundAnyAiMessage = false;
+
+    // Walk backwards from the end of history to find the most recent AI turn
+    for (let i = history.length - 1; i >= 0; i--) {
+      const msg = history[i];
+      if (msg.role === "ai") {
+        foundAnyAiMessage = true;
+        if (msg.media_type === "image") recentAiImageCount++;
+        if (((msg as any).productImageUrls?.length ?? 0) > 1) recentAiSentMultipleImagesArray = true;
+      } else if (msg.role === "customer") {
+        if (foundAnyAiMessage) {
+          // We found the most recent AI turn and have now hit the preceding customer message
+          break;
+        }
+      }
+    }
+
+    // We consider "multiple images sent" ONLY if the most recent AI turn sent > 1 distinct image message or an array of images.
+    const recentAiSentMultipleImages = recentAiImageCount > 1 || recentAiSentMultipleImagesArray;
 
     // Is the user trying to refer to a specific product? (Order intent, inquiry about a specific item via reply, or AI guessed an ID)
     const isSelectingProduct = aiResult.intent === "order_intent" || replyToMid || aiResult.detectedProductId;
@@ -1178,7 +1312,7 @@ ${matchLines}
       let allProdsCache: any[] | null = null;
       if (finalUrls.length > 0) {
         try {
-          const { data, error } = await getSupabaseClient().from("products").select("id, name, regular_price, sale_price, category, images, variations");
+          const { data, error } = await getSupabaseClient().from("products").select("id, name, regular_price, sale_price, category, images, variations, catalog_synced_at");
           if (error) {
             console.error("[CTX-DEBUG] Error fetching products for cache:", error);
           }
@@ -1193,47 +1327,75 @@ ${matchLines}
         }
       }
 
-      // Send each image — capture the returned mid and save image message to DB
-      let sentImageMid: string | undefined = undefined;
-      for (const imgUrl of finalUrls) {
-        try {
-          const mid = await sendImageMessage(platform as Platform, platformId, imgUrl);
-          if (mid && finalUrls.length === 1) sentImageMid = mid; // only track mid for single image fallback
+      // Resolve product context for every URL up-front (used for both the
+      // carousel path and the individual-image fallback path below).
+      type MatchedItem = { url: string; product: any | null };
+      const matchedItems: MatchedItem[] = finalUrls.map((imgUrl) => {
+        let matchedProd: any = null;
+        if (productForContext && finalUrls.length === 1) {
+          matchedProd = productForContext;
+        } else if (allProdsCache) {
+          const found = allProdsCache.find(p =>
+            (p.images && p.images.includes(imgUrl)) ||
+            (p.variations && Array.isArray(p.variations) && p.variations.some((v: any) => v.image_url === imgUrl))
+          );
+          if (found) {
+            matchedProd = {
+              id: found.id,
+              name: found.name,
+              regularPrice: found.regular_price,
+              salePrice: found.sale_price,
+              category: found.category,
+              catalogSyncedAt: found.catalog_synced_at,
+            };
+          }
+        }
+        if (!matchedProd) console.log(`[CTX-DEBUG] Did not find matchedProd for ${imgUrl}`);
+        return { url: imgUrl, product: matchedProd };
+      });
 
-          // Resolve the product context for this specific image BEFORE saving the message
-          let contextNote = undefined;
-          if (mid) {
-            let matchedProd: any = null;
-            if (productForContext && finalUrls.length === 1) {
-              matchedProd = productForContext;
-            } else if (allProdsCache) {
-              const found = allProdsCache.find(p => 
-                (p.images && p.images.includes(imgUrl)) || 
-                (p.variations && Array.isArray(p.variations) && p.variations.some((v: any) => v.image_url === imgUrl))
-              );
-              if (found) {
-                matchedProd = {
-                  id: found.id,
-                  name: found.name,
-                  regularPrice: found.regular_price,
-                  salePrice: found.sale_price,
-                  category: found.category
-                };
-              }
-            }
-            
-            if (matchedProd) {
+      // Send each image individually (original behaviour) — used as the
+      // fallback whenever a carousel isn't possible/appropriate.
+      let sentImageMid: string | undefined = undefined;
+      async function sendImagesIndividually(items: MatchedItem[]) {
+        for (const { url: imgUrl, product: matchedProd } of items) {
+          try {
+            const mid = await sendImageMessage(platform as Platform, platformId, imgUrl);
+            if (mid && items.length === 1) sentImageMid = mid;
+
+            let contextNote = undefined;
+            if (mid && matchedProd) {
               const pSale = matchedProd.salePrice ?? matchedProd.sale_price;
               const pReg = matchedProd.regularPrice ?? matchedProd.regular_price;
               const price = pSale ?? pReg;
               contextNote = `[PRODUCT_CONTEXT: ID=${matchedProd.id} | Name=${matchedProd.name} | Price=৳${price} | Category=${matchedProd.category ?? "-"}]`;
               console.log(`[CTX] Injecting PRODUCT_CONTEXT for image: "${matchedProd.name}" mid=${mid}`);
-            } else {
-              console.log(`[CTX-DEBUG] Did not find matchedProd for ${imgUrl}`);
             }
-          }
 
-          // Save image message entry to DB (with contextNote included so it saves in one go)
+            await saveMessage({
+              conversationId: conversation.id,
+              role: "ai",
+              mediaType: "image",
+              mediaUrl: imgUrl,
+              content: contextNote,
+              platformMessageId: mid,
+            });
+          } catch (imgErr) {
+            console.error("Failed to send image:", imgUrl, imgErr);
+          }
+        }
+      }
+
+      // Saves one DB message row per item in a carousel (keeps AI conversation
+      // memory / PRODUCT_CONTEXT identical to the old per-image behaviour),
+      // all tagged with the single platform message id the carousel returned.
+      async function saveCarouselMessages(items: MatchedItem[], mid: string | undefined) {
+        for (const { url: imgUrl, product: matchedProd } of items) {
+          let contextNote = undefined;
+          if (matchedProd) {
+            const price = matchedProd.salePrice ?? matchedProd.regularPrice;
+            contextNote = `[PRODUCT_CONTEXT: ID=${matchedProd.id} | Name=${matchedProd.name} | Price=৳${price} | Category=${matchedProd.category ?? "-"}]`;
+          }
           await saveMessage({
             conversationId: conversation.id,
             role: "ai",
@@ -1242,10 +1404,49 @@ ${matchLines}
             content: contextNote,
             platformMessageId: mid,
           });
-
-        } catch (imgErr) {
-          console.error("Failed to send image:", imgUrl, imgErr);
         }
+      }
+
+      const wantsCarousel = matchedItems.length >= 2;
+
+      if (wantsCarousel && (platform === "messenger" || platform === "instagram")) {
+        try {
+          const elements = matchedItems.slice(0, 10).map(({ url, product }) => ({
+            title: product?.name || "প্রোডাক্ট",
+            subtitle: product ? `৳${product.salePrice ?? product.regularPrice}` : undefined,
+            imageUrl: url,
+            ...(product?.id ? {
+              buttonTitle: "এটা দেখতে চাই",
+              buttonPayload: `CMD_VIEW:${product.id}`,
+            } : {}),
+          }));
+          const mid = await sendCarouselMessage(platform as "messenger" | "instagram", platformId, elements);
+          await saveCarouselMessages(matchedItems, mid);
+        } catch (carErr) {
+          console.error("Carousel send failed, falling back to individual images:", carErr);
+          await sendImagesIndividually(matchedItems);
+        }
+      } else if (wantsCarousel && platform === "whatsapp") {
+        if (!cachedSettings) cachedSettings = await getBusinessSettings();
+        const catalogId = cachedSettings?.metaCatalogId as string | undefined;
+        const allSynced = catalogId && matchedItems.every(({ product }) => product?.id && product?.catalogSyncedAt);
+
+        if (allSynced) {
+          try {
+            const retailerIds = matchedItems.map(({ product }) => product.id as string);
+            await sendWhatsAppProductList(platformId, catalogId!, retailerIds);
+            await saveCarouselMessages(matchedItems, undefined); // WA doesn't return a per-message id here
+          } catch (waErr) {
+            console.error("WhatsApp catalog carousel failed, falling back to individual images:", waErr);
+            await sendImagesIndividually(matchedItems);
+          }
+        } else {
+          // Catalog not configured yet, or not every matched product is synced —
+          // fall back safely rather than reference stale/missing catalog items.
+          await sendImagesIndividually(matchedItems);
+        }
+      } else {
+        await sendImagesIndividually(matchedItems);
       }
 
       // FALLBACK: If AI failed to provide any valid URLs but detected the product, send its main image
@@ -1325,6 +1526,9 @@ ${matchLines}
       // fallback to the persisted variant from the conversation context.
       let missingVariantFlagged = false;
       if (orderData.items && orderData.items.length > 0) {
+        let serverComputedTotal = 0;
+        const { getProductById: getProductForPriceCheck } = await import("../_shared/supabase-client.ts");
+
         for (const item of orderData.items) {
           // Force variantId to be an explicit key (null if not found)
           if (!("variantId" in item) || item.variantId === undefined) {
@@ -1345,6 +1549,35 @@ ${matchLines}
             missingVariantFlagged = true;
             console.warn(`[WARNING] Order created without a variant for product ${item.productId}`);
           }
+
+          // ── Deterministic unitPrice Validation ──
+          try {
+            const realProduct = await getProductForPriceCheck(item.productId);
+            if (realProduct) {
+              let realPrice = realProduct.salePrice ?? realProduct.regularPrice ?? 0;
+              if (item.variantId && realProduct.variations) {
+                const variant = realProduct.variations.find((v: any) => String(v.id) === String(item.variantId));
+                if (variant) {
+                  realPrice = variant.sale_price ?? variant.regular_price ?? realPrice;
+                }
+              }
+              
+              if (item.unitPrice !== realPrice) {
+                console.warn(`[PRICE CORRECTION] AI generated price ৳${item.unitPrice} but DB says ৳${realPrice} for product ${item.productId}. Correcting...`);
+                item.unitPrice = realPrice;
+              }
+            }
+          } catch (priceCheckErr) {
+            console.error("Failed to validate price for product:", priceCheckErr);
+          }
+
+          serverComputedTotal += (item.qty * item.unitPrice);
+        }
+
+        // ── Deterministic totalAmount Calculation ──
+        if (orderData.totalAmount !== serverComputedTotal) {
+          console.warn(`[TOTAL CORRECTION] AI generated total ৳${orderData.totalAmount} but server calculated ৳${serverComputedTotal}. Correcting...`);
+          orderData.totalAmount = serverComputedTotal;
         }
       }
 
