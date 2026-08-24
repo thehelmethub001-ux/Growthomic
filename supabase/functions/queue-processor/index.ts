@@ -389,48 +389,75 @@ HUMAN RESPONSE RULES:
 
       if (cmd === "CMD_VIEW" && arg1) {
         const productId = arg1;
-        // Fetch product and its active variants
+        // Fetch product and its variations (JSONB)
         const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
-        const { data: variants } = await sb
-          .from("product_variations")
-          .select("*")
-          .eq("product_id", productId)
-          .eq("is_active", true)
-          .gt("stock_quantity", 0); // only in-stock
 
         if (!product) {
           await sendTextMessage(platform as Platform, platformId, "দুঃখিত, এই প্রোডাক্টটি পাওয়া যাচ্ছে না।");
-        } else if (!variants || variants.length === 0) {
-          await sendTextMessage(platform as Platform, platformId, `দুঃখিত, ${product.name} বর্তমানে স্টকে নেই।`);
         } else {
           // Update lastProductId
           await updateConversationContext(conversation.id, productId, null);
 
-          if (platform === "whatsapp") {
-            const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
-            const rows = variants.map(v => ({
-              id: `CMD_SELECT_VARIANT:${productId}:${v.variation_woo_id || v.id}`,
-              title: v.color.slice(0, 24),
-              description: `৳${v.sale_price || v.regular_price}`,
-            }));
-            await sendWhatsAppInteractiveList(
-              platformId,
-              `${product.name}-এর কালার বেছে নিন:`,
-              "কালার দেখুন",
-              [{ title: "Available Colors", rows }]
-            );
+          // Find in-stock variations
+          const inStockVariants = (product.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
+
+          if (inStockVariants.length === 0) {
+            // Handle single SKU products (no variations) or out of stock
+            if (!product.variations || product.variations.length === 0) {
+               // Single SKU, go straight to cart logic
+               const cart = conversation.cart_state || [];
+               const existing = cart.find((c: any) => c.productId === productId && c.variantId === null);
+               if (existing) existing.qty += 1;
+               else cart.push({ productId, variantId: null, name: product.name, unitPrice: product.sale_price ?? product.regular_price, qty: 1 });
+               
+               await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
+               const cartCount = cart.reduce((acc: number, c: any) => acc + c.qty, 0);
+               const msg = `✅ ${product.name} কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
+               
+               if (platform === "whatsapp") {
+                 const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+                 await sendWhatsAppInteractiveButtons(platformId, msg, [
+                   { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
+                   { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
+                 ]);
+               } else {
+                 const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+                 await sendQuickReplies(platform as "messenger" | "instagram", platformId, msg, [
+                   { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
+                   { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
+                 ]);
+               }
+            } else {
+               await sendTextMessage(platform as Platform, platformId, `দুঃখিত, ${product.name} বর্তমানে স্টকে নেই।`);
+            }
           } else {
-            const { sendQuickReplies } = await import("../_shared/platform-send.ts");
-            const replies = variants.map(v => ({
-              title: v.color.slice(0, 20),
-              payload: `CMD_SELECT_VARIANT:${productId}:${v.variation_woo_id || v.id}`,
-            }));
-            await sendQuickReplies(
-              platform as "messenger" | "instagram",
-              platformId,
-              `${product.name}-এর কালার বেছে নিন:`,
-              replies
-            );
+            // Show variations
+            if (platform === "whatsapp") {
+              const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
+              const rows = inStockVariants.map((v: any) => ({
+                id: `CMD_SELECT_VARIANT:${productId}:${v.woo_variation_id || v.id}`,
+                title: (v.attributes?.Color || "Variant").slice(0, 24),
+                description: `৳${v.sale_price || v.regular_price || product.sale_price || product.regular_price}`,
+              }));
+              await sendWhatsAppInteractiveList(
+                platformId,
+                `${product.name}-এর কালার বেছে নিন:`,
+                "কালার দেখুন",
+                [{ title: "Available Colors", rows }]
+              );
+            } else {
+              const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+              const replies = inStockVariants.map((v: any) => ({
+                title: `${(v.attributes?.Color || "Variant").slice(0, 15)} - ৳${v.sale_price || v.regular_price || product.sale_price || product.regular_price}`,
+                payload: `CMD_SELECT_VARIANT:${productId}:${v.woo_variation_id || v.id}`,
+              }));
+              await sendQuickReplies(
+                platform as "messenger" | "instagram",
+                platformId,
+                `${product.name}-এর কালার বেছে নিন:`,
+                replies
+              );
+            }
           }
         }
       } 
@@ -438,53 +465,66 @@ HUMAN RESPONSE RULES:
         const productId = arg1;
         const variantId = arg2;
 
-        const cart = conversation.cart_state || [];
-        const existing = cart.find(c => c.productId === productId && c.variantId === variantId);
-        if (existing) existing.qty += 1;
-        else cart.push({ productId, variantId, qty: 1 });
-
-        await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
-        
-        const cartCount = cart.reduce((acc, c) => acc + c.qty, 0);
-
-        if (platform === "whatsapp") {
-          const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
-          await sendWhatsAppInteractiveButtons(
-            platformId,
-            `✅ কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`,
-            [
-              { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
-              { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
-            ]
-          );
+        const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
+        if (!product) {
+          await sendTextMessage(platform as Platform, platformId, "দুঃখিত, প্রোডাক্টটি পাওয়া যায়নি।");
         } else {
-          const { sendQuickReplies } = await import("../_shared/platform-send.ts");
-          await sendQuickReplies(
-            platform as "messenger" | "instagram",
-            platformId,
-            `✅ কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`,
-            [
-              { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
-              { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
-            ]
-          );
+          const variant = (product.variations || []).find((v: any) => String(v.id) === variantId || String(v.woo_variation_id) === variantId);
+          const price = variant ? (variant.sale_price || variant.regular_price) : (product.sale_price || product.regular_price);
+          const vName = variant?.attributes?.Color ? `${product.name} - ${variant.attributes.Color}` : product.name;
+
+          const cart = conversation.cart_state || [];
+          const existing = cart.find((c: any) => c.productId === productId && String(c.variantId) === variantId);
+          if (existing) existing.qty += 1;
+          else cart.push({ productId, variantId, name: vName, unitPrice: price, qty: 1 });
+
+          await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
+          
+          const cartCount = cart.reduce((acc: number, c: any) => acc + c.qty, 0);
+
+          const msg = `✅ ${vName} কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
+          
+          if (platform === "whatsapp") {
+            const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+            await sendWhatsAppInteractiveButtons(
+              platformId,
+              msg,
+              [
+                { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
+                { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
+              ]
+            );
+          } else {
+            const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+            await sendQuickReplies(
+              platform as "messenger" | "instagram",
+              platformId,
+              msg,
+              [
+                { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
+                { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
+              ]
+            );
+          }
         }
       }
       else if (cmd === "CMD_CHECKOUT") {
         if (!conversation.cart_state || conversation.cart_state.length === 0) {
           await sendTextMessage(platform as Platform, platformId, "আপনার কার্ট খালি।");
         } else {
-          // Format cart for Gemini
-          let cartText = "কার্টের বিবরণ:\n";
+          // Format cart for Gemini, but ONLY for address collection - NOT for items
+          let cartText = "আপনার কার্টের আইটেম:\n";
           for (const item of conversation.cart_state) {
-            cartText += `- ProductID: ${item.productId}, VariantID: ${item.variantId}, Qty: ${item.qty}\n`;
+            cartText += `- ${item.name} (${item.qty}টি) - ৳${item.unitPrice * item.qty}\n`;
           }
           
-          messageText = `[SYSTEM_INSTRUCTION: কাস্টমার কার্টের আইটেমগুলো অর্ডার করতে চান (CMD_CHECKOUT)।\n${cartText}\n\nআপনার কাজ:\n১. এই আইটেমগুলো দিয়ে orderData তৈরি করুন।\n২. কাস্টমারের নাম, ফোন নম্বর এবং সম্পূর্ণ ঠিকানা (জেলা, থানা/উপজেলা, গ্রাম/রোড) জানতে চান।\n৩. কাস্টমারকে একটি সুন্দর মেসেজ দিয়ে বলুন যে তারা চাইলে ক্যাশ অন ডেলিভারিতে অর্ডার করতে পারবেন।]`;
-          console.log(`[CHECKOUT] Injecting cart state into AI context.`);
+          messageText = `[SYSTEM_INSTRUCTION: কাস্টমার কার্টের আইটেমগুলো অর্ডার করতে চান (CMD_CHECKOUT)।\n\n${cartText}\n\nআপনার কাজ:\n১. orderData এর items এরে ফাঁকা রাখুন (আমরা সার্ভার সাইডে হ্যান্ডেল করছি)।\n২. শুধু কাস্টমারের নাম, ফোন নম্বর এবং সম্পূর্ণ ঠিকানা (জেলা, থানা/উপজেলা, গ্রাম/রোড) জানতে চান।\n৩. কাস্টমারকে একটি সুন্দর মেসেজ দিয়ে বলুন যে তারা চাইলে ক্যাশ অন ডেলিভারিতে অর্ডার করতে পারবেন।]`;
+          console.log(`[CHECKOUT] Injecting cart state for address collection.`);
           mediaUrl = undefined;
           mediaUrls = undefined;
           mediaType = undefined;
+          // Set a flag to force queue-processor to build items later
+          (conversation as any)._bypassItemsLLM = true;
         }
       }
       else if (cmd === "CMD_BROWSE_MORE") {
@@ -1521,12 +1561,20 @@ ${matchLines}
       (orderData as any).customerPhone = finalPhone;
       orderData.deliveryAddress = finalAddress;
 
+      // ── CRITICAL FIX: Deterministic Items from Cart ──
+      // If the user used the button flow, override AI hallucinated items with exact DB cart state
+      if ((conversation as any)._bypassItemsLLM && conversation.cart_state && conversation.cart_state.length > 0) {
+        orderData.items = [...conversation.cart_state];
+        console.log(`[CHECKOUT] Overrode AI order items with deterministic cart state: ${orderData.items.length} items`);
+      }
+
       // ── CRITICAL FIX: Deterministic Variant Fallback ──
       // If the AI missed the variantId in the final text-only order confirmation turn,
       // fallback to the persisted variant from the conversation context.
       let missingVariantFlagged = false;
+      let serverComputedTotal = 0;
+      
       if (orderData.items && orderData.items.length > 0) {
-        let serverComputedTotal = 0;
         const { getProductById: getProductForPriceCheck } = await import("../_shared/supabase-client.ts");
 
         for (const item of orderData.items) {
@@ -1556,7 +1604,7 @@ ${matchLines}
             if (realProduct) {
               let realPrice = realProduct.salePrice ?? realProduct.regularPrice ?? 0;
               if (item.variantId && realProduct.variations) {
-                const variant = realProduct.variations.find((v: any) => String(v.id) === String(item.variantId));
+                const variant = realProduct.variations.find((v: any) => String(v.id) === String(item.variantId) || String(v.woo_variation_id) === String(item.variantId));
                 if (variant) {
                   realPrice = variant.sale_price ?? variant.regular_price ?? realPrice;
                 }
@@ -1592,6 +1640,12 @@ ${matchLines}
         customerPhone: finalPhone,
         customerName: customerNameForOrder,
       });
+
+      // Clear the cart_state if it was used for an order
+      if ((conversation as any)._bypassItemsLLM || (conversation.cart_state && conversation.cart_state.length > 0)) {
+        await getSupabaseClient().from("conversations").update({ cart_state: [] }).eq("id", conversation.id);
+        console.log(`[CHECKOUT] Cleared cart_state for conversation ${conversation.id}`);
+      }
 
       // Also update the customer name in DB if AI captured a better name
       if (finalName && finalName !== "Customer" && (!customer.name || customer.name === customer.platformId)) {
