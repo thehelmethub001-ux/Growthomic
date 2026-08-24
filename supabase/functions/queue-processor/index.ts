@@ -356,6 +356,7 @@ HUMAN RESPONSE RULES:
         headers: { "Content-Type": "application/json" }
       });
     }
+
     // ── Step 4.5: Check if already answered by a batched run
     const latestHistory = await getConversationHistory(conversation.id, 1);
     if (latestHistory.length > 0 && latestHistory[0].role !== "customer") {
@@ -385,100 +386,321 @@ HUMAN RESPONSE RULES:
     // ── 6.1 Deterministic Command Interception (Cart/Guided Flow)
     if (messageText?.startsWith("CMD_")) {
       console.log(`[DETERMINISTIC COMMAND] Intercepted: ${messageText}`);
-      const [cmd, arg1, arg2] = messageText.split(":");
+      // Split carefully: CMD_SELECT_SIZE:productId:colorName:size
+      const parts = messageText.split(":");
+      const cmd = parts[0];
+      const arg1 = parts[1];
+      const arg2 = parts[2];
+      const arg3 = parts.slice(3).join(":"); // size can theoretically have colons (e.g. "M:L")
 
+      // ── Helper: show confirmation prompt for a resolved variantId ──
+      const showConfirmation = async (productId: string, variantId: string, product: any) => {
+        const variant = (product.variations || []).find((v: any) => String(v.id) === variantId || String(v.woo_variation_id) === variantId);
+        const price = variant ? (variant.sale_price || variant.regular_price) : (product.sale_price || product.regular_price);
+        const colorName = variant?.attributes?.Color || "";
+        const sizeName = variant?.attributes?.Size || "";
+        const label = [colorName, sizeName].filter(Boolean).join(" / ");
+        const vName = label ? `${product.name} - ${label}` : product.name;
+        const confirmMsg = `🛍️ ${vName}\n💰 দাম: ৳${price}\n\nএটা কি নেবেন?`;
+        const confirmPayload = `CMD_CONFIRM_ADD:${productId}:${variantId}`;
+        if (platform === "whatsapp") {
+          const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+          await sendWhatsAppInteractiveButtons(platformId, confirmMsg, [
+            { id: confirmPayload, title: "✅ হ্যাঁ, নেবো" },
+            { id: `CMD_VIEW:${productId}`, title: "🔙 অন্য কালার দেখি" }
+          ]);
+        } else {
+          const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+          await sendQuickReplies(platform as "messenger" | "instagram", platformId, confirmMsg, [
+            { title: "✅ হ্যাঁ, নেবো", payload: confirmPayload },
+            { title: "🔙 অন্য কালার", payload: `CMD_VIEW:${productId}` }
+          ]);
+        }
+      };
+
+      // ── Helper: show size selection buttons for a chosen color ──
+      const showSizeButtons = async (productId: string, colorName: string, product: any) => {
+        const inStock = (product.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
+        const sizesForColor = inStock
+          .filter((v: any) => v.attributes?.Color === colorName)
+          .map((v: any) => v.attributes?.Size)
+          .filter(Boolean);
+        const uniqueSizes: string[] = [...new Set(sizesForColor as string[])];
+
+        const msgText = `${product.name} - ${colorName}\n\nকোন সাইজটা নেবেন?`;
+        if (platform === "whatsapp") {
+          const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
+          await sendWhatsAppInteractiveList(platformId, msgText, "সাইজ বেছে নিন", [{
+            title: "Available Sizes",
+            rows: uniqueSizes.map(sz => ({
+              id: `CMD_SELECT_SIZE:${productId}:${colorName}:${sz}`,
+              title: sz.slice(0, 24),
+            }))
+          }]);
+        } else {
+          const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+          await sendQuickReplies(platform as "messenger" | "instagram", platformId, msgText,
+            uniqueSizes.map(sz => ({
+              title: sz.slice(0, 20),
+              payload: `CMD_SELECT_SIZE:${productId}:${colorName}:${sz}`
+            }))
+          );
+        }
+      };
+
+      // ══════════════════════════════════════
+      // CMD_VIEW:productId
+      // ══════════════════════════════════════
       if (cmd === "CMD_VIEW" && arg1) {
         const productId = arg1;
-        // Fetch product and its variations (JSONB)
         const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
 
         if (!product) {
-          await sendTextMessage(platform as Platform, platformId, "দুঃখিত, এই প্রোডাক্টটি পাওয়া যাচ্ছে না।");
+          await sendTextMessage(platform as Platform, platformId, "দুঃখিত, এই প্রোডাক্টটি পাওয়া যাচ্ছে না।");
         } else {
-          // Update lastProductId
           await updateConversationContext(conversation.id, productId, null);
-
-          // Find in-stock variations
-          const inStockVariants = (product.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
+          const allVariants: any[] = product.variations || [];
+          const inStockVariants = allVariants.filter((v: any) => (v.stock_quantity ?? 0) > 0);
 
           if (inStockVariants.length === 0) {
-            // Handle single SKU products (no variations) or out of stock
-            if (!product.variations || product.variations.length === 0) {
-               // Single SKU, go straight to cart logic
-               const cart = conversation.cart_state || [];
-               const existing = cart.find((c: any) => c.productId === productId && c.variantId === null);
-               if (existing) existing.qty += 1;
-               else cart.push({ productId, variantId: null, name: product.name, unitPrice: product.sale_price ?? product.regular_price, qty: 1 });
-               
-               await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
-               const cartCount = cart.reduce((acc: number, c: any) => acc + c.qty, 0);
-               const msg = `✅ ${product.name} কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
-               
-               if (platform === "whatsapp") {
-                 const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
-                 await sendWhatsAppInteractiveButtons(platformId, msg, [
-                   { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
-                   { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
-                 ]);
-               } else {
-                 const { sendQuickReplies } = await import("../_shared/platform-send.ts");
-                 await sendQuickReplies(platform as "messenger" | "instagram", platformId, msg, [
-                   { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
-                   { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
-                 ]);
-               }
+            if (allVariants.length === 0) {
+              // Single SKU — add directly
+              const cart = conversation.cart_state || [];
+              const existing = cart.find((c: any) => c.productId === productId && c.variantId === null);
+              if (existing) existing.qty += 1;
+              else cart.push({ productId, variantId: null, name: product.name, unitPrice: product.sale_price ?? product.regular_price, qty: 1 });
+              await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
+              const cartCount = cart.reduce((acc: number, c: any) => acc + c.qty, 0);
+              const msg = `✅ ${product.name} কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
+              if (platform === "whatsapp") {
+                const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+                await sendWhatsAppInteractiveButtons(platformId, msg, [
+                  { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
+                  { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
+                ]);
+              } else {
+                const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+                await sendQuickReplies(platform as "messenger" | "instagram", platformId, msg, [
+                  { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
+                  { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
+                ]);
+              }
             } else {
-               await sendTextMessage(platform as Platform, platformId, `দুঃখিত, ${product.name} বর্তমানে স্টকে নেই।`);
+              await sendTextMessage(platform as Platform, platformId, `দুঃখিত, ${product.name} বর্তমানে স্টকে নেই।`);
             }
           } else {
-            // Show variations
-            if (platform === "whatsapp") {
-              const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
-              const rows = inStockVariants.map((v: any) => ({
-                id: `CMD_SELECT_VARIANT:${productId}:${v.woo_variation_id || v.id}`,
-                title: (v.attributes?.Color || "Variant").slice(0, 24),
-                description: `৳${v.sale_price || v.regular_price || product.sale_price || product.regular_price}`,
-              }));
-              await sendWhatsAppInteractiveList(
-                platformId,
-                `${product.name}-এর কালার বেছে নিন:`,
-                "কালার দেখুন",
-                [{ title: "Available Colors", rows }]
-              );
-            } else {
-              // Build color list in the TEXT (not button title) to avoid Messenger's 20-char truncation
-              const { sendQuickReplies } = await import("../_shared/platform-send.ts");
-
-              // Build price list in message body
-              let colorListText = `${product.name}-এর কালার বেছে নিন:\n\n`;
-              inStockVariants.forEach((v: any) => {
-                const colorLabel = v.attributes?.Color || "Variant";
+            // Collect unique colors
+            const colorMap = new Map<string, { price: number; imageUrl: string }>();
+            for (const v of inStockVariants) {
+              const color: string = v.attributes?.Color || "Default";
+              if (!colorMap.has(color)) {
                 const price = v.sale_price || v.regular_price || product.sale_price || product.regular_price;
-                colorListText += `🎨 ${colorLabel} — ৳${price}\n`;
-              });
-              colorListText += `\nকোন কালারটা নেবেন?`;
-
-              // Button titles: ONLY the color name (≤20 chars), no price
-              const replies = inStockVariants.map((v: any) => ({
-                title: (v.attributes?.Color || "Variant").slice(0, 20),
-                payload: `CMD_SELECT_VARIANT:${productId}:${v.woo_variation_id || v.id}`,
-              }));
-              await sendQuickReplies(
-                platform as "messenger" | "instagram",
-                platformId,
-                colorListText,
-                replies
-              );
+                const imageUrl = v.image_url || (product.images && product.images[0]) || "";
+                colorMap.set(color, { price, imageUrl });
+              }
             }
+            const uniqueColors = Array.from(colorMap.entries());
 
+            if (uniqueColors.length === 1) {
+              // Only one color — skip color step, go directly to size or confirm
+              const [singleColor] = uniqueColors;
+              const colorName = singleColor[0];
+              const hasSizes = inStockVariants.some((v: any) => v.attributes?.Color === colorName && v.attributes?.Size);
+              if (hasSizes) {
+                await showSizeButtons(productId, colorName, product);
+              } else {
+                // Single color, no sizes → single variant
+                const theVariant = inStockVariants.find((v: any) => v.attributes?.Color === colorName);
+                if (theVariant) {
+                  const variantId = String(theVariant.woo_variation_id || theVariant.id);
+                  await showConfirmation(productId, variantId, product);
+                }
+              }
+            } else {
+              // Multiple colors → show color CAROUSEL (Messenger/Instagram) or interactive list (WhatsApp)
+              if (platform === "whatsapp") {
+                const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
+                const rows = uniqueColors.map(([colorName, info]) => ({
+                  id: `CMD_SELECT_COLOR:${productId}:${colorName}`,
+                  title: colorName.slice(0, 24),
+                  description: `৳${info.price}`,
+                }));
+                await sendWhatsAppInteractiveList(
+                  platformId,
+                  `${product.name}-এর কালার বেছে নিন:`,
+                  "কালার দেখুন",
+                  [{ title: "Available Colors", rows }]
+                );
+              } else {
+                // Messenger/Instagram: Full carousel with images
+                const { sendCarouselMessage } = await import("../_shared/platform-send.ts");
+                const fallbackImg = (product.images && product.images[0]) || "";
+
+                // Build price list in a text message first (so customer sees all prices)
+                let colorPriceText = `${product.name}-এর কালারগুলো:\n\n`;
+                uniqueColors.forEach(([colorName, info]) => {
+                  colorPriceText += `🎨 ${colorName} — ৳${info.price}\n`;
+                });
+                colorPriceText += "\nকোন কালারটা নেবেন? নিচের কার্ড থেকে সিলেক্ট করুন 👇";
+                await sendTextMessage(platform as Platform, platformId, colorPriceText);
+
+                const elements = uniqueColors.map(([colorName, info]) => ({
+                  title: colorName.slice(0, 80),
+                  subtitle: `৳${info.price}`,
+                  imageUrl: info.imageUrl || fallbackImg,
+                  buttonTitle: "এই কালারটা নেবো",
+                  buttonPayload: `CMD_SELECT_COLOR:${productId}:${colorName}`,
+                }));
+                await sendCarouselMessage(platform as "messenger" | "instagram", platformId, elements);
+              }
+            }
           }
         }
-      } 
+      }
+
+      // ══════════════════════════════════════
+      // CMD_SELECT_COLOR:productId:colorName
+      // ══════════════════════════════════════
+      else if (cmd === "CMD_SELECT_COLOR" && arg1 && arg2) {
+        const productId = arg1;
+        const colorName = arg2;
+        const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
+        if (!product) {
+          await sendTextMessage(platform as Platform, platformId, "দুঃখিত, প্রোডাক্টটি পাওয়া যায়নি।");
+        } else {
+          const inStockVariants = (product.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
+          const hasSizes = inStockVariants.some((v: any) => v.attributes?.Color === colorName && v.attributes?.Size);
+          if (hasSizes) {
+            // Ask for size
+            await showSizeButtons(productId, colorName, product);
+          } else {
+            // No sizes — directly confirm
+            const theVariant = inStockVariants.find((v: any) => v.attributes?.Color === colorName);
+            if (theVariant) {
+              const variantId = String(theVariant.woo_variation_id || theVariant.id);
+              await showConfirmation(productId, variantId, product);
+            } else {
+              await sendTextMessage(platform as Platform, platformId, `দুঃখিত, ${colorName} কালারটি এই মুহূর্তে স্টকে নেই।`);
+            }
+          }
+        }
+      }
+
+      // ══════════════════════════════════════
+      // CMD_SELECT_SIZE:productId:colorName:size
+      // ══════════════════════════════════════
+      else if (cmd === "CMD_SELECT_SIZE" && arg1 && arg2 && arg3) {
+        const productId = arg1;
+        const colorName = arg2;
+        const size = arg3;
+        const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
+        if (!product) {
+          await sendTextMessage(platform as Platform, platformId, "দুঃখিত, প্রোডাক্টটি পাওয়া যায়নি।");
+        } else {
+          const allVariants: any[] = product.variations || [];
+
+          // Find exact color+size match that is in stock
+          const exactVariant = allVariants.find((v: any) =>
+            v.attributes?.Color === colorName &&
+            v.attributes?.Size === size &&
+            (v.stock_quantity ?? 0) > 0
+          );
+
+          if (exactVariant) {
+            // Perfect match — show confirmation
+            const variantId = String(exactVariant.woo_variation_id || exactVariant.id);
+            await showConfirmation(productId, variantId, product);
+          } else {
+            // Check if this size exists in OTHER colors
+            const otherColorsWithSize = [...new Set(
+              allVariants
+                .filter((v: any) => v.attributes?.Size === size && (v.stock_quantity ?? 0) > 0)
+                .map((v: any) => v.attributes?.Color)
+                .filter(Boolean)
+            )] as string[];
+
+            if (otherColorsWithSize.length > 0) {
+              const colorList = otherColorsWithSize.join(", ");
+              const msg = `স্যার, ${colorName} কালারে ${size} সাইজ এই মুহূর্তে নেই। তবে ${colorList} কালারে ${size} সাইজ পাওয়া যাচ্ছে।\n\nকোন কালারটা নেবেন?`;
+              if (platform === "whatsapp") {
+                const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
+                await sendWhatsAppInteractiveList(platformId, msg, "কালার বেছে নিন", [{
+                  title: "Available Colors",
+                  rows: otherColorsWithSize.map(c => ({
+                    id: `CMD_SELECT_SIZE:${productId}:${c}:${size}`,
+                    title: c.slice(0, 24)
+                  }))
+                }]);
+              } else {
+                const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+                await sendQuickReplies(platform as "messenger" | "instagram", platformId, msg,
+                  otherColorsWithSize.map(c => ({
+                    title: c.slice(0, 20),
+                    payload: `CMD_SELECT_SIZE:${productId}:${c}:${size}`
+                  }))
+                );
+              }
+            } else {
+              // This size is unavailable in ANY color
+              const availableSizes = [...new Set(
+                allVariants
+                  .filter((v: any) => (v.stock_quantity ?? 0) > 0)
+                  .map((v: any) => v.attributes?.Size)
+                  .filter(Boolean)
+              )] as string[];
+
+              if (availableSizes.length > 0) {
+                const sizeList = availableSizes.join(", ");
+                await sendTextMessage(platform as Platform, platformId,
+                  `স্যার, ${size} সাইজ এখন stock-এ নেই। তবে আমাদের কাছে ${sizeList} সাইজ পাওয়া যাচ্ছে।`
+                );
+                // Show available sizes as quick replies
+                if (platform === "whatsapp") {
+                  const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
+                  await sendWhatsAppInteractiveList(platformId, "কোন সাইজটা নেবেন?", "সাইজ বেছে নিন", [{
+                    title: "Available Sizes",
+                    rows: availableSizes.map(sz => ({
+                      id: `CMD_SELECT_SIZE:${productId}:${colorName}:${sz}`,
+                      title: sz.slice(0, 24)
+                    }))
+                  }]);
+                } else {
+                  const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+                  await sendQuickReplies(platform as "messenger" | "instagram", platformId, "কোন সাইজটা নেবেন?",
+                    availableSizes.map(sz => ({
+                      title: sz.slice(0, 20),
+                      payload: `CMD_SELECT_SIZE:${productId}:${colorName}:${sz}`
+                    }))
+                  );
+                }
+              } else {
+                await sendTextMessage(platform as Platform, platformId, `স্যার, ${product.name} এই মুহূর্তে stock-এ নেই।`);
+              }
+            }
+          }
+        }
+      }
+
+      // ══════════════════════════════════════
+      // CMD_SELECT_VARIANT:productId:variantId (legacy / WhatsApp list fallback)
+      // ══════════════════════════════════════
       else if (cmd === "CMD_SELECT_VARIANT" && arg1 && arg2) {
-        // STEP: Show confirmation BEFORE adding to cart
         const productId = arg1;
         const variantId = arg2;
+        const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
+        if (!product) {
+          await sendTextMessage(platform as Platform, platformId, "দুঃখিত, প্রোডাক্টটি পাওয়া যায়নি।");
+        } else {
+          await showConfirmation(productId, variantId, product);
+        }
+      }
 
+      // ══════════════════════════════════════
+      // CMD_CONFIRM_ADD:productId:variantId
+      // ══════════════════════════════════════
+      else if (cmd === "CMD_CONFIRM_ADD" && arg1 && arg2) {
+        const productId = arg1;
+        const variantId = arg2;
         const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
         if (!product) {
           await sendTextMessage(platform as Platform, platformId, "দুঃখিত, প্রোডাক্টটি পাওয়া যায়নি।");
@@ -486,48 +708,9 @@ HUMAN RESPONSE RULES:
           const variant = (product.variations || []).find((v: any) => String(v.id) === variantId || String(v.woo_variation_id) === variantId);
           const price = variant ? (variant.sale_price || variant.regular_price) : (product.sale_price || product.regular_price);
           const colorName = variant?.attributes?.Color || "";
-          const vName = colorName ? `${product.name} - ${colorName}` : product.name;
-
-          // Show confirmation prompt - do NOT add to cart yet
-          const confirmMsg = `🛍️ *${vName}*\n💰 দাম: ৳${price}\n\nএটা কি নেবেন?`;
-          const confirmPayload = `CMD_CONFIRM_ADD:${productId}:${variantId}`;
-
-          if (platform === "whatsapp") {
-            const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
-            await sendWhatsAppInteractiveButtons(
-              platformId,
-              confirmMsg,
-              [
-                { id: confirmPayload, title: "✅ হ্যাঁ, নেবো" },
-                { id: `CMD_VIEW:${productId}`, title: "🔙 অন্য কালার দেখি" }
-              ]
-            );
-          } else {
-            const { sendQuickReplies } = await import("../_shared/platform-send.ts");
-            await sendQuickReplies(
-              platform as "messenger" | "instagram",
-              platformId,
-              confirmMsg,
-              [
-                { title: "✅ হ্যাঁ, নেবো", payload: confirmPayload },
-                { title: "🔙 অন্য কালার", payload: `CMD_VIEW:${productId}` }
-              ]
-            );
-          }
-        }
-      }
-      else if (cmd === "CMD_CONFIRM_ADD" && arg1 && arg2) {
-        // STEP: Customer confirmed — NOW add to cart
-        const productId = arg1;
-        const variantId = arg2;
-
-        const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
-        if (!product) {
-          await sendTextMessage(platform as Platform, platformId, "দুঃখিত, প্রোডাক্টটি পাওয়া যায়নি।");
-        } else {
-          const variant = (product.variations || []).find((v: any) => String(v.id) === variantId || String(v.woo_variation_id) === variantId);
-          const price = variant ? (variant.sale_price || variant.regular_price) : (product.sale_price || product.regular_price);
-          const vName = variant?.attributes?.Color ? `${product.name} - ${variant.attributes.Color}` : product.name;
+          const sizeName = variant?.attributes?.Size || "";
+          const label = [colorName, sizeName].filter(Boolean).join(" / ");
+          const vName = label ? `${product.name} - ${label}` : product.name;
 
           const cart = conversation.cart_state || [];
           const existing = cart.find((c: any) => c.productId === productId && String(c.variantId) === variantId);
@@ -535,39 +718,32 @@ HUMAN RESPONSE RULES:
           else cart.push({ productId, variantId, name: vName, unitPrice: price, qty: 1 });
 
           await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
-          
           const cartCount = cart.reduce((acc: number, c: any) => acc + c.qty, 0);
           const msg = `✅ ${vName} কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
-          
+
           if (platform === "whatsapp") {
             const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
-            await sendWhatsAppInteractiveButtons(
-              platformId,
-              msg,
-              [
-                { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
-                { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
-              ]
-            );
+            await sendWhatsAppInteractiveButtons(platformId, msg, [
+              { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
+              { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
+            ]);
           } else {
             const { sendQuickReplies } = await import("../_shared/platform-send.ts");
-            await sendQuickReplies(
-              platform as "messenger" | "instagram",
-              platformId,
-              msg,
-              [
-                { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
-                { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
-              ]
-            );
+            await sendQuickReplies(platform as "messenger" | "instagram", platformId, msg, [
+              { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
+              { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
+            ]);
           }
         }
       }
+
+      // ══════════════════════════════════════
+      // CMD_CHECKOUT
+      // ══════════════════════════════════════
       else if (cmd === "CMD_CHECKOUT") {
         if (!conversation.cart_state || conversation.cart_state.length === 0) {
           await sendTextMessage(platform as Platform, platformId, "আপনার কার্ট খালি।");
         } else {
-          // Format cart for Gemini, but ONLY for address collection - NOT for items
           let cartText = "আপনার কার্টের আইটেম:\n";
           for (const item of conversation.cart_state) {
             cartText += `- ${item.name} (${item.qty}টি) - ৳${item.unitPrice * item.qty}\n`;
