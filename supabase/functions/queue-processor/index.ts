@@ -446,18 +446,31 @@ HUMAN RESPONSE RULES:
                 [{ title: "Available Colors", rows }]
               );
             } else {
+              // Build color list in the TEXT (not button title) to avoid Messenger's 20-char truncation
               const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+
+              // Build price list in message body
+              let colorListText = `${product.name}-এর কালার বেছে নিন:\n\n`;
+              inStockVariants.forEach((v: any) => {
+                const colorLabel = v.attributes?.Color || "Variant";
+                const price = v.sale_price || v.regular_price || product.sale_price || product.regular_price;
+                colorListText += `🎨 ${colorLabel} — ৳${price}\n`;
+              });
+              colorListText += `\nকোন কালারটা নেবেন?`;
+
+              // Button titles: ONLY the color name (≤20 chars), no price
               const replies = inStockVariants.map((v: any) => ({
-                title: `${(v.attributes?.Color || "Variant").slice(0, 15)} - ৳${v.sale_price || v.regular_price || product.sale_price || product.regular_price}`,
+                title: (v.attributes?.Color || "Variant").slice(0, 20),
                 payload: `CMD_SELECT_VARIANT:${productId}:${v.woo_variation_id || v.id}`,
               }));
               await sendQuickReplies(
                 platform as "messenger" | "instagram",
                 platformId,
-                `${product.name}-এর কালার বেছে নিন:`,
+                colorListText,
                 replies
               );
             }
+
           }
         }
       } 
