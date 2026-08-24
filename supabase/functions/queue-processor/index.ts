@@ -421,13 +421,23 @@ HUMAN RESPONSE RULES:
       // ── Helper: show size selection buttons for a chosen color ──
       const showSizeButtons = async (productId: string, colorName: string, product: any) => {
         const inStock = (product.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
-        const sizesForColor = inStock
-          .filter((v: any) => v.attributes?.Color === colorName)
-          .map((v: any) => v.attributes?.Size)
-          .filter(Boolean);
+        
+        let sizesForColor;
+        // If colorName is empty or "Default", just collect all sizes across all variants (no color filtering)
+        if (!colorName || colorName === "Default") {
+          sizesForColor = inStock.map((v: any) => v.attributes?.Size).filter(Boolean);
+        } else {
+          sizesForColor = inStock
+            .filter((v: any) => v.attributes?.Color === colorName)
+            .map((v: any) => v.attributes?.Size)
+            .filter(Boolean);
+        }
+        
         const uniqueSizes: string[] = [...new Set(sizesForColor as string[])];
 
-        const msgText = `${product.name} - ${colorName}\n\nকোন সাইজটা নেবেন?`;
+        const msgText = (!colorName || colorName === "Default")
+          ? `${product.name}\n\nকোন সাইজটা নেবেন?`
+          : `${product.name} - ${colorName}\n\nকোন সাইজটা নেবেন?`;
         if (platform === "whatsapp") {
           const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
           await sendWhatsAppInteractiveList(platformId, msgText, "সাইজ বেছে নিন", [{
@@ -491,7 +501,9 @@ HUMAN RESPONSE RULES:
           } else {
             // Collect unique colors
             const colorMap = new Map<string, { price: number; imageUrl: string }>();
+            let hasRealColorAttribute = false;
             for (const v of inStockVariants) {
+              if (v.attributes?.Color) hasRealColorAttribute = true;
               const color: string = v.attributes?.Color || "Default";
               if (!colorMap.has(color)) {
                 const price = v.sale_price || v.regular_price || product.sale_price || product.regular_price;
@@ -501,7 +513,7 @@ HUMAN RESPONSE RULES:
             }
             const uniqueColors = Array.from(colorMap.entries());
 
-            if (uniqueColors.length === 1) {
+            if (uniqueColors.length === 1 && hasRealColorAttribute) {
               // Only one color — skip color step, go directly to size or confirm
               const [singleColor] = uniqueColors;
               const colorName = singleColor[0];
@@ -515,6 +527,17 @@ HUMAN RESPONSE RULES:
                   const variantId = String(theVariant.woo_variation_id || theVariant.id);
                   await showConfirmation(productId, variantId, product);
                 }
+              }
+            } else if (uniqueColors.length === 1 && !hasRealColorAttribute) {
+              // NO color attribute at all — check for Size directly, ignoring color matching entirely
+              const hasSizes = inStockVariants.some((v: any) => v.attributes?.Size);
+              if (hasSizes) {
+                await showSizeButtons(productId, "Default", product);
+              } else if (inStockVariants.length > 0) {
+                // single variant (or fallback to first), no size, no color — go straight to confirmation
+                const theVariant = inStockVariants[0];
+                const variantId = String(theVariant.woo_variation_id || theVariant.id);
+                await showConfirmation(productId, variantId, product);
               }
             } else {
               // Multiple colors → show color CAROUSEL (Messenger/Instagram) or interactive list (WhatsApp)
@@ -569,13 +592,13 @@ HUMAN RESPONSE RULES:
           await sendTextMessage(platform as Platform, platformId, "দুঃখিত, প্রোডাক্টটি পাওয়া যায়নি।");
         } else {
           const inStockVariants = (product.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
-          const hasSizes = inStockVariants.some((v: any) => v.attributes?.Color === colorName && v.attributes?.Size);
+          const hasSizes = inStockVariants.some((v: any) => (v.attributes?.Color || "Default") === colorName && v.attributes?.Size);
           if (hasSizes) {
             // Ask for size
             await showSizeButtons(productId, colorName, product);
           } else {
             // No sizes — directly confirm
-            const theVariant = inStockVariants.find((v: any) => v.attributes?.Color === colorName);
+            const theVariant = inStockVariants.find((v: any) => (v.attributes?.Color || "Default") === colorName);
             if (theVariant) {
               const variantId = String(theVariant.woo_variation_id || theVariant.id);
               await showConfirmation(productId, variantId, product);
@@ -601,7 +624,7 @@ HUMAN RESPONSE RULES:
 
           // Find exact color+size match that is in stock
           const exactVariant = allVariants.find((v: any) =>
-            v.attributes?.Color === colorName &&
+            (v.attributes?.Color || "Default") === colorName &&
             v.attributes?.Size === size &&
             (v.stock_quantity ?? 0) > 0
           );
