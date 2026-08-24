@@ -2017,8 +2017,105 @@ ${matchLines}
       }
     }
 
+    // ── Step 8.8: Image-triggered color carousel
+    // When customer sends a product photo and AI detects the product,
+    // auto-send available color carousel so they can tap to order.
+    // This covers the "out of stock color" case: AI says color X is unavailable,
+    // carousel shows all in-stock colors of that same product.
+    const isImageMessage = mediaType === "image" || (mediaUrls && mediaUrls.length > 0);
+    if (
+      isImageMessage &&
+      aiResult.detectedProductId &&
+      aiResult.intent !== "order_intent" &&
+      aiResult.intent !== "off_topic" &&
+      aiResult.intent !== "spam"
+    ) {
+      try {
+        const { data: imgProduct } = await sb.from("products").select("*").eq("id", aiResult.detectedProductId).single();
+        if (imgProduct) {
+          const inStockVariants = (imgProduct.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
+
+          if (inStockVariants.length > 0) {
+            // Collect unique colors
+            const colorMap = new Map<string, { price: number; imageUrl: string }>();
+            for (const v of inStockVariants) {
+              const color: string = v.attributes?.Color || "Default";
+              if (!colorMap.has(color)) {
+                const price = v.sale_price || v.regular_price || imgProduct.sale_price || imgProduct.regular_price;
+                const imageUrl = v.image_url || (imgProduct.images && imgProduct.images[0]) || "";
+                colorMap.set(color, { price, imageUrl });
+              }
+            }
+            const uniqueColors = Array.from(colorMap.entries());
+
+            if (uniqueColors.length > 0) {
+              console.log(`[IMG-CAROUSEL] Showing ${uniqueColors.length} color(s) for product ${imgProduct.name} after image detection`);
+
+              if (platform === "whatsapp") {
+                const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
+                const rows = uniqueColors.map(([colorName, info]) => ({
+                  id: `CMD_SELECT_COLOR:${imgProduct.id}:${colorName}`,
+                  title: colorName.slice(0, 24),
+                  description: `৳${info.price}`,
+                }));
+                await sendWhatsAppInteractiveList(
+                  platformId,
+                  `${imgProduct.name}-এর available কালারগুলো:`,
+                  "কালার বেছে নিন",
+                  [{ title: "Available Colors", rows }]
+                );
+              } else {
+                // Messenger/Instagram: show carousel with color images + buttons
+                const { sendCarouselMessage } = await import("../_shared/platform-send.ts");
+                const fallbackImg = (imgProduct.images && imgProduct.images[0]) || "";
+
+                // Text header showing all prices
+                let colorPriceText = `${imgProduct.name}-এ এই কালারগুলো available:\n\n`;
+                uniqueColors.forEach(([colorName, info]) => {
+                  colorPriceText += `🎨 ${colorName} — ৳${info.price}\n`;
+                });
+                colorPriceText += "\nযেটা নেবেন সেটার কার্ডে ট্যাপ করুন 👇";
+                await sendTextMessage(platform as Platform, platformId, colorPriceText);
+
+                const elements = uniqueColors.map(([colorName, info]) => ({
+                  title: colorName.slice(0, 80),
+                  subtitle: `৳${info.price}`,
+                  imageUrl: info.imageUrl || fallbackImg,
+                  buttonTitle: "এই কালারটা নেবো",
+                  buttonPayload: `CMD_SELECT_COLOR:${imgProduct.id}:${colorName}`,
+                }));
+                await sendCarouselMessage(platform as "messenger" | "instagram", platformId, elements);
+              }
+            }
+          } else if (imgProduct.variations && imgProduct.variations.length > 0) {
+            // Product has variants but ALL are out of stock
+            await sendTextMessage(platform as Platform, platformId,
+              `দুঃখিত, ${imgProduct.name} এর সব কালার এই মুহূর্তে stock-এ নেই।`
+            );
+          } else if (!imgProduct.variations || imgProduct.variations.length === 0) {
+            // Single SKU product, no color selection needed — show CMD_VIEW button
+            if (platform === "whatsapp") {
+              const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+              await sendWhatsAppInteractiveButtons(platformId, `${imgProduct.name} — ৳${imgProduct.sale_price || imgProduct.regular_price}\n\nঅর্ডার করতে চাইলে:`, [
+                { id: `CMD_VIEW:${imgProduct.id}`, title: "✅ এটা নেবো" }
+              ]);
+            } else {
+              const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+              await sendQuickReplies(platform as "messenger" | "instagram", platformId,
+                `${imgProduct.name} — ৳${imgProduct.sale_price || imgProduct.regular_price}\n\nঅর্ডার করতে চাইলে:`,
+                [{ title: "✅ এটা নেবো", payload: `CMD_VIEW:${imgProduct.id}` }]
+              );
+            }
+          }
+        }
+      } catch (imgCarouselErr) {
+        console.error("Image-triggered carousel failed (non-critical):", imgCarouselErr);
+      }
+    }
+
     // ── Step 8.9: Cart reminder — re-show cart buttons after any AI free-text reply
     // Ensures customers who type free text mid-flow (e.g. price question) still see their cart
+
     const latestCart = conversation.cart_state;
     const cartWasCleared = (conversation as any)._bypassItemsLLM && aiResult.intent === "order_intent";
     if (!cartWasCleared && latestCart && latestCart.length > 0 && aiResult.intent !== "order_intent") {
