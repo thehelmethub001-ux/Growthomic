@@ -429,7 +429,8 @@ HUMAN RESPONSE RULES:
                }
             } else {
                await sendTextMessage(platform as Platform, platformId, `দুঃখিত, ${product.name} বর্তমানে স্টকে নেই।`);
-        } else {
+            }
+          } else {
             // Show variations
             if (platform === "whatsapp") {
               const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
