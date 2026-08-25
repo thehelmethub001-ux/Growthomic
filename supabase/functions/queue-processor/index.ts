@@ -401,16 +401,17 @@ HUMAN RESPONSE RULES:
         const vName = label ? `${product.name} - ${label}` : product.name;
         const confirmMsg = `🛍️ ${vName}\n💰 দাম: ৳${price}\n\nএটা কি নেবেন?`;
         const confirmPayload = `CMD_CONFIRM_ADD:${productId}:${variantId}`;
+        const confirmTitle = `✅ ${product.name} নেবো`.slice(0, 20);
         if (platform === "whatsapp") {
           const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
           await sendWhatsAppInteractiveButtons(platformId, confirmMsg, [
-            { id: confirmPayload, title: "✅ হ্যাঁ, নেবো" },
+            { id: confirmPayload, title: confirmTitle },
             { id: `CMD_VIEW:${productId}`, title: "🔙 অন্য কালার দেখি" }
           ]);
         } else {
           const { sendQuickReplies } = await import("../_shared/platform-send.ts");
           await sendQuickReplies(platform as "messenger" | "instagram", platformId, confirmMsg, [
-            { title: "✅ হ্যাঁ, নেবো", payload: confirmPayload },
+            { title: confirmTitle, payload: confirmPayload },
             { title: "🔙 অন্য কালার", payload: `CMD_VIEW:${productId}` }
           ]);
         }
