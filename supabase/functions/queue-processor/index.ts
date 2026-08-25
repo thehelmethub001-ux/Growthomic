@@ -2145,7 +2145,40 @@ ${matchLines}
     // ── Step 8.9: Cart reminder — re-show cart buttons after any AI free-text reply
     // Ensures customers who type free text mid-flow (e.g. price question) still see their cart
 
+    // ── Step 8.9.0: Detect cart-cancellation intent from the customer's raw message
+    // If the customer says "নেবো না", "বাদ দাও", "remove করো" etc. → clear their entire cart
+    // This prevents stale cart from being re-shown after a customer explicitly refuses an item.
+    const cancelCartPatterns = [
+      /নেবো\s*না/i,         // "নেবো না" / "eita nibo na"
+      /nibo\s*na/i,          // romanised
+      /\bna\s+nibo\b/i,      // "na nibo"
+      /বাদ\s*দাও/i,          // "বাদ দাও"
+      /remove\s*koro/i,
+      /cart\s*(theke|thoke)\s*(bad|bao|remove)/i,
+      /কার্ট\s*(থেকে)?\s*বাদ/i,
+      /এটা\s*(না|নেবো\s*না)/i,
+      /ওইটা\s*(না|নেবো\s*না)/i,
+      /\bcancel\b.*cart/i,
+      /cart\b.*\bcancel/i,
+    ];
+    const rawCustomerText = (messageText || "").toLowerCase();
+    const customerCancellingCart = conversation.cart_state && (conversation.cart_state as any[]).length > 0 &&
+      cancelCartPatterns.some(p => p.test(rawCustomerText));
+
+    if (customerCancellingCart) {
+      try {
+        const sbClear = getSupabaseClient();
+        await sbClear.from("conversations").update({ cart_state: [] }).eq("id", conversation.id);
+        console.log(`[CART CLEAR] Customer said no — cleared cart for conversation ${conversation.id}`);
+        // Update local reference so Step 8.9 reminder block is naturally skipped
+        conversation.cart_state = [];
+      } catch (clearErr) {
+        console.error("[CART CLEAR] Failed to clear cart:", clearErr);
+      }
+    }
+
     const latestCart = conversation.cart_state;
+
     const cartWasCleared = (conversation as any)._bypassItemsLLM && aiResult.intent === "order_intent";
     if (!cartWasCleared && latestCart && latestCart.length > 0 && aiResult.intent !== "order_intent") {
       try {
