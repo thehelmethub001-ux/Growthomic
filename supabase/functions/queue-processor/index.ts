@@ -402,6 +402,18 @@ HUMAN RESPONSE RULES:
         const confirmMsg = `🛍️ ${vName}\n💰 দাম: ৳${price}\n\nএটা কি নেবেন?`;
         const confirmPayload = `CMD_CONFIRM_ADD:${productId}:${variantId}`;
         const confirmTitle = `✅ ${product.name} নেবো`.slice(0, 20);
+
+        // ── CRITICAL: Persist confirmed product+variant to DB so subsequent messages
+        // (e.g. "Hea", "order korbo") can bypass the SS gate and proceed correctly
+        try {
+          await updateConversationContext(conversation.id, productId, variantId);
+          conversation.lastProductId = productId;
+          conversation.lastVariantId = variantId;
+          console.log(`[CONTEXT SAVE] showConfirmation persisted lastProductId=${productId}, lastVariantId=${variantId}`);
+        } catch (ctxErr) {
+          console.error("[CONTEXT SAVE] Failed to persist variant context:", ctxErr);
+        }
+
         if (platform === "whatsapp") {
           const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
           await sendWhatsAppInteractiveButtons(platformId, confirmMsg, [
@@ -416,6 +428,7 @@ HUMAN RESPONSE RULES:
           ]);
         }
       };
+
 
       // ── Helper: show size selection buttons for a chosen color ──
       const showSizeButtons = async (productId: string, colorName: string, product: any) => {
@@ -1227,27 +1240,44 @@ ${matchLines}
     const isSelectingProduct = aiResult.intent === "order_intent" || replyToMid || aiResult.detectedProductId;
 
     if (recentAiSentMultipleImages && mediaType !== "image" && isSelectingProduct) {
-      // The user wants to buy/inquire about one of the products but didn't provide a fresh screenshot.
-      // E.g. "eita nibo", "eitar price koto", or replying directly to an image.
-      console.log("SS gate: multiple images sent previously, user selecting without fresh image — UNCONDITIONALLY asking for SS");
-      aiResult.reply = "আপনি যেটি নিবেন, সেটির একটি ছবি বা স্ক্রিনশট (SS) আমাদের সরাসরি পাঠিয়ে দিন — শুধু 'এইটা নিব' লিখলে বা কোনো একটা ছবিতে Reply করলে আমরা নিশ্চিত হতে পারব না, ভুল প্রোডাক্ট কনফার্ম হয়ে যেতে পারে।";
-      aiResult.intent = "product_inquiry";
-      aiResult.orderData = null;
-      aiResult.sendProductImage = false;
-      aiResult.detectedProductId = undefined;
-      aiResult.detectedVariantId = undefined;
-    } 
-    else if (aiResult.intent === "order_intent" && !aiResult.detectedVariantId && mediaType !== "image") {
-      // Not a multi-image scenario (or they sent an image), but we are missing the color/variant for order.
-      const colorKeywords = /লাল|কালো|সাদা|ধূসর|গ্রে|নীল|সবুজ|হলুদ|red|black|white|gray|grey|blue|green|yellow/i;
-      const customerMentionedColor = colorKeywords.test(messageText || "");
-
-      if (!customerMentionedColor) {
-        console.log("SS gate: variant missing, no color mentioned — asking for SS/color");
-        aiResult.reply = "স্যার, আপনি ঠিক কোন কালারটি নিতে চাচ্ছেন? একটু বলবেন বা সেটির স্ক্রিনশট (SS) বা ছবি পাঠিয়ে দিন, আমরা এখনই কনফার্ম করে দিচ্ছি।";
+      // ── BYPASS: If a specific variant was already confirmed in conversation context,
+      // the user is continuing that confirmed selection — no need for SS again.
+      const hasConfirmedVariant = !!(conversation.lastVariantId && conversation.lastProductId);
+      if (hasConfirmedVariant) {
+        console.log(`[SS-GATE BYPASS] lastVariantId (${conversation.lastVariantId}) already set — skipping multi-image SS gate`);
+        // Inject the confirmed context so the rest of the pipeline proceeds correctly
+        if (!aiResult.detectedProductId) aiResult.detectedProductId = conversation.lastProductId;
+        if (!aiResult.detectedVariantId) aiResult.detectedVariantId = conversation.lastVariantId;
+      } else {
+        // The user wants to buy/inquire about one of the products but didn't provide a fresh screenshot.
+        // E.g. "eita nibo", "eitar price koto", or replying directly to an image.
+        console.log("SS gate: multiple images sent previously, user selecting without fresh image — UNCONDITIONALLY asking for SS");
+        aiResult.reply = "আপনি যেটি নিবেন, সেটির একটি ছবি বা স্ক্রিনশট (SS) আমাদের সরাসরি পাঠিয়ে দিন — শুধু 'এইটা নিব' লিখলে বা কোনো একটা ছবিতে Reply করলে আমরা নিশ্চিত হতে পারব না, ভুল প্রোডাক্ট কনফার্ম হয়ে যেতে পারে।";
         aiResult.intent = "product_inquiry";
         aiResult.orderData = null;
         aiResult.sendProductImage = false;
+        aiResult.detectedProductId = undefined;
+        aiResult.detectedVariantId = undefined;
+      }
+    } 
+    else if (aiResult.intent === "order_intent" && !aiResult.detectedVariantId && mediaType !== "image") {
+      // Not a multi-image scenario (or they sent an image), but we are missing the color/variant for order.
+      // ── BYPASS: Use lastVariantId from conversation context if available ──
+      if (conversation.lastVariantId && conversation.lastProductId) {
+        console.log(`[SS-GATE BYPASS] order_intent missing variantId — using lastVariantId (${conversation.lastVariantId}) from context`);
+        if (!aiResult.detectedProductId) aiResult.detectedProductId = conversation.lastProductId;
+        aiResult.detectedVariantId = conversation.lastVariantId;
+      } else {
+        const colorKeywords = /লাল|কালো|সাদা|ধূসর|গ্রে|নীল|সবুজ|হলুদ|red|black|white|gray|grey|blue|green|yellow/i;
+        const customerMentionedColor = colorKeywords.test(messageText || "");
+
+        if (!customerMentionedColor) {
+          console.log("SS gate: variant missing, no color mentioned — asking for SS/color");
+          aiResult.reply = "স্যার, আপনি ঠিক কোন কালারটি নিতে চাচ্ছেন? একটু বলবেন বা সেটির স্ক্রিনশট (SS) বা ছবি পাঠিয়ে দিন, আমরা এখনই কনফার্ম করে দিচ্ছি।";
+          aiResult.intent = "product_inquiry";
+          aiResult.orderData = null;
+          aiResult.sendProductImage = false;
+        }
       }
     }
     else if (aiResult.intent === "order_intent" && !aiResult.detectedProductId && !preMatchedProductId && mediaType !== "image") {
