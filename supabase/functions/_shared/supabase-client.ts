@@ -306,14 +306,18 @@ export async function saveMessage(params: {
     if (existing) return; // Already saved
   }
 
-  await sb.from("messages").insert({
-    conversation_id: params.conversationId,
-    role: params.role,
-    content: params.content ?? null,
-    media_type: params.mediaType ?? null,
-    media_url: params.mediaUrl ?? null,
-    platform_message_id: params.platformMessageId ?? null,
-  });
+  try {
+    await sb.from("messages").insert({
+      conversation_id: params.conversationId,
+      role: params.role,
+      content: params.content ?? null,
+      media_type: params.mediaType ?? null,
+      media_url: params.mediaUrl ?? null,
+      platform_message_id: params.platformMessageId ?? null,
+    });
+  } catch (dbErr) {
+    console.error("[DB-WRITE-FAIL] Failed to save message:", dbErr);
+  }
 }
 
 export async function getConversationHistory(

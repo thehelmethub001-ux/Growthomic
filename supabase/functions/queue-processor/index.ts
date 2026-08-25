@@ -95,12 +95,10 @@ Deno.serve(async (req: Request) => {
     platform,
     platformId,
     customerName,
-    mediaType,
-    mediaUrl,
-    mediaUrls,
     platformMessageId,
     replyToMid,
   } = payload;
+  let { mediaType, mediaUrl, mediaUrls } = payload;
   let messageText = payload.text;
 
   console.log(`Processing: [${platform}] ${platformId} — "${messageText?.substring(0, 50)}"`);
@@ -740,22 +738,27 @@ HUMAN RESPONSE RULES:
           if (existing) existing.qty += 1;
           else cart.push({ productId, variantId, name: vName, unitPrice: price, qty: 1 });
 
-          await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
-          const cartCount = cart.reduce((acc: number, c: any) => acc + c.qty, 0);
-          const msg = `✅ ${vName} কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
+          try {
+            await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
+            const cartCount = cart.reduce((acc: number, c: any) => acc + c.qty, 0);
+            const msg = `✅ ${vName} কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
 
-          if (platform === "whatsapp") {
-            const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
-            await sendWhatsAppInteractiveButtons(platformId, msg, [
-              { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
-              { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
-            ]);
-          } else {
-            const { sendQuickReplies } = await import("../_shared/platform-send.ts");
-            await sendQuickReplies(platform as "messenger" | "instagram", platformId, msg, [
-              { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
-              { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
-            ]);
+            if (platform === "whatsapp") {
+              const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+              await sendWhatsAppInteractiveButtons(platformId, msg, [
+                { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
+                { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
+              ]);
+            } else {
+              const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+              await sendQuickReplies(platform as "messenger" | "instagram", platformId, msg, [
+                { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
+                { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
+              ]);
+            }
+          } catch (dbErr) {
+            console.error("[DB-WRITE-FAIL] Failed to update cart_state:", dbErr);
+            await sendTextMessage(platform as Platform, platformId, "দুঃখিত, সাময়িক সমস্যা হচ্ছে, একটু পর আবার চেষ্টা করুন।");
           }
         }
       }
@@ -765,7 +768,9 @@ HUMAN RESPONSE RULES:
       // ══════════════════════════════════════
       else if (cmd === "CMD_CHECKOUT") {
         if (!conversation.cart_state || conversation.cart_state.length === 0) {
-          await sendTextMessage(platform as Platform, platformId, "আপনার কার্ট খালি।");
+          await sendTextMessage(platform as Platform, platformId, "আপনার কার্ট খালি। নতুন করে আইটেম অ্যাড করুন।");
+          await releaseConversationLock(conversation.id);
+          return jsonResponse({ status: "cart_empty" });
         } else {
           let cartText = "আপনার কার্টের আইটেম:\n";
           for (const item of conversation.cart_state) {
