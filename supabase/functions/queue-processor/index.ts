@@ -416,16 +416,18 @@ HUMAN RESPONSE RULES:
 
         if (platform === "whatsapp") {
           const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
-          await sendWhatsAppInteractiveButtons(platformId, confirmMsg, [
-            { id: confirmPayload, title: confirmTitle },
-            { id: `CMD_VIEW:${productId}`, title: "🔙 অন্য কালার দেখি" }
-          ]);
+          const buttons = [{ id: confirmPayload, title: confirmTitle }];
+          if (variantId !== "null") {
+            buttons.push({ id: `CMD_VIEW:${productId}`, title: "🔙 অন্য কালার দেখি" });
+          }
+          await sendWhatsAppInteractiveButtons(platformId, confirmMsg, buttons);
         } else {
           const { sendQuickReplies } = await import("../_shared/platform-send.ts");
-          await sendQuickReplies(platform as "messenger" | "instagram", platformId, confirmMsg, [
-            { title: confirmTitle, payload: confirmPayload },
-            { title: "🔙 অন্য কালার", payload: `CMD_VIEW:${productId}` }
-          ]);
+          const buttons = [{ title: confirmTitle, payload: confirmPayload }];
+          if (variantId !== "null") {
+            buttons.push({ title: "🔙 অন্য কালার", payload: `CMD_VIEW:${productId}` });
+          }
+          await sendQuickReplies(platform as "messenger" | "instagram", platformId, confirmMsg, buttons);
         }
       };
 
