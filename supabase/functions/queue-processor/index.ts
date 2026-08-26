@@ -486,33 +486,17 @@ HUMAN RESPONSE RULES:
 
           if (inStockVariants.length === 0) {
             if (allVariants.length === 0) {
-              // Single SKU — add directly
-              const cart = conversation.cart_state || [];
-              const existing = cart.find((c: any) => c.productId === productId && c.variantId === null);
-              if (existing) existing.qty += 1;
-              else cart.push({ productId, variantId: null, name: product.name, unitPrice: product.sale_price ?? product.regular_price, qty: 1 });
-              await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
-              const cartCount = cart.reduce((acc: number, c: any) => acc + c.qty, 0);
-              const msg = `✅ ${product.name} কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
-              if (platform === "whatsapp") {
-                const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
-                await sendWhatsAppInteractiveButtons(platformId, msg, [
-                  { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
-                  { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
-                ]);
-              } else {
-                const { sendQuickReplies } = await import("../_shared/platform-send.ts");
-                await sendQuickReplies(platform as "messenger" | "instagram", platformId, msg, [
-                  { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
-                  { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
-                ]);
-              }
+              // Single SKU (no variants) — show confirmation first, do NOT add to cart yet.
+              // The customer must explicitly tap "✅ এটা নেব" before cart_state is touched.
+              await showConfirmation(productId, "null", product);
             } else {
+              // Has variants but all out of stock
               await sendTextMessage(platform as Platform, platformId, `দুঃখিত, ${product.name} বর্তমানে স্টকে নেই।`);
             }
           } else {
             // Collect unique colors
             const colorMap = new Map<string, { price: number; imageUrl: string }>();
+
             let hasRealColorAttribute = false;
             for (const v of inStockVariants) {
               if (v.attributes?.Color) hasRealColorAttribute = true;
@@ -732,10 +716,12 @@ HUMAN RESPONSE RULES:
 
       // ══════════════════════════════════════
       // CMD_CONFIRM_ADD:productId:variantId
+      // variantId may be the string "null" for single-SKU products with no variants
       // ══════════════════════════════════════
-      else if (cmd === "CMD_CONFIRM_ADD" && arg1 && arg2) {
+      else if (cmd === "CMD_CONFIRM_ADD" && arg1) {
         const productId = arg1;
-        const variantId = arg2;
+        // Treat the string "null" (or absent arg2) as no variant
+        const variantId = arg2 && arg2 !== "null" ? arg2 : null;
         const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
         if (!product) {
           await sendTextMessage(platform as Platform, platformId, "দুঃখিত, প্রোডাক্টটি পাওয়া যায়নি।");
@@ -748,7 +734,10 @@ HUMAN RESPONSE RULES:
           const vName = label ? `${product.name} - ${label}` : product.name;
 
           const cart = conversation.cart_state || [];
-          const existing = cart.find((c: any) => c.productId === productId && String(c.variantId) === variantId);
+          const existing = cart.find((c: any) =>
+            c.productId === productId &&
+            (variantId === null ? (c.variantId === null || c.variantId === undefined) : String(c.variantId) === String(variantId))
+          );
           if (existing) existing.qty += 1;
           else cart.push({ productId, variantId, name: vName, unitPrice: price, qty: 1 });
 
