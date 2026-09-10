@@ -83,8 +83,18 @@ function parseMessengerEvent(
       return null;
     }
 
+    let pmid = message?.mid as string | undefined;
+    if (!pmid && postback) {
+      // Derive a strictly stable ID for postbacks since they lack a mid.
+      // Use sender ID + timestamp + payload to be robust against retries.
+      pmid = `pb_${sender.id}_${messaging.timestamp}_${postback.payload}`;
+    }
+    if (!pmid) {
+       pmid = `fallback_${Date.now()}`;
+    }
+
     const payload: QueuePayload = {
-      platformMessageId: (message?.mid || postback?.mid || String(Date.now())) as string,
+      platformMessageId: pmid,
       platform,
       platformId: sender.id,
       timestamp: messaging.timestamp as number,
@@ -322,10 +332,26 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ status: "ignored" });
     }
 
-    // 5. Idempotency check — prevent duplicate processing
+    // 5. Idempotency check — prevent duplicate processing via Postgres
+    const sb = getSupabaseClient();
+    const { error: insertErr } = await sb
+      .from('processed_events')
+      .insert({ event_id: payload.platformMessageId });
+
+    if (insertErr) {
+      if (insertErr.code === '23505' || insertErr.message?.includes('duplicate key')) {
+        console.log(`Duplicate webhook (DB): ${payload.platformMessageId} — skipped`);
+        return jsonResponse({ status: "duplicate" });
+      }
+      console.error("Failed to log processed_event:", insertErr);
+      // We log the error but proceed so we don't completely drop the message if the DB glitches.
+    }
+
+    // Optional: Keep Upstash lock as a secondary fast-path or completely remove it
+    // We'll keep it as a fast in-memory check to reduce DB load
     const lockAcquired = await acquireIdempotencyLock(payload.platformMessageId);
     if (!lockAcquired) {
-      console.log(`Duplicate webhook: ${payload.platformMessageId} — skipped`);
+      console.log(`Duplicate webhook (Upstash): ${payload.platformMessageId} — skipped`);
       return jsonResponse({ status: "duplicate" });
     }
 

@@ -100,6 +100,7 @@ Deno.serve(async (req: Request) => {
   } = payload;
   let { mediaType, mediaUrl, mediaUrls } = payload;
   let messageText = payload.text;
+  let multiImageMatches: Array<{ imageUrl: string; topMatch: any; matches: any[] }> = [];
 
   console.log(`Processing: [${platform}] ${platformId} — "${messageText?.substring(0, 50)}"`);
 
@@ -381,18 +382,237 @@ HUMAN RESPONSE RULES:
       return jsonResponse({ status: "spam_blocked" });
     }
 
+    // ── Shared helper: send a color-selection carousel for a product ──
+    // Must be defined in outer scope so both CMD_ interception AND Step 6 free-text can call it.
+    const sendProductCarousel = async (productId: string, slotId?: string, introText?: string) => {
+      const sbh = getSupabaseClient();
+      const { data: imgProduct } = await sbh.from("products").select("*").eq("id", productId).single();
+      if (!imgProduct) return;
+
+      const inStockVariants = (imgProduct.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
+
+      if (inStockVariants.length > 0) {
+        const colorMap = new Map<string, { price: number; imageUrl: string }>();
+        for (const v of inStockVariants) {
+          const color: string = v.attributes?.Color || "Default";
+          if (!colorMap.has(color)) {
+            const price = v.sale_price || v.regular_price || imgProduct.sale_price || imgProduct.regular_price;
+            const imageUrl = v.image_url || (imgProduct.images && imgProduct.images[0]) || "";
+            colorMap.set(color, { price, imageUrl });
+          }
+        }
+        const uniqueColors = Array.from(colorMap.entries());
+
+        if (uniqueColors.length > 0) {
+          if (platform === "whatsapp") {
+            const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
+            const rows = uniqueColors.map(([colorName, info]) => {
+              let pl = `CMD_SELECT_COLOR:${imgProduct.id}:${colorName}`;
+              if (slotId) pl += `:${slotId}`;
+              return { id: pl, title: colorName.slice(0, 24), description: `৳${info.price}` };
+            });
+            await sendWhatsAppInteractiveList(
+              platformId,
+              introText || `${imgProduct.name}-এর available কালারগুলো:`,
+              "কালার বেছে নিন",
+              [{ title: "Available Colors", rows }]
+            );
+          } else {
+            const { sendCarouselMessage } = await import("../_shared/platform-send.ts");
+            const fallbackImg = (imgProduct.images && imgProduct.images[0]) || "";
+            let colorPriceText = introText || `${imgProduct.name}-এ এই কালারগুলো available:\n\n`;
+            if (!introText) {
+              uniqueColors.forEach(([colorName, info]) => {
+                colorPriceText += `🎨 ${colorName} — ৳${info.price}\n`;
+              });
+              colorPriceText += "\nযেটা নেবেন সেটার কার্ডে ট্যাপ করুন 👇";
+            }
+            await sendTextMessage(platform as Platform, platformId, colorPriceText);
+            const elements = uniqueColors.map(([colorName, info]) => {
+              let pl = `CMD_SELECT_COLOR:${imgProduct.id}:${colorName}`;
+              if (slotId) pl += `:${slotId}`;
+              return {
+                title: colorName.slice(0, 80),
+                subtitle: `৳${info.price}`,
+                imageUrl: info.imageUrl || fallbackImg,
+                buttonTitle: "এই কালারটা নেবো",
+                buttonPayload: pl,
+              };
+            });
+            await sendCarouselMessage(platform as "messenger" | "instagram", platformId, elements);
+          }
+        }
+      } else if (imgProduct.variations && imgProduct.variations.length > 0) {
+        await sendTextMessage(platform as Platform, platformId, `দুঃখিত, ${imgProduct.name} এর সব কালার এই মুহূর্তে stock-এ নেই।`);
+      } else if (!imgProduct.variations || imgProduct.variations.length === 0) {
+        let viewPayload = `CMD_VIEW:${imgProduct.id}`;
+        if (slotId) viewPayload += `:${slotId}`;
+        if (platform === "whatsapp") {
+          const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+          await sendWhatsAppInteractiveButtons(platformId, `${imgProduct.name} — ৳${imgProduct.sale_price || imgProduct.regular_price}\n\nঅর্ডার করতে চাইলে:`, [
+            { id: viewPayload, title: "✅ এটা নেবো" }
+          ]);
+        } else {
+          const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+          await sendQuickReplies(platform as "messenger" | "instagram", platformId,
+            `${imgProduct.name} — ৳${imgProduct.sale_price || imgProduct.regular_price}\n\nঅর্ডার করতে চাইলে:`,
+            [{ title: "✅ এটা নেবো", payload: viewPayload }]
+          );
+        }
+      }
+    };
+
+    // ── 6.05 Step 6: Free-text intercept when active_slot_id is set
+    // When a multi-product batch is in progress and customer sends plain text,
+    // run a narrow Gemini classification instead of the full AI pipeline.
+    if (
+      !messageText?.startsWith("CMD_") &&
+      messageText &&
+      conversation.active_slot_id &&
+      !mediaType
+    ) {
+      console.log(`[SLOT-FREETEXT] active_slot_id=${conversation.active_slot_id}, classifying: "${messageText}"`);
+      try {
+        const activeSlot = (conversation.pending_selections || []).find((s: any) => s.slotId === conversation.active_slot_id);
+        if (activeSlot) {
+          const { data: slotProduct } = await sb.from("products").select("*").eq("id", activeSlot.productId).single();
+          if (slotProduct) {
+            const inStockVariants = (slotProduct.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
+            const availableColors = [...new Set(inStockVariants.map((v: any) => v.attributes?.Color).filter(Boolean))] as string[];
+            const availableSizes = [...new Set(inStockVariants.map((v: any) => v.attributes?.Size).filter(Boolean))] as string[];
+
+            const classificationPrompt = `Given the customer said: "${messageText}", and the available options are:
+Colors: ${availableColors.length > 0 ? availableColors.join(", ") : "none"}
+Sizes: ${availableSizes.length > 0 ? availableSizes.join(", ") : "none"}
+
+Classify EXACTLY as one of:
+- SLOT_ANSWER: customer specified a valid color/size from the available list (even in Bengali or shorthand like "black" → "Black", "L" → "L")
+- BULK_ALL: customer wants all remaining pending products (e.g., "সবগুলো নিবো", "all of them", "সব দাও")
+- UNCLEAR: cannot match to any valid option
+
+Respond with JSON only. Examples:
+{"type":"SLOT_ANSWER","color":"Black","size":"L"}
+{"type":"SLOT_ANSWER","color":"Red","size":null}
+{"type":"BULK_ALL"}
+{"type":"UNCLEAR"}`;
+
+            const { GoogleGenerativeAI } = await import("https://esm.sh/@google/generative-ai@0.21.0");
+            const { getBusinessSettings } = await import("../_shared/supabase-client.ts");
+            const biz = await getBusinessSettings();
+            const geminiApiKey = biz?.gemini_api_key || Deno.env.get("GEMINI_API_KEY");
+            if (geminiApiKey) {
+              const genAI = new GoogleGenerativeAI(geminiApiKey);
+              const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+              const result = await model.generateContent(classificationPrompt);
+              const raw = result.response.text().trim().replace(/```json\n?|```/g, "");
+              let classification: any = { type: "UNCLEAR" };
+              try { classification = JSON.parse(raw); } catch { /* keep UNCLEAR */ }
+
+              console.log(`[SLOT-FREETEXT] Classification:`, classification);
+
+              if (classification.type === "SLOT_ANSWER") {
+                const matchedColor = classification.color || null;
+                const matchedSize = classification.size || null;
+
+                if (matchedColor) {
+                  // Reroute to CMD_SELECT_COLOR handler via messageText rewrite
+                  messageText = `CMD_SELECT_COLOR:${activeSlot.productId}:${matchedColor}:${activeSlot.slotId}`;
+                  console.log(`[SLOT-FREETEXT] Rewriting to CMD_SELECT_COLOR`);
+                  // Fall through to CMD_ interception below
+                } else if (matchedSize) {
+                  // No color needed — reroute to CMD_SELECT_SIZE
+                  messageText = `CMD_SELECT_SIZE:${activeSlot.productId}:Default:${matchedSize}:${activeSlot.slotId}`;
+                  console.log(`[SLOT-FREETEXT] Rewriting to CMD_SELECT_SIZE`);
+                } else {
+                  await sendTextMessage(platform as Platform, platformId, "কোনটা বলছেন বুঝতে পারিনি 🙏 বাটনে ক্লিক করে বেছে নিন, বা নাম/রং বলে আবার লিখুন।");
+                  await sendProductCarousel(activeSlot.productId, activeSlot.slotId);
+                  await releaseConversationLock(conversation.id);
+                  return jsonResponse({ status: "unclear_slot_text" });
+                }
+              } else if (classification.type === "BULK_ALL") {
+                // Auto-confirm all remaining queued slots with their default in-stock variant
+                const pendingSlots = (conversation.pending_selections || []).filter((s: any) => s.status === "queued" || s.status === "active");
+                let bulkAdded = 0;
+                let lastCart: any[] = conversation.cart_state || [];
+                for (const slot of pendingSlots) {
+                  const { data: sp } = await sb.from("products").select("*").eq("id", slot.productId).single();
+                  if (!sp) continue;
+                  const defaultVariant = (sp.variations || []).find((v: any) => (v.stock_quantity ?? 0) > 0) ?? null;
+                  const price = defaultVariant ? (defaultVariant.sale_price || defaultVariant.regular_price) : (sp.sale_price || sp.regular_price);
+                  const vId = defaultVariant ? String(defaultVariant.woo_variation_id || defaultVariant.id) : null;
+                  const colorLabel = defaultVariant?.attributes?.Color || "";
+                  const sizeLabel = defaultVariant?.attributes?.Size || "";
+                  const nameLabel = [colorLabel, sizeLabel].filter(Boolean).join(" / ");
+                  const itemName = nameLabel ? `${sp.name} - ${nameLabel}` : sp.name;
+                  const { data, error } = await sb.rpc("append_to_cart", {
+                    p_conversation_id: conversation.id,
+                    p_item: { productId: slot.productId, variantId: vId, name: itemName, unitPrice: price, qty: 1 }
+                  });
+                  if (!error) { lastCart = data || []; bulkAdded++; }
+                }
+                await sb.from("conversations").update({ pending_selections: [], active_slot_id: null }).eq("id", conversation.id);
+                if (bulkAdded > 0) {
+                  // renderCartSummary not available here (defined inside CMD_ block), so inline it
+                  const lines = lastCart.map((item: any, i: number) => `${i + 1}. ${item.name} — ৳${item.unitPrice} x${item.qty}`);
+                  const total = lastCart.reduce((sum: number, item: any) => sum + (item.unitPrice * (item.qty || 1)), 0);
+                  const summary = `✅ সব ${bulkAdded}টি প্রোডাক্ট কার্টে অ্যাড হয়েছে!\n\n🛒 আপনার কার্ট:\n${lines.join("\n")}\nমোট: ৳${total}\n\nআপনি কি এখনই অর্ডার করবেন?`;
+                  if (platform === "whatsapp") {
+                    const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+                    await sendWhatsAppInteractiveButtons(platformId, summary, [
+                      { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
+                      { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
+                    ]);
+                  } else {
+                    const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+                    await sendQuickReplies(platform as "messenger" | "instagram", platformId, summary, [
+                      { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
+                      { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
+                    ]);
+                  }
+                }
+                await releaseConversationLock(conversation.id);
+                return jsonResponse({ status: "bulk_all_confirmed" });
+              } else {
+                // UNCLEAR
+                await sendTextMessage(platform as Platform, platformId, "কোনটা বলছেন বুঝতে পারিনি 🙏 বাটনে ক্লিক করে বেছে নিন, বা নাম/রং বলে আবার লিখুন।");
+                await sendProductCarousel(activeSlot.productId, activeSlot.slotId);
+                await releaseConversationLock(conversation.id);
+                return jsonResponse({ status: "unclear_slot_text" });
+              }
+            }
+          }
+        }
+      } catch (slotTextErr) {
+        console.error("[SLOT-FREETEXT] Classification failed, falling through to AI:", slotTextErr);
+      }
+    }
+
     // ── 6.1 Deterministic Command Interception (Cart/Guided Flow)
     if (messageText?.startsWith("CMD_")) {
       console.log(`[DETERMINISTIC COMMAND] Intercepted: ${messageText}`);
       // Split carefully: CMD_SELECT_SIZE:productId:colorName:size
       const parts = messageText.split(":");
       const cmd = parts[0];
+      
+      let payloadSlotId = null;
+      if (parts.length > 1 && parts[parts.length - 1].startsWith("slot_")) {
+          payloadSlotId = parts.pop();
+      }
+
       const arg1 = parts[1];
       const arg2 = parts[2];
       const arg3 = parts.slice(3).join(":"); // size can theoretically have colons (e.g. "M:L")
 
+      // (Validation deferred until after helper definitions)
+
+      // ── Helper: send a carousel (or interactive list) for a specific product ──
+      // NOTE: sendProductCarousel is now defined in outer scope (see above).
+      // This inner alias ensures backward compatibility with any code that calls it here.
+      // It points to the same function via closure.
+
+
       // ── Helper: show confirmation prompt for a resolved variantId ──
-      const showConfirmation = async (productId: string, variantId: string, product: any) => {
+      const showConfirmation = async (productId: string, variantId: string, product: any, slotId?: string) => {
         const variant = (product.variations || []).find((v: any) => String(v.id) === variantId || String(v.woo_variation_id) === variantId);
         const price = variant ? (variant.sale_price || variant.regular_price) : (product.sale_price || product.regular_price);
         const colorName = variant?.attributes?.Color || "";
@@ -400,7 +620,8 @@ HUMAN RESPONSE RULES:
         const label = [colorName, sizeName].filter(Boolean).join(" / ");
         const vName = label ? `${product.name} - ${label}` : product.name;
         const confirmMsg = `🛍️ ${vName}\n💰 দাম: ৳${price}\n\nএটা কি নেবেন?`;
-        const confirmPayload = `CMD_CONFIRM_ADD:${productId}:${variantId}`;
+        let confirmPayload = `CMD_CONFIRM_ADD:${productId}:${variantId}`;
+        if (slotId) confirmPayload += `:${slotId}`;
         const confirmTitle = `✅ ${product.name} নেবো`.slice(0, 20);
 
         // ── CRITICAL: Persist confirmed product+variant to DB so subsequent messages
@@ -418,14 +639,18 @@ HUMAN RESPONSE RULES:
           const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
           const buttons = [{ id: confirmPayload, title: confirmTitle }];
           if (variantId !== "null") {
-            buttons.push({ id: `CMD_VIEW:${productId}`, title: "🔙 অন্য কালার দেখি" });
+            let viewPayload = `CMD_VIEW:${productId}`;
+            if (slotId) viewPayload += `:${slotId}`;
+            buttons.push({ id: viewPayload, title: "🔙 অন্য কালার দেখি" });
           }
           await sendWhatsAppInteractiveButtons(platformId, confirmMsg, buttons);
         } else {
           const { sendQuickReplies } = await import("../_shared/platform-send.ts");
           const buttons = [{ title: confirmTitle, payload: confirmPayload }];
           if (variantId !== "null") {
-            buttons.push({ title: "🔙 অন্য কালার", payload: `CMD_VIEW:${productId}` });
+            let viewPayload = `CMD_VIEW:${productId}`;
+            if (slotId) viewPayload += `:${slotId}`;
+            buttons.push({ title: "🔙 অন্য কালার", payload: viewPayload });
           }
           await sendQuickReplies(platform as "messenger" | "instagram", platformId, confirmMsg, buttons);
         }
@@ -433,7 +658,7 @@ HUMAN RESPONSE RULES:
 
 
       // ── Helper: show size selection buttons for a chosen color ──
-      const showSizeButtons = async (productId: string, colorName: string, product: any) => {
+      const showSizeButtons = async (productId: string, colorName: string, product: any, slotId?: string) => {
         const inStock = (product.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
         
         let sizesForColor;
@@ -456,19 +681,190 @@ HUMAN RESPONSE RULES:
           const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
           await sendWhatsAppInteractiveList(platformId, msgText, "সাইজ বেছে নিন", [{
             title: "Available Sizes",
-            rows: uniqueSizes.map(sz => ({
-              id: `CMD_SELECT_SIZE:${productId}:${colorName}:${sz}`,
-              title: sz.slice(0, 24),
-            }))
+            rows: uniqueSizes.map(sz => {
+              let payload = `CMD_SELECT_SIZE:${productId}:${colorName}:${sz}`;
+              if (slotId) payload += `:${slotId}`;
+              return { id: payload, title: sz.slice(0, 24) };
+            })
           }]);
         } else {
           const { sendQuickReplies } = await import("../_shared/platform-send.ts");
           await sendQuickReplies(platform as "messenger" | "instagram", platformId, msgText,
-            uniqueSizes.map(sz => ({
-              title: sz.slice(0, 20),
-              payload: `CMD_SELECT_SIZE:${productId}:${colorName}:${sz}`
-            }))
+            uniqueSizes.map(sz => {
+              let payload = `CMD_SELECT_SIZE:${productId}:${colorName}:${sz}`;
+              if (slotId) payload += `:${slotId}`;
+              return { title: sz.slice(0, 20), payload: payload };
+            })
           );
+        }
+      };
+
+      // ── Strict validation for active_slot_id ──
+      if (conversation.active_slot_id) {
+          if (payloadSlotId !== conversation.active_slot_id) {
+              console.log(`[SLOT MISMATCH] Tap was for ${payloadSlotId}, but active is ${conversation.active_slot_id}. Ignoring and resending active slot.`);
+              const activeSlot = (conversation.pending_selections || []).find((s: any) => s.slotId === conversation.active_slot_id);
+              if (activeSlot) {
+                  await sendProductCarousel(activeSlot.productId, activeSlot.slotId, "স্যার, দয়া করে এই প্রোডাক্টের অপশনটি আগে নির্বাচন করুন 👇");
+              }
+              await releaseConversationLock(conversation.id);
+              return jsonResponse({ status: "stale_tap_ignored" });
+          }
+      }
+
+      // ── Helper: process bulk cart addition and stock checking ──
+      const processBulkAdd = async (payloadString: string) => {
+        const items = payloadString.split(",");
+        let cart = conversation.cart_state || [];
+        let addedCount = 0;
+        const outOfStockItems: { product: any, requestedVariantId: string | null }[] = [];
+        
+        for (const item of items) {
+          const [productId, variantIdRaw] = item.split("|");
+          if (!productId) continue;
+          const variantId = (variantIdRaw && variantIdRaw !== "null") ? variantIdRaw : null;
+          
+          const { data: product } = await sb.from("products").select("*").eq("id", productId).single();
+          if (product) {
+            const hasVariants = product.variations && product.variations.length > 0;
+            if (hasVariants && variantId === null) {
+               // Ambiguous item (no specific color picked, and product has variants)
+               outOfStockItems.push({ product, requestedVariantId: null });
+               continue; 
+            }
+            
+            const variant = hasVariants ? product.variations.find((v: any) => String(v.id) === variantId || String(v.woo_variation_id) === variantId) : null;
+            
+            // Strict deterministic stock check
+            const stockQty = variant ? (variant.stock_quantity ?? 0) : (product.stock_quantity ?? 0);
+            
+            if (stockQty <= 0) {
+                // Out of stock
+                outOfStockItems.push({ product, requestedVariantId: variantId });
+                continue;
+            }
+
+            const price = variant ? (variant.sale_price || variant.regular_price) : (product.sale_price || product.regular_price);
+            const colorName = variant?.attributes?.Color || "";
+            const sizeName = variant?.attributes?.Size || "";
+            const label = [colorName, sizeName].filter(Boolean).join(" / ");
+            const vName = label ? `${product.name} - ${label}` : product.name;
+
+            const newItem = { productId, variantId, name: vName, unitPrice: price, qty: 1 };
+            
+            try {
+              const { data, error } = await sb.rpc('append_to_cart', { 
+                p_conversation_id: conversation.id, 
+                p_item: newItem 
+              });
+              if (error) throw error;
+              cart = data || [];
+              addedCount++;
+            } catch (dbErr) {
+              console.error("[DB-WRITE-FAIL] Failed to append_to_cart in bulk:", dbErr);
+            }
+          }
+        }
+
+        const cartCount = cart.reduce((acc: number, c: any) => acc + c.qty, 0);
+        
+        if (outOfStockItems.length === 0) {
+          if (addedCount === 0) return; // Edge case: no items
+          // All items added successfully
+          let msg = `✅ ${addedCount}টি আইটেম কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
+          if (platform === "whatsapp") {
+            const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+            await sendWhatsAppInteractiveButtons(platformId, msg, [
+              { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
+              { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
+            ]);
+          } else {
+            const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+            await sendQuickReplies(platform as "messenger" | "instagram", platformId, msg, [
+              { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
+              { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
+            ]);
+          }
+        } else {
+           // Some items out of stock or ambiguous. Handle the FIRST one in the list.
+           let msg = "";
+           if (addedCount > 0) {
+             msg += `✅ ${addedCount}টি আইটেম কার্টে অ্যাড হয়েছে।\n\n`;
+           }
+           
+           const issueItem = outOfStockItems[0];
+           const product = issueItem.product;
+           const inStockVariants = (product.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
+           
+           if (inStockVariants.length > 0) {
+              msg += `⚠️ দুঃখিত স্যার, আপনার নির্বাচন করা ${product.name} এর নির্দিষ্ট কালার/সাইজটি এই মুহূর্তে নেই (বা আপনি নির্দিষ্ট করেননি)। তবে এই কালারগুলো আছে:\n\nকোনটি নেবেন নিচের কার্ড থেকে বেছে নিন 👇`;
+              await sendTextMessage(platform as Platform, platformId, msg);
+              
+              const uniqueColors = new Map<string, any>();
+              inStockVariants.forEach((v: any) => {
+                const color = v.attributes?.Color || "Default";
+                if (!uniqueColors.has(color)) {
+                  uniqueColors.set(color, { price: v.sale_price || v.regular_price, imageUrl: (product.images && product.images[0]) || "" });
+                }
+              });
+              const uColors = Array.from(uniqueColors.entries());
+
+              if (platform === "whatsapp") {
+                const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
+                const rows = uColors.map(([colorName, info]) => ({
+                  id: `CMD_SELECT_COLOR:${product.id}:${colorName}`,
+                  title: colorName.slice(0, 24),
+                  description: `৳${info.price}`,
+                }));
+                await sendWhatsAppInteractiveList(
+                  platformId,
+                  `${product.name}-এর কালার বেছে নিন:`,
+                  "কালার দেখুন",
+                  [{ title: "Available Colors", rows }]
+                );
+              } else {
+                const { sendCarouselMessage } = await import("../_shared/platform-send.ts");
+                const elements = uColors.map(([colorName, info]) => ({
+                  title: colorName.slice(0, 80),
+                  subtitle: `৳${info.price}`,
+                  imageUrl: info.imageUrl,
+                  buttonTitle: "এই কালারটা নেবো",
+                  buttonPayload: `CMD_SELECT_COLOR:${product.id}:${colorName}`,
+                }));
+                await sendCarouselMessage(platform as "messenger" | "instagram", platformId, elements);
+              }
+           } else {
+              msg += `⚠️ দুঃখিত স্যার, ${product.name} বর্তমানে সম্পূর্ণ স্টকে নেই।`;
+              await sendTextMessage(platform as Platform, platformId, msg);
+           }
+        }
+      };
+
+      // ── Helper: renderCartSummary — deterministic, never LLM-generated ──
+      const renderCartSummary = (cartState: any[]): string => {
+        if (!cartState || cartState.length === 0) return "আপনার কার্ট খালি আছে।";
+        const lines = cartState.map((item: any, i: number) =>
+          `${i + 1}. ${item.name} — ৳${item.unitPrice} x${item.qty}`
+        );
+        const total = cartState.reduce((sum: number, item: any) => sum + (item.unitPrice * (item.qty || 1)), 0);
+        return `🛒 আপনার কার্ট:\n${lines.join("\n")}\nমোট: ৳${total}`;
+      };
+
+      // ── Helper: sendCartConfirmButtons — shows cart summary + browse/checkout buttons ──
+      const sendCartConfirmButtons = async (cartState: any[]) => {
+        const msg = renderCartSummary(cartState) + "\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?";
+        if (platform === "whatsapp") {
+          const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
+          await sendWhatsAppInteractiveButtons(platformId, msg, [
+            { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
+            { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
+          ]);
+        } else {
+          const { sendQuickReplies } = await import("../_shared/platform-send.ts");
+          await sendQuickReplies(platform as "messenger" | "instagram", platformId, msg, [
+            { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
+            { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
+          ]);
         }
       };
 
@@ -538,42 +934,8 @@ HUMAN RESPONSE RULES:
                 await showConfirmation(productId, variantId, product);
               }
             } else {
-              // Multiple colors → show color CAROUSEL (Messenger/Instagram) or interactive list (WhatsApp)
-              if (platform === "whatsapp") {
-                const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
-                const rows = uniqueColors.map(([colorName, info]) => ({
-                  id: `CMD_SELECT_COLOR:${productId}:${colorName}`,
-                  title: colorName.slice(0, 24),
-                  description: `৳${info.price}`,
-                }));
-                await sendWhatsAppInteractiveList(
-                  platformId,
-                  `${product.name}-এর কালার বেছে নিন:`,
-                  "কালার দেখুন",
-                  [{ title: "Available Colors", rows }]
-                );
-              } else {
-                // Messenger/Instagram: Full carousel with images
-                const { sendCarouselMessage } = await import("../_shared/platform-send.ts");
-                const fallbackImg = (product.images && product.images[0]) || "";
-
-                // Build price list in a text message first (so customer sees all prices)
-                let colorPriceText = `${product.name}-এর কালারগুলো:\n\n`;
-                uniqueColors.forEach(([colorName, info]) => {
-                  colorPriceText += `🎨 ${colorName} — ৳${info.price}\n`;
-                });
-                colorPriceText += "\nকোন কালারটা নেবেন? নিচের কার্ড থেকে সিলেক্ট করুন 👇";
-                await sendTextMessage(platform as Platform, platformId, colorPriceText);
-
-                const elements = uniqueColors.map(([colorName, info]) => ({
-                  title: colorName.slice(0, 80),
-                  subtitle: `৳${info.price}`,
-                  imageUrl: info.imageUrl || fallbackImg,
-                  buttonTitle: "এই কালারটা নেবো",
-                  buttonPayload: `CMD_SELECT_COLOR:${productId}:${colorName}`,
-                }));
-                await sendCarouselMessage(platform as "messenger" | "instagram", platformId, elements);
-              }
+              // Multiple colors → delegate to sendProductCarousel (Step 5: consistent OOS filter + slot support)
+              await sendProductCarousel(productId, payloadSlotId ?? undefined);
             }
           }
         }
@@ -735,37 +1097,66 @@ HUMAN RESPONSE RULES:
           const label = [colorName, sizeName].filter(Boolean).join(" / ");
           const vName = label ? `${product.name} - ${label}` : product.name;
 
-          const cart = conversation.cart_state || [];
-          const existing = cart.find((c: any) =>
-            c.productId === productId &&
-            (variantId === null ? (c.variantId === null || c.variantId === undefined) : String(c.variantId) === String(variantId))
-          );
-          if (existing) existing.qty += 1;
-          else cart.push({ productId, variantId, name: vName, unitPrice: price, qty: 1 });
-
+          const newItem = { productId, variantId, name: vName, unitPrice: price, qty: 1 };
+          
+          let updatedCart = conversation.cart_state || [];
           try {
-            await sb.from("conversations").update({ cart_state: cart }).eq("id", conversation.id);
-            const cartCount = cart.reduce((acc: number, c: any) => acc + c.qty, 0);
-            const msg = `✅ ${vName} কার্টে অ্যাড হয়েছে। (মোট ${cartCount}টি আইটেম)\n\nআপনি কি আরও কিছু দেখবেন নাকি এখনই অর্ডার করবেন?`;
-
-            if (platform === "whatsapp") {
-              const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
-              await sendWhatsAppInteractiveButtons(platformId, msg, [
-                { id: "CMD_BROWSE_MORE", title: "➕ আরও দেখবো" },
-                { id: "CMD_CHECKOUT", title: "✅ এখনই অর্ডার করুন" }
-              ]);
-            } else {
-              const { sendQuickReplies } = await import("../_shared/platform-send.ts");
-              await sendQuickReplies(platform as "messenger" | "instagram", platformId, msg, [
-                { title: "➕ আরও দেখবো", payload: "CMD_BROWSE_MORE" },
-                { title: "✅ এখনই অর্ডার করুন", payload: "CMD_CHECKOUT" }
-              ]);
+            const { data, error } = await sb.rpc('append_to_cart', { 
+              p_conversation_id: conversation.id, 
+              p_item: newItem 
+            });
+            if (error) throw error;
+            updatedCart = data || [];
+            
+            let isMultiProductFlowActive = false;
+            
+            if (conversation.active_slot_id && conversation.pending_selections) {
+               const pending = conversation.pending_selections;
+               const currentIdx = pending.findIndex((s: any) => s.slotId === conversation.active_slot_id);
+               if (currentIdx !== -1) {
+                   pending[currentIdx].status = "completed";
+                   pending[currentIdx].selectedColor = colorName;
+                   pending[currentIdx].selectedSize = sizeName;
+               }
+               
+               const nextSlot = pending.find((s: any) => s.status === "queued");
+               if (nextSlot) {
+                   nextSlot.status = "active";
+                   isMultiProductFlowActive = true;
+                   
+                   await sb.from("conversations").update({
+                       pending_selections: pending,
+                       active_slot_id: nextSlot.slotId,
+                       last_product_id: nextSlot.productId,
+                       last_variant_id: null
+                   }).eq("id", conversation.id);
+                   
+                   let introText = `✅ ${vName} কার্টে অ্যাড হয়েছে!\n\nএবার পরের প্রোডাক্টের অপশন বেছে নিন 👇`;
+                   await sendProductCarousel(nextSlot.productId, nextSlot.slotId, introText);
+               } else {
+                   await sb.from("conversations").update({
+                       pending_selections: [],
+                       active_slot_id: null
+                   }).eq("id", conversation.id);
+               }
+            }
+            
+            if (!isMultiProductFlowActive) {
+              // Step 4: deterministic cart summary — never LLM-generated
+              await sendCartConfirmButtons(updatedCart);
             }
           } catch (dbErr) {
-            console.error("[DB-WRITE-FAIL] Failed to update cart_state:", dbErr);
+            console.error("[DB-WRITE-FAIL] Failed to update cart via RPC:", dbErr);
             await sendTextMessage(platform as Platform, platformId, "দুঃখিত, সাময়িক সমস্যা হচ্ছে, একটু পর আবার চেষ্টা করুন।");
           }
         }
+      }
+
+      // ══════════════════════════════════════
+      // CMD_CONFIRM_ALL_FROM_BATCH:prodId1|varId1,prodId2|varId2
+      // ══════════════════════════════════════
+      else if (cmd === "CMD_CONFIRM_ALL_FROM_BATCH" && arg1) {
+         await processBulkAdd(arg1);
       }
 
       // ══════════════════════════════════════
@@ -777,10 +1168,8 @@ HUMAN RESPONSE RULES:
           await releaseConversationLock(conversation.id);
           return jsonResponse({ status: "cart_empty" });
         } else {
-          let cartText = "আপনার কার্টের আইটেম:\n";
-          for (const item of conversation.cart_state) {
-            cartText += `- ${item.name} (${item.qty}টি) - ৳${item.unitPrice * item.qty}\n`;
-          }
+          // Step 4: renderCartSummary is a pure template — never LLM-generated
+          const cartText = renderCartSummary(conversation.cart_state);
           
           messageText = `[SYSTEM_INSTRUCTION: কাস্টমার কার্টের আইটেমগুলো অর্ডার করতে চান (CMD_CHECKOUT)।\n\n${cartText}\n\nআপনার কাজ:\n১. orderData এর items এরে ফাঁকা রাখুন (আমরা সার্ভার সাইডে হ্যান্ডেল করছি)।\n২. শুধু কাস্টমারের নাম, ফোন নম্বর এবং সম্পূর্ণ ঠিকানা (জেলা, থানা/উপজেলা, গ্রাম/রোড) জানতে চান।\n৩. কাস্টমারকে একটি সুন্দর মেসেজ দিয়ে বলুন যে তারা চাইলে ক্যাশ অন ডেলিভারিতে অর্ডার করতে পারবেন।]`;
           console.log(`[CHECKOUT] Injecting cart state for address collection.`);
@@ -959,7 +1348,7 @@ Reply in Bengali naturally. প্রতিটি product বলার সময
         } else {
           // Multi-Image Batch Flow (> 1 images, cap at 5 max to control API cost/latency)
           const imagesToMatch = batchImageMsgs.slice(0, 5);
-          const multiImageMatches: Array<{ imageUrl: string; topMatch: any; matches: any[] }> = [];
+          multiImageMatches = [];
 
           for (let idx = 0; idx < imagesToMatch.length; idx++) {
             const imgMsg = imagesToMatch[idx];
@@ -1049,8 +1438,10 @@ Reply in Bengali naturally. প্রতিটি product বলার সময
 ${matchLines}
 
 নিয়মাবলী:
-১. প্রতিটি ছবির পণ্যের নাম ও দাম আলাদা আলাদাভাবে উল্লেখ করে সুন্দরভাবে বাংলায় উত্তর দিন।
-২. যে ছবিটি মিলেনি তার জন্য বিনীতভাবে জানান যে ওই নির্দিষ্ট মডেলটি বর্তমানে স্টকে নেই, তবে অন্য ছবিগুলোর নাম ও দাম সরাসরি জানিয়ে দিন।]` + "\n" + (messageText || "");
+১. প্রতিটি ছবির পণ্যের নাম ও দাম নিচে দেওয়া হুবহু ফরম্যাটে (Numbered list) লিস্ট করে সুন্দরভাবে বাংলায় উত্তর দিন:
+"১) Product A - ৳X  ২) Product B - ৳Y"
+২. যে ছবিটি মিলেনি তার জন্য বিনীতভাবে জানান যে ওই নির্দিষ্ট মডেলটি বর্তমানে স্টকে নেই, তবে অন্য ছবিগুলোর নাম ও দাম সরাসরি জানিয়ে দিন।
+৩. লিস্টের শেষে ঠিক এই কথাটি হুবহু যোগ করুন: "স্যার, যেগুলো নিতে চান সেগুলোর নাম্বার বলুন (যেমন: ১, ৩) অথবা সেগুলোর ছবি/স্ক্রিনশট (SS) পাঠান।"]` + "\n" + (messageText || "");
 
           // Set preMatchedProductId to the product from the LAST confident image match in the batch (for backward compatibility)
           const confidentMatches = multiImageMatches.filter(m => m.topMatch);
@@ -1100,6 +1491,78 @@ ${matchLines}
         // Add a system note to force Gemini to drop the old context
         messageText = `[SYSTEM NOTE: The customer just uploaded a NEW photo of a different product. Abort any previous pending order/address collection. Start fresh identifying THIS new product.]\n\n${messageText || ""}`;
       }
+
+    // ── NEW FIX: Deterministic Subset/Bulk-Select Check (Text only) ──
+    let bulkAddPayloadArg: string | undefined = undefined;
+
+    const parseNumbersFromText = (txt: string): number[] => {
+      const regex = /(?:^|\b|\s)(1|2|3|4|5|6|7|8|9|10|১|২|৩|৪|৫|৬|৭|৮|৯|১০|ek|dui|tin|char|pach|soy|shat|at|noy|dosh)(?:ta|ti|টা|টি)?(?:$|\b|\s|,|আর|and|-)/gi;
+      const matches = Array.from(txt.matchAll(regex));
+      const numMap: Record<string, number> = {
+        '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
+        '১': 1, '২': 2, '৩': 3, '৪': 4, '৫': 5, '৬': 6, '৭': 7, '৮': 8, '৯': 9, '১০': 10,
+        'ek': 1, 'dui': 2, 'tin': 3, 'char': 4, 'pach': 5, 'soy': 6, 'shat': 7, 'at': 8, 'noy': 9, 'dosh': 10
+      };
+      const nums = new Set<number>();
+      for (const m of matches) {
+         const val = numMap[m[1].toLowerCase()];
+         if (val) nums.add(val);
+      }
+      return Array.from(nums);
+    };
+
+    if (messageText && !messageText.startsWith("CMD_") && !isImageMessage) {
+      const parsedNums = parseNumbersFromText(messageText);
+      const isAllMention = /(eigula|e gulo|sob|shob|shobgulo|shobgula|shbgula|ei sob|ei shob|these|all|সব|সবগুলো|সবগুলা)/i.test(messageText);
+
+      // Condition B: No images this turn, but previous turn was a carousel
+      let lastAiMsg: any = null;
+      for (let i = history.length - 1; i >= 0; i--) {
+        if (history[i].role === "ai") {
+          lastAiMsg = history[i];
+          break;
+        }
+      }
+
+      if (lastAiMsg && lastAiMsg.content) {
+        const orderedMatch = lastAiMsg.content.match(/\[MULTI_PRODUCT_ORDERED:(\d+):(CMD_CONFIRM_BATCH_ORDERED:[^\]]+)\]/);
+        
+        if (orderedMatch) {
+          const orderedCount = parseInt(orderedMatch[1]);
+          const orderedPayloadArg = orderedMatch[2].replace("CMD_CONFIRM_BATCH_ORDERED:", "").split(",");
+
+          // Case 1: "2 ta nibo" (matches total count) OR "shob nibo"
+          if (isAllMention || (parsedNums.length === 1 && parsedNums[0] === orderedCount && /ta|ti|টা|টি/i.test(messageText))) {
+             bulkAddPayloadArg = orderedPayloadArg.filter(item => item !== "null|null").join(",");
+          } 
+          // Case 2: Specific subset (e.g., "1, 3" or "2")
+          else if (parsedNums.length > 0) {
+             const selectedItems = [];
+             let valid = true;
+             for (const num of parsedNums) {
+                if (num >= 1 && num <= orderedCount) {
+                   const item = orderedPayloadArg[num - 1];
+                   if (item !== "null|null") {
+                      selectedItems.push(item);
+                   }
+                } else {
+                   valid = false; // Out of bounds
+                }
+             }
+             if (valid && selectedItems.length > 0) {
+                bulkAddPayloadArg = selectedItems.join(",");
+             }
+          }
+        }
+      }
+    }
+
+    if (bulkAddPayloadArg) {
+        console.log(`[DETERMINISTIC BULK ADD] Text matched carousel count. Bypassing AI.`);
+        await processBulkAdd(bulkAddPayloadArg);
+        await releaseConversationLock(conversation.id);
+        return jsonResponse({ status: "bulk_added" });
+    }
 
     // ── Step 7: AI Engine
     let aiResult;
@@ -1208,6 +1671,7 @@ ${matchLines}
     let recentAiImageCount = 0;
     let recentAiSentMultipleImagesArray = false;
     let foundAnyAiMessage = false;
+    let recentAiSentMultiProductCarousel = false;
 
     // Walk backwards from the end of history to find the most recent AI turn
     for (let i = history.length - 1; i >= 0; i--) {
@@ -1216,6 +1680,7 @@ ${matchLines}
         foundAnyAiMessage = true;
         if (msg.media_type === "image") recentAiImageCount++;
         if (((msg as any).productImageUrls?.length ?? 0) > 1) recentAiSentMultipleImagesArray = true;
+        if (msg.content?.includes("[MULTI_PRODUCT_CAROUSEL]")) recentAiSentMultiProductCarousel = true;
       } else if (msg.role === "customer") {
         if (foundAnyAiMessage) {
           // We found the most recent AI turn and have now hit the preceding customer message
@@ -1225,7 +1690,7 @@ ${matchLines}
     }
 
     // We consider "multiple images sent" ONLY if the most recent AI turn sent > 1 distinct image message or an array of images.
-    const recentAiSentMultipleImages = recentAiImageCount > 1 || recentAiSentMultipleImagesArray;
+    const recentAiSentMultipleImages = recentAiImageCount > 1 || recentAiSentMultipleImagesArray || recentAiSentMultiProductCarousel;
 
     // Is the user trying to refer to a specific product? (Order intent, inquiry about a specific item via reply, or AI guessed an ID)
     const isSelectingProduct = aiResult.intent === "order_intent" || replyToMid || aiResult.detectedProductId;
@@ -1242,8 +1707,14 @@ ${matchLines}
       } else {
         // The user wants to buy/inquire about one of the products but didn't provide a fresh screenshot.
         // E.g. "eita nibo", "eitar price koto", or replying directly to an image.
-        console.log("SS gate: multiple images sent previously, user selecting without fresh image — UNCONDITIONALLY asking for SS");
-        aiResult.reply = "আপনি যেটি নিবেন, সেটির একটি ছবি বা স্ক্রিনশট (SS) আমাদের সরাসরি পাঠিয়ে দিন — শুধু 'এইটা নিব' লিখলে বা কোনো একটা ছবিতে Reply করলে আমরা নিশ্চিত হতে পারব না, ভুল প্রোডাক্ট কনফার্ম হয়ে যেতে পারে।";
+        console.log("SS gate: multiple images sent previously, user selecting without fresh image — UNCONDITIONALLY asking for SS/tap");
+        
+        if (recentAiSentMultiProductCarousel) {
+          aiResult.reply = "আপনি যেটা নিবেন সেটা উপরের কার্ড থেকে ট্যাপ করে বেছে নিন 👆";
+        } else {
+          aiResult.reply = "আপনি যেটি নিবেন, সেটির একটি ছবি বা স্ক্রিনশট (SS) আমাদের সরাসরি পাঠিয়ে দিন — শুধু 'এইটা নিব' লিখলে বা কোনো একটা ছবিতে Reply করলে আমরা নিশ্চিত হতে পারব না, ভুল প্রোডাক্ট কনফার্ম হয়ে যেতে পারে।";
+        }
+        
         aiResult.intent = "product_inquiry";
         aiResult.orderData = null;
         aiResult.sendProductImage = false;
@@ -2073,7 +2544,107 @@ ${matchLines}
     // This covers the "out of stock color" case: AI says color X is unavailable,
     // carousel shows all in-stock colors of that same product.
     const isImageMessage = mediaType === "image" || (mediaUrls && mediaUrls.length > 0);
+    
+    // ── NEW FIX: Distinct matching logic for multiple distinct products ──
+    const rawDistinctMatchedProducts = new Map<string, any[]>();
+    if (multiImageMatches.length > 1) {
+      for (const m of multiImageMatches) {
+        const candidate = m.topMatch || (m.matches && m.matches.length > 0 ? { ...m.matches[0], _isAmbiguous: true } : null);
+        if (candidate) {
+          const pid = candidate.product_id;
+          if (!rawDistinctMatchedProducts.has(pid)) {
+             rawDistinctMatchedProducts.set(pid, []);
+          }
+          rawDistinctMatchedProducts.get(pid)!.push(candidate);
+        }
+      }
+    }
+
+    const distinctMatchedProducts = new Map<string, any>();
+    
+    if (rawDistinctMatchedProducts.size > 1) {
+      // Fetch full product data for the grouped products
+      const sb = getSupabaseClient();
+      const productIds = Array.from(rawDistinctMatchedProducts.keys());
+      const { data: productsData } = await sb.from("products").select("id, name, variations, images").in("id", productIds);
+      const productsMap = new Map((productsData || []).map((p: any) => [p.id, p]));
+
+      for (const [pid, candidates] of rawDistinctMatchedProducts.entries()) {
+        const fullProduct = productsMap.get(pid);
+        if (!fullProduct) {
+          distinctMatchedProducts.set(pid, candidates[0]);
+          continue;
+        }
+        
+        // 1. Prefer IN-STOCK candidate from the detected images
+        const inStockCandidates = candidates.filter(c => (c.stock_quantity ?? 0) > 0);
+        if (inStockCandidates.length > 0) {
+          distinctMatchedProducts.set(pid, inStockCandidates[0]);
+          continue;
+        }
+
+        // 2. All detected candidates are OUT OF STOCK.
+        // Let's check general stock for this product.
+        const allVariants = fullProduct.variations || [];
+        const inStockVariants = allVariants.filter((v: any) => (v.stock_quantity ?? 0) > 0);
+        
+        const representative = candidates[0]; // The OOS one we fall back to
+        representative._isCompletelyOOS = true;
+        
+        if (inStockVariants.length > 0) {
+           // Product HAS other in-stock colors in general stock.
+           // Gather up to 2 other in-stock colors to mention
+           const otherColorNames = [...new Set(inStockVariants.map((v: any) => v.attributes?.Color).filter(Boolean))].slice(0, 2);
+           if (otherColorNames.length > 0) {
+             const colorNameList = otherColorNames.join(", ");
+             representative._oosSubtitleExtra = `, তবে ${colorNameList} পাওয়া যাচ্ছে`;
+           }
+        }
+        distinctMatchedProducts.set(pid, representative);
+      }
+    }
+
     if (
+      isImageMessage &&
+      distinctMatchedProducts.size > 1 &&
+      aiResult.intent !== "order_intent" &&
+      aiResult.intent !== "off_topic" &&
+      aiResult.intent !== "spam"
+    ) {
+      try {
+        console.log(`[IMG-CAROUSEL] Multi-image batch flow: setting up slots for ${distinctMatchedProducts.size} distinct products.`);
+        
+        const actionableProducts = Array.from(distinctMatchedProducts.values()).filter(p => !p._isCompletelyOOS);
+        
+        if (actionableProducts.length > 0) {
+          const timestamp = Date.now();
+          const pendingSelections = actionableProducts.map((p, idx) => ({
+            slotId: `slot_${timestamp}_${idx}`,
+            productId: p.product_id,
+            status: idx === 0 ? "active" : "queued",
+            selectedColor: null,
+            selectedSize: null
+          }));
+          
+          const activeSlotId = pendingSelections[0].slotId;
+          const activeProductId = pendingSelections[0].productId;
+          
+          const sb = getSupabaseClient();
+          await sb.from("conversations").update({
+            pending_selections: pendingSelections,
+            active_slot_id: activeSlotId,
+            last_product_id: activeProductId,
+            last_variant_id: null
+          }).eq("id", conversation.id);
+          
+          let introText = `স্যার, আপনি ${actionableProducts.length}টি আলাদা প্রোডাক্টের ছবি পাঠিয়েছেন। চলুন একে একে দেখা যাক।\n\n১ম প্রোডাক্টের available কালারগুলো:`;
+          await sendProductCarousel(activeProductId, activeSlotId, introText);
+        }
+      } catch (multiImgErr) {
+        console.error("Multi-image carousel failed:", multiImgErr);
+      }
+    }
+    else if (
       isImageMessage &&
       aiResult.detectedProductId &&
       aiResult.intent !== "order_intent" &&
@@ -2081,83 +2652,7 @@ ${matchLines}
       aiResult.intent !== "spam"
     ) {
       try {
-        const { data: imgProduct } = await sb.from("products").select("*").eq("id", aiResult.detectedProductId).single();
-        if (imgProduct) {
-          const inStockVariants = (imgProduct.variations || []).filter((v: any) => (v.stock_quantity ?? 0) > 0);
-
-          if (inStockVariants.length > 0) {
-            // Collect unique colors
-            const colorMap = new Map<string, { price: number; imageUrl: string }>();
-            for (const v of inStockVariants) {
-              const color: string = v.attributes?.Color || "Default";
-              if (!colorMap.has(color)) {
-                const price = v.sale_price || v.regular_price || imgProduct.sale_price || imgProduct.regular_price;
-                const imageUrl = v.image_url || (imgProduct.images && imgProduct.images[0]) || "";
-                colorMap.set(color, { price, imageUrl });
-              }
-            }
-            const uniqueColors = Array.from(colorMap.entries());
-
-            if (uniqueColors.length > 0) {
-              console.log(`[IMG-CAROUSEL] Showing ${uniqueColors.length} color(s) for product ${imgProduct.name} after image detection`);
-
-              if (platform === "whatsapp") {
-                const { sendWhatsAppInteractiveList } = await import("../_shared/platform-send.ts");
-                const rows = uniqueColors.map(([colorName, info]) => ({
-                  id: `CMD_SELECT_COLOR:${imgProduct.id}:${colorName}`,
-                  title: colorName.slice(0, 24),
-                  description: `৳${info.price}`,
-                }));
-                await sendWhatsAppInteractiveList(
-                  platformId,
-                  `${imgProduct.name}-এর available কালারগুলো:`,
-                  "কালার বেছে নিন",
-                  [{ title: "Available Colors", rows }]
-                );
-              } else {
-                // Messenger/Instagram: show carousel with color images + buttons
-                const { sendCarouselMessage } = await import("../_shared/platform-send.ts");
-                const fallbackImg = (imgProduct.images && imgProduct.images[0]) || "";
-
-                // Text header showing all prices
-                let colorPriceText = `${imgProduct.name}-এ এই কালারগুলো available:\n\n`;
-                uniqueColors.forEach(([colorName, info]) => {
-                  colorPriceText += `🎨 ${colorName} — ৳${info.price}\n`;
-                });
-                colorPriceText += "\nযেটা নেবেন সেটার কার্ডে ট্যাপ করুন 👇";
-                await sendTextMessage(platform as Platform, platformId, colorPriceText);
-
-                const elements = uniqueColors.map(([colorName, info]) => ({
-                  title: colorName.slice(0, 80),
-                  subtitle: `৳${info.price}`,
-                  imageUrl: info.imageUrl || fallbackImg,
-                  buttonTitle: "এই কালারটা নেবো",
-                  buttonPayload: `CMD_SELECT_COLOR:${imgProduct.id}:${colorName}`,
-                }));
-                await sendCarouselMessage(platform as "messenger" | "instagram", platformId, elements);
-              }
-            }
-          } else if (imgProduct.variations && imgProduct.variations.length > 0) {
-            // Product has variants but ALL are out of stock
-            await sendTextMessage(platform as Platform, platformId,
-              `দুঃখিত, ${imgProduct.name} এর সব কালার এই মুহূর্তে stock-এ নেই।`
-            );
-          } else if (!imgProduct.variations || imgProduct.variations.length === 0) {
-            // Single SKU product, no color selection needed — show CMD_VIEW button
-            if (platform === "whatsapp") {
-              const { sendWhatsAppInteractiveButtons } = await import("../_shared/platform-send.ts");
-              await sendWhatsAppInteractiveButtons(platformId, `${imgProduct.name} — ৳${imgProduct.sale_price || imgProduct.regular_price}\n\nঅর্ডার করতে চাইলে:`, [
-                { id: `CMD_VIEW:${imgProduct.id}`, title: "✅ এটা নেবো" }
-              ]);
-            } else {
-              const { sendQuickReplies } = await import("../_shared/platform-send.ts");
-              await sendQuickReplies(platform as "messenger" | "instagram", platformId,
-                `${imgProduct.name} — ৳${imgProduct.sale_price || imgProduct.regular_price}\n\nঅর্ডার করতে চাইলে:`,
-                [{ title: "✅ এটা নেবো", payload: `CMD_VIEW:${imgProduct.id}` }]
-              );
-            }
-          }
-        }
+        await sendProductCarousel(aiResult.detectedProductId);
       } catch (imgCarouselErr) {
         console.error("Image-triggered carousel failed (non-critical):", imgCarouselErr);
       }
