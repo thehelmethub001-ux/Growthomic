@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { C, inputStyle, skeletonStyle, getCustomerAvatar } from "@/lib/styles";
+import { inputStyle, skeletonStyle, getCustomerAvatar } from "@/lib/styles";
 import { MessageSquare, Pause, Play, Search, User, Clock, Star } from "lucide-react";
 import { format } from "date-fns";
 
@@ -181,11 +181,11 @@ export default function InboxPage() {
   const initials = sel ? (sel.customers.name||"?").split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2) : "";
 
   return (
-    <div style={{ display:"flex", height:"calc(100vh - 52px)", overflow:"hidden" }}>
+    <div style={{ display:"flex", height:"calc(100vh - 52px)", overflow:"hidden", background:"var(--bg-base)" }}>
 
       {/* ── Left: Conversation List ─────── */}
-      <div style={{ width:280, minWidth:280, borderRight:`1px solid ${C.borderWhite}`, display:"flex", flexDirection:"column", background:"var(--bg-card)", flexShrink:0 }}>
-        <div style={{ padding:"16px 12px 12px", borderBottom:`1px solid ${C.borderWhite}` }}>
+      <div style={{ width:300, minWidth:300, borderRight:"1px solid var(--border)", display:"flex", flexDirection:"column", background:"var(--bg-void)", flexShrink:0 }}>
+        <div style={{ padding:"16px 12px 12px", borderBottom:"1px solid var(--border)" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
             <div style={{ fontSize:15, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.02em" }}>Conversations</div>
             <button 
@@ -198,10 +198,10 @@ export default function InboxPage() {
                   console.error(e);
                 }
               }}
-              style={{ fontSize:10, padding:"3px 7px", borderRadius:5, background:"var(--bg-elevated)", border:"1px solid var(--border-white)", color:"var(--primary-light)", cursor:"pointer", fontWeight:600 }}
+              style={{ fontSize:10, padding:"3px 7px", borderRadius:5, background:"var(--bg-elevated)", border:"1px solid var(--border)", color:"var(--brand-light)", cursor:"pointer", fontWeight:500, fontFamily:"inherit" }}
               title="Sync Facebook/Instagram profile names & photos"
             >
-              🔄 Sync Names
+              Sync Names
             </button>
           </div>
           <div style={{ position:"relative", marginBottom:8 }}>
@@ -276,7 +276,7 @@ export default function InboxPage() {
       {/* ── Center: Chat ─────────────────── */}
       <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, background:"var(--bg-base)" }}>
         {sel ? (<>
-          <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.borderWhite}`, display:"flex", justifyContent:"space-between", alignItems:"center", background:"var(--bg-card)", flexShrink:0 }}>
+          <div style={{ padding:"12px 18px", borderBottom:"1px solid var(--border)", display:"flex", justifyContent:"space-between", alignItems:"center", background:"var(--bg-void)", flexShrink:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
               {sel.customers.profile_pic ? (
                 <img src={sel.customers.profile_pic} alt="" style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover", flexShrink:0 }} />
@@ -294,10 +294,10 @@ export default function InboxPage() {
               </div>
             </div>
             <button onClick={()=>toggleAI(sel.id,sel.is_locked_for_ai)} style={{
-              display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:9, fontSize:12, fontWeight:600,
-              background: sel.is_locked_for_ai?"var(--bg-elevated)":"hsla(262,83%,58%,0.15)",
-              color: sel.is_locked_for_ai?"var(--text-secondary)":"var(--primary-light)",
-              border:`1px solid ${sel.is_locked_for_ai?C.border:"var(--border-strong)"}`,
+              display:"flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:"var(--r-md)", fontSize:12, fontWeight:500,
+              background: sel.is_locked_for_ai?"var(--bg-elevated)":"var(--brand-subtle)",
+              color: sel.is_locked_for_ai?"var(--text-secondary)":"var(--brand-light)",
+              border:`1px solid ${sel.is_locked_for_ai?"var(--border)":"var(--brand-border)"}`,
               cursor:"pointer", fontFamily:"inherit",
             }}>
               {sel.is_locked_for_ai ? <><Play size={12}/> Resume AI</> : <><Pause size={12}/> Pause AI</>}
@@ -305,7 +305,7 @@ export default function InboxPage() {
           </div>
 
           <div ref={chatContainerRef} style={{ flex:1, overflowY:"auto", padding:"20px 24px", display:"flex", flexDirection:"column", gap:10 }}>
-            {msgs.length === 0 && <div style={{ textAlign:"center", color:C.textMuted, marginTop:20 }}>No messages yet.</div>}
+            {msgs.length === 0 && <div style={{ textAlign:"center", color:"var(--text-muted)", marginTop:20 }}>No messages yet.</div>}
             {msgs.filter(m => {
               const clean = m.content ? m.content.replace(/\[SYSTEM_INSTRUCTION:[\s\S]*?\]/g, "").replace(/\[PRODUCT_CONTEXT:[\s\S]*?\]/g, "").trim() : "";
               return clean.length > 0 || !!m.media_url;
@@ -314,18 +314,17 @@ export default function InboxPage() {
               return (
                 <div key={m.id} style={{ display:"flex", justifyContent: m.role==="customer"?"flex-start":"flex-end", marginBottom:12 }}>
                   <div style={{
-                    maxWidth:"72%", padding:"10px 14px", borderRadius:14, fontSize:13, lineHeight:"1.45",
-                    background: m.role==="customer" ? "var(--bg-elevated)" : m.role==="human_agent" ? "linear-gradient(135deg, #10b981, #059669)" : "linear-gradient(135deg, hsl(262,83%,58%), hsl(271,91%,65%))",
-                    color: "#fff",
-                    border: m.role==="customer" ? `1px solid ${C.borderWhite}` : "none",
-                    boxShadow: m.role==="customer" ? "none" : "0 4px 14px rgba(124,92,252,0.25)",
+                    maxWidth:"72%", padding:"10px 14px", borderRadius:"var(--r-lg)", fontSize:13, lineHeight:"1.5",
+                    background: m.role==="customer" ? "var(--bg-elevated)" : m.role==="human_agent" ? "rgba(34,197,94,0.1)" : "var(--brand-subtle)",
+                    color: m.role==="customer" ? "var(--text-primary)" : m.role==="human_agent" ? "var(--green-light)" : "var(--text-primary)",
+                    border: m.role==="customer" ? "1px solid var(--border)" : m.role==="human_agent" ? "1px solid rgba(34,197,94,0.18)" : "1px solid var(--brand-border)",
                   }}>
                     <div style={{ fontSize:10, opacity:0.5, marginBottom:4, display:"flex", justifyContent:"space-between", gap:10 }}>
-                      <b>{m.role==="ai"?"🤖 AI":m.role==="human_agent"?"👨‍💻 Agent":"Customer"}</b>
+                      <b>{m.role==="ai"?"AI":m.role==="human_agent"?"Agent":"Customer"}</b>
                       <span>{format(new Date(m.created_at),"h:mm a")}</span>
                     </div>
                     {m.media_url && m.media_type === "image" && (
-                      <img src={m.media_url} alt="attachment" onLoad={scrollToBottom} style={{ maxWidth: "100%", borderRadius: 8, marginBottom: 8, border: `1px solid ${C.borderWhite}` }} />
+                      <img src={m.media_url} alt="attachment" onLoad={scrollToBottom} style={{ maxWidth: "100%", borderRadius: 8, marginBottom: 8, border: "1px solid var(--border)" }} />
                     )}
                     {cleanText && <p style={{ margin:0, whiteSpace:"pre-wrap" }}>{cleanText}</p>}
                   </div>
@@ -335,7 +334,7 @@ export default function InboxPage() {
             <div ref={msgsEndRef} />
           </div>
 
-          <div style={{ padding:"10px 18px", borderTop:`1px solid ${C.borderWhite}`, background:"var(--bg-card)", flexShrink:0 }}>
+          <div style={{ padding:"10px 18px", borderTop:"1px solid var(--border)", background:"var(--bg-void)", flexShrink:0 }}>
             <form onSubmit={async (e) => {
               e.preventDefault();
               const form = e.target as HTMLFormElement;
@@ -371,7 +370,7 @@ export default function InboxPage() {
                 placeholder="Type a message to reply as a Human Agent..." 
                 autoComplete="off"
               />
-              <button type="submit" style={{ padding: "0 20px", borderRadius: 8, background: "var(--primary)", color: "#fff", border: "none", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              <button type="submit" style={{ padding: "0 18px", borderRadius: "var(--r-md)", background: "var(--brand)", color: "#fff", border: "none", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>
                 Send
               </button>
             </form>
@@ -386,16 +385,17 @@ export default function InboxPage() {
 
       {/* ── Right: Customer CRM Panel ─────── */}
       {sel && (
-        <div style={{ width:260, minWidth:260, borderLeft:`1px solid ${C.borderWhite}`, background:"var(--bg-card)", display:"flex", flexDirection:"column", gap:0, overflowY:"auto", flexShrink:0 }}>
+        <div style={{ width:260, minWidth:260, borderLeft:"1px solid var(--border)", background:"var(--bg-void)", display:"flex", flexDirection:"column", gap:0, overflowY:"auto", flexShrink:0 }}>
           {/* Avatar */}
-          <div style={{ padding:"22px 20px 16px", borderBottom:`1px solid ${C.borderWhite}`, textAlign:"center" }}>
+          <div style={{ padding:"22px 20px 16px", borderBottom:"1px solid var(--border)", textAlign:"center" }}>
+            {(() => { const av = getCustomerAvatar(sel.customers.id, sel.customers.name); return (
             <div style={{
-              width:60, height:60, borderRadius:"50%", margin:"0 auto 12px",
-              background:"linear-gradient(135deg,var(--primary),var(--accent))",
+              width:52, height:52, borderRadius:"50%", margin:"0 auto 12px",
+              background:av.gradient,
               display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize:20, fontWeight:700, color:"#fff",
-              boxShadow:"0 0 20px var(--primary-glow)",
+              fontSize:18, fontWeight:600, color:"#fff",
             }}>{initials}</div>
+            ); })()}
             <div style={{ fontSize:14, fontWeight:700, color:"var(--text-primary)", marginBottom:6 }}>{sel.customers.name||sel.customers.platform_id}</div>
             <div style={{ display:"flex", justifyContent:"center", gap:6 }}>
               {sel.customers.is_vip && (
@@ -403,20 +403,20 @@ export default function InboxPage() {
                   ⭐ VIP
                 </span>
               )}
-              <span style={{ padding:"2px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:"hsla(262,83%,58%,0.1)", color:"var(--primary-light)", border:"1px solid hsla(262,83%,58%,0.2)", textTransform:"capitalize" }}>
+              <span style={{ padding:"2px 10px", borderRadius:100, fontSize:11, fontWeight:500, background:"var(--brand-subtle)", color:"var(--brand-light)", border:"1px solid var(--brand-border)", textTransform:"capitalize" }}>
                 {sel.platform}
               </span>
             </div>
           </div>
 
           {/* CRM Details */}
-          <div style={{ padding:"16px 20px", borderBottom:`1px solid ${C.borderWhite}` }}>
+          <div style={{ padding:"16px 20px", borderBottom:"1px solid var(--border)" }}>
             <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12 }}>
               <User size={12} color="var(--text-muted)"/>
               <span style={{ fontSize:11, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.07em" }}>CRM Details</span>
             </div>
             {[["Platform ID",sel.customers.platform_id],["Spam Score",String(sel.customers.spam_score??0)]].map(([k,v]) => (
-              <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${C.borderWhite}` }}>
+              <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid var(--border)" }}>
                 <span style={{ fontSize:12, color:"var(--text-muted)" }}>{k}</span>
                 <span style={{ fontSize:12, fontWeight:600, color:"var(--text-primary)" }}>{v}</span>
               </div>
@@ -441,7 +441,7 @@ export default function InboxPage() {
             {/* VIP Toggle */}
             <button onClick={() => toggleVIP(sel.customers.id, sel.customers.is_vip||false)} style={{
               display:"flex", alignItems:"center", gap:8, width:"100%", marginTop:12,
-              padding:"9px 12px", borderRadius:10, border:`1px solid ${C.borderWhite}`,
+              padding:"9px 12px", borderRadius:"var(--r-md)", border:"1px solid var(--border)",
               background:"var(--bg-elevated)", cursor:"pointer", fontFamily:"inherit",
             }}>
               <Star size={13} color="hsl(38,90%,65%)" style={{ fill:sel.customers.is_vip?"hsl(38,90%,65%)":"none" }}/>

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, btnSecondary, skeletonStyle, thStyle, tdStyle } from "@/lib/styles";
+
 import { CheckCircle2, MessageCircle, RefreshCcw, Search, ShoppingCart } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -258,13 +259,11 @@ export default function OrdersPage() {
               style={{
                 ...btnPrimary,
                 padding: "8px 16px",
-                background: "#10b981",
+                background: "var(--green)",
                 fontSize: 12,
                 display: "flex",
                 alignItems: "center",
                 gap: 6,
-                borderRadius: 12,
-                boxShadow: "0 4px 12px rgba(16,185,129,0.3)"
               }}
             >
               <RefreshCcw size={13} style={{ animation: syncingSelected ? "spin 1s linear infinite" : "none" }} />
@@ -273,7 +272,7 @@ export default function OrdersPage() {
           )}
 
           {/* Toggle Switch */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, padding: "8px 12px", borderRadius: 12, border: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg-card)", padding: "7px 12px", borderRadius: "var(--r-md)", border: "1px solid var(--border)" }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: syncEnabled ? C.brandLight : C.textMuted }}>
               {syncEnabled ? "Website Sync: ON" : "Website Sync: OFF"}
             </div>

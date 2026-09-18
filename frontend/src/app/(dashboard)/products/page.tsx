@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, skeletonStyle, thStyle, tdStyle } from "@/lib/styles";
-import { Plus, Search, Package, Edit2, Trash2, Tag, ToggleLeft, ToggleRight, X, Save, Image as ImageIcon, Lock } from "lucide-react";
+import { pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, skeletonStyle, thStyle, tdStyle } from "@/lib/styles";
+import { Plus, Search, Package, Edit2, Trash2, Tag, ToggleLeft, ToggleRight, X, Save, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 type QnAPair = { question: string; answer: string };
 type OrderField = { fieldName: string; question: string };
@@ -116,12 +117,10 @@ export default function ProductsPage() {
     };
 
     if (formData.id) {
-      // Update
       const { error } = await sb.from("products").update(payload).eq("id", formData.id);
       if (error) { toast.error("Error updating product"); console.error(error); }
       else { toast.success("Product updated"); load(); setIsModalOpen(false); }
     } else {
-      // Insert
       const { error } = await sb.from("products").insert([payload]);
       if (error) { toast.error("Error adding product"); console.error(error); }
       else { toast.success("Product added"); load(); setIsModalOpen(false); }
@@ -158,11 +157,11 @@ export default function ProductsPage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ position: "relative" }}>
-            <Search size={13} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: C.textMuted, pointerEvents: "none" }} />
+            <Search size={13} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
             <input style={{ ...inputStyle, paddingLeft: 32, width: 220, fontSize: 12 }} placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          <button style={{ ...btnPrimary, background: "rgba(139,92,246,0.1)", color: C.brandLight, border: `1px solid rgba(139,92,246,0.3)` }} onClick={handleSync} disabled={syncing}>
-            {syncing ? "Syncing..." : "🔄 Sync WooCommerce"}
+          <button style={{ ...btnPrimary, background: "var(--bg-elevated)", color: "var(--text-primary)", border: "1px solid var(--border)", boxShadow: "none" }} onClick={handleSync} disabled={syncing}>
+            {syncing ? "Syncing..." : "Sync WooCommerce"}
           </button>
           <button style={btnPrimary} onClick={openAddModal}>
             <Plus size={15} /> Add Product
@@ -174,18 +173,18 @@ export default function ProductsPage() {
       {!loading && products.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 24 }}>
           {[
-            { label: "Total Products", value: products.length, color: "var(--primary-light)", bg: "hsla(262,83%,58%,0.1)" },
-            { label: "Active", value: activeCount, color: "var(--green-light)", bg: "hsla(152,69%,40%,0.1)" },
-            { label: "Low Stock (≤5)", value: lowStock, color: "hsl(38,90%,65%)", bg: "hsla(38,90%,55%,0.1)" },
-            { label: "Out of Stock", value: outOfStock, color: "hsl(350,85%,70%)", bg: "hsla(350,85%,60%,0.1)" },
+            { label: "Total Products", value: products.length, color: "var(--text-primary)" },
+            { label: "Active", value: activeCount, color: "var(--green-light)" },
+            { label: "Low Stock (≤5)", value: lowStock, color: "var(--amber-light)" },
+            { label: "Out of Stock", value: outOfStock, color: "var(--red-light)" },
           ].map(s => (
-            <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 12, background: C.card, border: `1px solid ${C.border}` }}>
-              <div style={{ width: 32, height: 32, borderRadius: 9, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Package size={15} color={s.color} />
+            <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderRadius: "var(--r-lg)", background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div style={{ width: 32, height: 32, borderRadius: "var(--r-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Package size={15} color="var(--text-muted)" />
               </div>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</div>
-                <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>{s.label}</div>
+                <div style={{ fontSize: 24, fontWeight: 600, color: s.color, lineHeight: 1, letterSpacing: "-0.02em" }}>{s.value}</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, fontWeight: 500 }}>{s.label}</div>
               </div>
             </div>
           ))}
@@ -193,7 +192,7 @@ export default function ProductsPage() {
       )}
 
       {/* Table */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, overflow: "hidden" }}>
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 700 }}>
             <thead>
@@ -211,34 +210,34 @@ export default function ProductsPage() {
                   </td></tr>
                 ))
               ) : shown.length === 0 ? (
-                <tr><td colSpan={6} style={{ padding: "60px 16px", textAlign: "center", color: C.textMuted }}>
+                <tr><td colSpan={6} style={{ padding: "60px 16px", textAlign: "center", color: "var(--text-muted)" }}>
                   <Package size={52} style={{ opacity: 0.1, display: "block", margin: "0 auto 14px" }} />
-                  <p style={{ fontSize: 14, fontWeight: 600, color: C.textSecondary, marginBottom: 4 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 4 }}>
                     {search ? "No products match your search" : "No products yet"}
                   </p>
-                  <p style={{ fontSize: 12, color: C.textMuted }}>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
                     {search ? "Try a different keyword" : "Click \"Add Product\" to add your first product"}
                   </p>
                 </td></tr>
               ) : shown.map(p => {
-                const stockColor = p.stock_quantity === 0 ? "hsl(350,85%,70%)" : p.stock_quantity <= 5 ? "hsl(38,90%,65%)" : "hsl(152,60%,55%)";
+                const stockColor = p.stock_quantity === 0 ? "var(--red-light)" : p.stock_quantity <= 5 ? "var(--amber-light)" : "var(--green-light)";
                 return (
                   <tr key={p.id} style={{ transition: "background 0.12s" }}>
                     <td style={tdStyle}>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <div style={{
-                          width: 44, height: 44, borderRadius: 11, flexShrink: 0,
-                          background: C.elevated, border: `1px solid ${C.border}`,
+                          width: 44, height: 44, borderRadius: "var(--r-md)", flexShrink: 0,
+                          background: "var(--bg-elevated)", border: "1px solid var(--border)",
                           display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
                         }}>
                           {p.images?.[0]
                             ? <img src={p.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            : <Package size={18} color={C.textMuted} />
+                            : <Package size={18} color="var(--text-muted)" />
                           }
                         </div>
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, color: C.textPrimary }}>{p.name}</div>
+                            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>{p.name}</div>
                             {p.manually_edited && (
                               <span title="Manually edited — won't auto-update from WooCommerce" className="badge badge-amber" style={{gap:4}}>
                                 <Lock size={10} />
@@ -246,37 +245,37 @@ export default function ProductsPage() {
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: 11, color: C.textMuted }}>{p.sku ? `SKU: ${p.sku}` : "No SKU"}</div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{p.sku ? `SKU: ${p.sku}` : "No SKU"}</div>
                         </div>
                       </div>
                     </td>
                     <td style={tdStyle}>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: C.textPrimary }}>৳{p.regular_price?.toLocaleString()}</div>
-                      {p.sale_price && <div style={{ fontSize: 11, color: "#34d399", marginTop: 1 }}>Sale: ৳{p.sale_price.toLocaleString()}</div>}
+                      <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>৳{p.regular_price?.toLocaleString()}</div>
+                      {p.sale_price && <div style={{ fontSize: 11, color: "var(--green-light)", marginTop: 1 }}>Sale: ৳{p.sale_price.toLocaleString()}</div>}
                     </td>
                     <td style={tdStyle}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <div style={{ width: 6, height: 6, borderRadius: "50%", background: stockColor, flexShrink: 0 }} />
-                        <span style={{ fontWeight: 700, fontSize: 13, color: stockColor }}>{p.stock_quantity}</span>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: stockColor }}>{p.stock_quantity}</span>
                         {p.stock_quantity === 0 && <span className="badge badge-red" style={{fontSize:10}}>OUT</span>}
                         {p.stock_quantity > 0 && p.stock_quantity <= 5 && <span className="badge badge-amber" style={{fontSize:10}}>LOW</span>}
                       </div>
                     </td>
                     <td style={tdStyle}>
                       {p.category
-                        ? <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: "rgba(139,92,246,0.08)", border: `1px solid ${C.border}`, width: "fit-content" }}>
-                          <Tag size={10} color={C.brandLight} />
-                          <span style={{ fontSize: 11, fontWeight: 600, color: C.brandLight }}>{p.category}</span>
+                        ? <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 100, background: "var(--bg-elevated)", border: "1px solid var(--border)", width: "fit-content" }}>
+                          <Tag size={10} color="var(--text-secondary)" />
+                          <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)" }}>{p.category}</span>
                         </div>
-                        : <span style={{ fontSize: 11, color: C.textMuted }}>—</span>
+                        : <span style={{ fontSize: 11, color: "var(--text-muted)" }}>—</span>
                       }
                     </td>
                     <td style={tdStyle}>
                       <button onClick={() => toggleActive(p.id, p.is_active)} style={{
-                        display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 20, border: "none", cursor: "pointer", fontFamily: "inherit",
-                        background: p.is_active ? "rgba(16,185,129,0.1)" : "rgba(255,255,255,0.05)",
-                        color: p.is_active ? "#34d399" : C.textMuted,
-                        fontSize: 11, fontWeight: 700,
+                        display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 100, border: "none", cursor: "pointer", fontFamily: "inherit",
+                        background: p.is_active ? "rgba(34,197,94,0.1)" : "var(--bg-elevated)",
+                        color: p.is_active ? "var(--green-light)" : "var(--text-muted)",
+                        fontSize: 11, fontWeight: 500,
                       }}>
                         {p.is_active
                           ? <ToggleRight size={14} style={{ flexShrink: 0 }} />
@@ -288,15 +287,15 @@ export default function ProductsPage() {
                     <td style={{ ...tdStyle, textAlign: "right" }}>
                       <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
                         <button onClick={() => openEditModal(p)} style={{
-                          width: 32, height: 32, borderRadius: 8, border: `1px solid ${C.border}`, cursor: "pointer",
-                          background: C.elevated, color: C.textSecondary, display: "flex", alignItems: "center", justifyContent: "center",
+                          width: 32, height: 32, borderRadius: "var(--r-md)", border: "1px solid var(--border)", cursor: "pointer",
+                          background: "var(--bg-elevated)", color: "var(--text-secondary)", display: "flex", alignItems: "center", justifyContent: "center",
                           transition: "all 0.15s",
                         }}>
                           <Edit2 size={13} />
                         </button>
                         <button onClick={() => handleDelete(p.id)} disabled={deleting === p.id} style={{
-                          width: 32, height: 32, borderRadius: 8, border: "1px solid rgba(244,63,94,0.2)", cursor: "pointer",
-                          background: "rgba(244,63,94,0.06)", color: "#fb7185", display: "flex", alignItems: "center", justifyContent: "center",
+                          width: 32, height: 32, borderRadius: "var(--r-md)", border: "1px solid rgba(239,68,68,0.2)", cursor: "pointer",
+                          background: "rgba(239,68,68,0.06)", color: "var(--red-light)", display: "flex", alignItems: "center", justifyContent: "center",
                           opacity: deleting === p.id ? 0.5 : 1,
                         }}>
                           <Trash2 size={13} />
@@ -310,23 +309,24 @@ export default function ProductsPage() {
           </table>
         </div>
       </div>
-
-      <style>{`tr:hover td{background:rgba(139,92,246,0.025)}`}</style>
+      
+      <style>{`tr:hover td { background: var(--bg-elevated); }`}</style>
 
       {/* Modal Overlay */}
+      <AnimatePresence>
       {isModalOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           {/* Modal Panel */}
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, width: "100%", maxWidth: 640, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "90vh", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} transition={{ type: "spring", damping: 25, stiffness: 300 }} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", width: "100%", maxWidth: 640, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "90vh", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
             
             {/* Modal Header */}
-            <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: C.card }}>
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-card)" }}>
               <div>
-                <h2 style={{ fontSize: 18, fontWeight: 700, color: C.textPrimary }}>{formData.id ? "Edit Product" : "Add Product"}</h2>
-                <p style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Define product details and AI instructions</p>
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>{formData.id ? "Edit Product" : "Add Product"}</h2>
+                <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>Define product details and AI instructions</p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: "transparent", border: "none", color: C.textMuted, cursor: "pointer", padding: 4 }}>
-                <X size={20} />
+              <button onClick={() => setIsModalOpen(false)} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 4 }}>
+                <X size={18} />
               </button>
             </div>
 
@@ -335,35 +335,35 @@ export default function ProductsPage() {
               
               {/* Basic Info */}
               <div>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: C.textPrimary, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}><Package size={16} color={C.brandLight}/> Basic Details</h3>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}><Package size={15} color="var(--text-muted)"/> Basic Details</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Product Name *</label>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Product Name *</label>
                     <input style={inputStyle} value={formData.name || ""} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. Red Cotton Shirt" />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>SKU</label>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>SKU</label>
                     <input style={inputStyle} value={formData.sku || ""} onChange={e => setFormData({ ...formData, sku: e.target.value })} placeholder="e.g. SH-001" />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Regular Price (৳) *</label>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Regular Price (৳) *</label>
                     <input style={inputStyle} type="number" value={formData.regular_price || 0} onChange={e => setFormData({ ...formData, regular_price: parseFloat(e.target.value) })} />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Sale Price (৳)</label>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Sale Price (৳)</label>
                     <input style={inputStyle} type="number" value={formData.sale_price || ""} onChange={e => setFormData({ ...formData, sale_price: parseFloat(e.target.value) || null })} placeholder="Leave blank if no sale" />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Stock Quantity</label>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Stock Quantity</label>
                     <input style={inputStyle} type="number" value={formData.stock_quantity || 0} onChange={e => setFormData({ ...formData, stock_quantity: parseInt(e.target.value) || 0 })} />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Category</label>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Category</label>
                     <input style={inputStyle} value={formData.category || ""} onChange={e => setFormData({ ...formData, category: e.target.value })} placeholder="e.g. Clothing" />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Helmet Type (Optional)</label>
-                    <select style={{...inputStyle, background: C.elevated}} value={helmetType} onChange={e => handleHelmetTypeChange(e.target.value)}>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Helmet Type (Optional)</label>
+                    <select style={{...inputStyle, background: "var(--bg-elevated)"}} value={helmetType} onChange={e => handleHelmetTypeChange(e.target.value)}>
                       <option value="">None / Not a helmet</option>
                       <option value="Full Face">Full Face</option>
                       <option value="Half Face">Half Face</option>
@@ -372,26 +372,28 @@ export default function ProductsPage() {
                     </select>
                   </div>
                   <div style={{ gridColumn: "1 / -1" }}>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Product Description</label>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Product Description</label>
                     <textarea style={{ ...inputStyle, minHeight: 80, resize: "vertical" }} value={formData.description || ""} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Used by AI to understand the product details..." />
                   </div>
                   <div style={{ gridColumn: "1 / -1" }}>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Image URL</label>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Image URL</label>
                     <div style={{ display: "flex", gap: 8 }}>
                       <input style={inputStyle} value={formData.images?.[0] || ""} onChange={e => setFormData({ ...formData, images: e.target.value ? [e.target.value] : [] })} placeholder="https://example.com/image.jpg" />
                     </div>
                   </div>
                 </div>
               </div>
+              
+              <div style={{ height: 1, background: "var(--border)" }} />
 
               {/* Variations */}
-              <div style={{ padding: 16, background: "hsla(38,90%,55%,0.04)", border: "1px solid hsla(38,90%,55%,0.15)", borderRadius: 12 }}>
+              <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                   <div>
-                    <h3 style={{ fontSize: 14, fontWeight: 700, color: "hsl(38,90%,65%)", display: "flex", alignItems: "center", gap: 6 }}>🏷️ Product Variations</h3>
-                    <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>Define sizes, colors, and specific image URLs for variations</p>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}><Tag size={15} color="var(--text-muted)"/> Product Variations</h3>
+                    <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Define sizes, colors, and specific image URLs for variations</p>
                   </div>
-                  <button onClick={() => setFormData({ ...formData, variations: [...(formData.variations || []), { id: Date.now(), attributes: { "Color/Size": "" }, price: formData.regular_price || 0, stock: 0, image_url: "" }] })} className="badge badge-amber" style={{ padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                  <button onClick={() => setFormData({ ...formData, variations: [...(formData.variations || []), { id: Date.now(), attributes: { "Color/Size": "" }, price: formData.regular_price || 0, stock: 0, image_url: "" }] })} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 12px", borderRadius: "var(--r-md)", fontSize: 11, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
                     <Plus size={12} /> Add Variation
                   </button>
                 </div>
@@ -402,7 +404,7 @@ export default function ProductsPage() {
                       .map(([k, val]) => k === "Variation" ? val : `${k}: ${val}`)
                       .join(", ");
                     return (
-                    <div key={v.id || idx} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: C.elevated, padding: 12, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                    <div key={v.id || idx} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: "var(--bg-elevated)", padding: 12, borderRadius: "var(--r-md)", border: "1px solid var(--border)" }}>
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr", gap: 8 }}>
                           <input style={{...inputStyle, fontSize:12}} placeholder="e.g. Color: Red, Size: M" value={attrVal} onChange={e => {
@@ -436,32 +438,34 @@ export default function ProductsPage() {
                         const newVars = [...(formData.variations || [])];
                         newVars.splice(idx, 1);
                         setFormData({ ...formData, variations: newVars });
-                      }} style={{ background: "rgba(244,63,94,0.1)", border: "none", color: "#fb7185", padding: 6, borderRadius: 6, cursor: "pointer", height: "fit-content" }}>
+                      }} style={{ background: "rgba(239,68,68,0.1)", border: "none", color: "var(--red-light)", padding: 6, borderRadius: "var(--r-sm)", cursor: "pointer", height: "fit-content" }}>
                         <Trash2 size={14} />
                       </button>
                     </div>
                   )})}
                   {(!formData.variations || formData.variations.length === 0) && (
-                    <div style={{ fontSize: 12, color: C.textMuted, textAlign: "center", padding: "12px 0" }}>No variations added.</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "12px 0" }}>No variations added.</div>
                   )}
                 </div>
               </div>
 
+              <div style={{ height: 1, background: "var(--border)" }} />
+
               {/* AI Instructions (Q&A) */}
-              <div style={{ padding: 16, background: "rgba(139,92,246,0.04)", border: `1px solid rgba(139,92,246,0.15)`, borderRadius: 12 }}>
+              <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                   <div>
-                    <h3 style={{ fontSize: 14, fontWeight: 700, color: C.brandLight, display: "flex", alignItems: "center", gap: 6 }}>✨ AI Instructions (Q&A)</h3>
-                    <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>Teach the AI how to answer specific questions about this product</p>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>AI Instructions (Q&A)</h3>
+                    <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Teach the AI how to answer specific questions about this product</p>
                   </div>
-                  <button onClick={() => setFormData({ ...formData, qna_pairs: [...(formData.qna_pairs || []), { question: "", answer: "" }] })} style={{ background: "rgba(139,92,246,0.1)", border: "none", color: C.brandLight, padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                  <button onClick={() => setFormData({ ...formData, qna_pairs: [...(formData.qna_pairs || []), { question: "", answer: "" }] })} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 12px", borderRadius: "var(--r-md)", fontSize: 11, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
                     <Plus size={12} /> Add Q&A
                   </button>
                 </div>
                 
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {formData.qna_pairs?.map((qna, idx) => (
-                    <div key={idx} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: C.elevated, padding: 12, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                    <div key={idx} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: "var(--bg-elevated)", padding: 12, borderRadius: "var(--r-md)", border: "1px solid var(--border)" }}>
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
                         <input style={{...inputStyle, fontSize:12}} placeholder="Customer Question (e.g. Does the color fade?)" value={qna.question} onChange={e => {
                           const newQna = [...(formData.qna_pairs || [])];
@@ -478,32 +482,34 @@ export default function ProductsPage() {
                         const newQna = [...(formData.qna_pairs || [])];
                         newQna.splice(idx, 1);
                         setFormData({ ...formData, qna_pairs: newQna });
-                      }} style={{ background: "rgba(244,63,94,0.1)", border: "none", color: "#fb7185", padding: 6, borderRadius: 6, cursor: "pointer" }}>
+                      }} style={{ background: "rgba(239,68,68,0.1)", border: "none", color: "var(--red-light)", padding: 6, borderRadius: "var(--r-sm)", cursor: "pointer" }}>
                         <Trash2 size={14} />
                       </button>
                     </div>
                   ))}
                   {(!formData.qna_pairs || formData.qna_pairs.length === 0) && (
-                    <div style={{ fontSize: 12, color: C.textMuted, textAlign: "center", padding: "12px 0" }}>No custom instructions added.</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "12px 0" }}>No custom instructions added.</div>
                   )}
                 </div>
               </div>
 
+              <div style={{ height: 1, background: "var(--border)" }} />
+
               {/* Order Form Fields */}
-              <div style={{ padding: 16, background: "rgba(16,185,129,0.04)", border: `1px solid rgba(16,185,129,0.15)`, borderRadius: 12 }}>
+              <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                   <div>
-                    <h3 style={{ fontSize: 14, fontWeight: 700, color: "#34d399", display: "flex", alignItems: "center", gap: 6 }}>📝 Required Order Fields</h3>
-                    <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>What the AI must ask before confirming an order for this item</p>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>Required Order Fields</h3>
+                    <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>What the AI must ask before confirming an order for this item</p>
                   </div>
-                  <button onClick={() => setFormData({ ...formData, required_order_fields: [...(formData.required_order_fields || []), { fieldName: "", question: "" }] })} style={{ background: "rgba(16,185,129,0.1)", border: "none", color: "#34d399", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                  <button onClick={() => setFormData({ ...formData, required_order_fields: [...(formData.required_order_fields || []), { fieldName: "", question: "" }] })} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 12px", borderRadius: "var(--r-md)", fontSize: 11, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
                     <Plus size={12} /> Add Field
                   </button>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {formData.required_order_fields?.map((field, idx) => (
-                    <div key={idx} style={{ display: "flex", gap: 12, alignItems: "center", background: C.elevated, padding: 12, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                    <div key={idx} style={{ display: "flex", gap: 12, alignItems: "center", background: "var(--bg-elevated)", padding: 12, borderRadius: "var(--r-md)", border: "1px solid var(--border)" }}>
                       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
                         <input style={{...inputStyle, fontSize:12}} placeholder="Field Name (e.g. Size)" value={field.fieldName} onChange={e => {
                           const newFields = [...(formData.required_order_fields || [])];
@@ -520,13 +526,13 @@ export default function ProductsPage() {
                         const newFields = [...(formData.required_order_fields || [])];
                         newFields.splice(idx, 1);
                         setFormData({ ...formData, required_order_fields: newFields });
-                      }} style={{ background: "rgba(244,63,94,0.1)", border: "none", color: "#fb7185", padding: 6, borderRadius: 6, cursor: "pointer" }}>
+                      }} style={{ background: "rgba(239,68,68,0.1)", border: "none", color: "var(--red-light)", padding: 6, borderRadius: "var(--r-sm)", cursor: "pointer" }}>
                         <Trash2 size={14} />
                       </button>
                     </div>
                   ))}
                   {(!formData.required_order_fields || formData.required_order_fields.length === 0) && (
-                    <div style={{ fontSize: 12, color: C.textMuted, textAlign: "center", padding: "12px 0" }}>No custom order fields required.</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "12px 0" }}>No custom order fields required.</div>
                   )}
                 </div>
               </div>
@@ -534,17 +540,18 @@ export default function ProductsPage() {
             </div>
 
             {/* Modal Footer */}
-            <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 12, background: C.card }}>
-              <button onClick={() => setIsModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.elevated, color: C.textPrimary, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 12, background: "var(--bg-card)" }}>
+              <button onClick={() => setIsModalOpen(false)} style={{ padding: "8px 16px", borderRadius: "var(--r-md)", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
                 Cancel
               </button>
               <button onClick={handleSave} disabled={saving} style={{ ...btnPrimary, padding: "8px 20px" }}>
                 {saving ? "Saving..." : <><Save size={15}/> Save Product</>}
               </button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

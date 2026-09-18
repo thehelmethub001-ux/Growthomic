@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, skeletonStyle } from "@/lib/styles";
+import { pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, skeletonStyle } from "@/lib/styles";
 import { Bot, Save, CheckCircle2, AlertCircle, Zap, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -20,12 +20,12 @@ type Settings = {
 };
 
 const LBL: React.CSSProperties = {
-  display:"block", fontSize:10, fontWeight:700, color:C.textMuted,
-  textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:7,
+  display:"block", fontSize:11, fontWeight:600, color:"var(--text-secondary)",
+  marginBottom:8,
 };
 
 const CARD: React.CSSProperties = {
-  background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:24,
+  background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", padding:24,
 };
 
 export default function AISettingsPage() {
@@ -68,7 +68,7 @@ export default function AISettingsPage() {
     </div>
   );
 
-  if (!settings) return <div style={{ padding:32, color:C.textMuted }}>No settings found. Please run migrations first.</div>;
+  if (!settings) return <div style={{ padding:32, color:"var(--text-muted)" }}>No settings found. Please run migrations first.</div>;
 
   return (
     <div style={{ ...pageWrap, maxWidth:800 }}>
@@ -77,23 +77,23 @@ export default function AISettingsPage() {
           <h1 style={pageTitle}>AI Settings</h1>
           <p style={pageSubtitle}>Configure your agent's persona, behavior, and compliance rules</p>
         </div>
-        <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={handleSave} disabled={saving} style={btnPrimary}>
+        <button onClick={handleSave} disabled={saving} style={{...btnPrimary, display:"flex", gap:6}}>
           {saving ? <><RefreshCw size={14} style={{animation:"spin 0.7s linear infinite"}}/> Saving...</>
            : <><Save size={14}/> Save Changes</>}
-        </motion.button>
+        </button>
       </div>
 
       <motion.div initial={{opacity:0}} animate={{opacity:1}} transition={{staggerChildren:0.1}} style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
         {/* Agent Identity */}
         <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} style={CARD}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:22 }}>
-            <div style={{ width:38, height:38, borderRadius:11, background:"hsla(262,83%,58%,0.1)", border:"1px solid hsla(262,83%,58%,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <Bot size={19} color="var(--primary-light)"/>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Bot size={18} color="var(--text-primary)"/>
             </div>
             <div>
-              <h2 style={{ fontSize:14, fontWeight:700, color:C.textPrimary, letterSpacing:"-0.02em" }}>Agent Identity</h2>
-              <p style={{ fontSize:12, color:C.textMuted, marginTop:2 }}>How the AI presents itself to customers</p>
+              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Agent Identity</h2>
+              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>How the AI presents itself to customers</p>
             </div>
           </div>
 
@@ -126,21 +126,21 @@ export default function AISettingsPage() {
 
             <div style={{ gridColumn:"1 / -1" }}>
               <label style={LBL}>Custom Agent Persona & Rules (Optional)</label>
-              <textarea style={{...inputStyle, minHeight:120, resize:"vertical", fontFamily:"monospace", fontSize:13}} value={settings.custom_prompt||""} onChange={e=>setSettings({...settings,custom_prompt:e.target.value})} placeholder="e.g. Always call the customer 'bhaiya' or 'apu', be very polite, use emojis, and talk like a friendly human..."/>
-              <p style={{ fontSize:11, color:C.textMuted, marginTop:6 }}>These instructions will be injected directly into the AI's core engine to shape its personality.</p>
+              <textarea style={{...inputStyle, minHeight:120, resize:"vertical", fontFamily:"monospace", fontSize:12}} value={settings.custom_prompt||""} onChange={e=>setSettings({...settings,custom_prompt:e.target.value})} placeholder="e.g. Always call the customer 'bhaiya' or 'apu', be very polite, use emojis, and talk like a friendly human..."/>
+              <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:6 }}>These instructions will be injected directly into the AI's core engine to shape its personality.</p>
             </div>
           </div>
         </motion.div>
 
         {/* API Keys & Models */}
         <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.04}} style={CARD}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:22 }}>
-            <div style={{ width:38, height:38, borderRadius:11, background:"hsla(150,80%,40%,0.1)", border:"1px solid hsla(150,80%,40%,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <CheckCircle2 size={19} color="hsl(150,80%,40%)"/>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <CheckCircle2 size={18} color="var(--green-light)"/>
             </div>
             <div>
-              <h2 style={{ fontSize:14, fontWeight:700, color:C.textPrimary, letterSpacing:"-0.02em" }}>API Keys & Models</h2>
-              <p style={{ fontSize:12, color:C.textMuted, marginTop:2 }}>Configure Gemini (Primary) and GPT-4o-mini (Fallback)</p>
+              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>API Keys & Models</h2>
+              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>Configure Gemini (Primary) and GPT-4o-mini (Fallback)</p>
             </div>
           </div>
 
@@ -148,42 +148,42 @@ export default function AISettingsPage() {
             <div>
               <label style={LBL}>Gemini API Key (Primary)</label>
               <input type="password" style={{...inputStyle, fontFamily:"monospace"}} value={settings.gemini_api_key||""} onChange={e=>setSettings({...settings,gemini_api_key:e.target.value})} placeholder="AIzaSy..."/>
-              <p style={{ fontSize:11, color:C.textMuted, marginTop:6 }}>Used for standard queries (Gemini 2.5 Flash / 1.5 Flash)</p>
+              <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:6 }}>Used for standard queries (Gemini 2.5 Flash / 1.5 Flash)</p>
             </div>
             <div>
               <label style={LBL}>OpenAI API Key (Fallback & Embeddings)</label>
               <input type="password" style={{...inputStyle, fontFamily:"monospace"}} value={settings.openai_api_key||""} onChange={e=>setSettings({...settings,openai_api_key:e.target.value})} placeholder="sk-..."/>
-              <p style={{ fontSize:11, color:C.textMuted, marginTop:6 }}>Used if Gemini goes down, and for vector embeddings (text-embedding-3-small)</p>
+              <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:6 }}>Used if Gemini goes down, and for vector embeddings (text-embedding-3-small)</p>
             </div>
           </div>
         </motion.div>
 
         {/* Follow-up Engine */}
         <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.08}} style={CARD}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:22 }}>
-            <div style={{ width:38, height:38, borderRadius:11, background:"hsla(190,85%,50%,0.1)", border:"1px solid hsla(190,85%,50%,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <Zap size={19} color="hsl(190,85%,60%)"/>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Zap size={18} color="var(--brand-light)"/>
             </div>
             <div>
-              <h2 style={{ fontSize:14, fontWeight:700, color:C.textPrimary, letterSpacing:"-0.02em" }}>Follow-up Engine</h2>
-              <p style={{ fontSize:12, color:C.textMuted, marginTop:2 }}>Automatically re-engage customers who go quiet</p>
+              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Follow-up Engine</h2>
+              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>Automatically re-engage customers who go quiet</p>
             </div>
           </div>
 
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:C.elevated, borderRadius:12, border:`1px solid ${C.borderWhite}`, marginBottom:16 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"var(--bg-elevated)", borderRadius:"var(--r-md)", border:"1px solid var(--border)", marginBottom:16 }}>
             <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.textPrimary }}>Enable Automatic Follow-ups</div>
-              <div style={{ fontSize:11, color:C.textMuted, marginTop:3 }}>1 follow-up per customer per day maximum</div>
+              <div style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)" }}>Enable Automatic Follow-ups</div>
+              <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:3 }}>1 follow-up per customer per day maximum</div>
             </div>
             <button onClick={()=>setSettings({...settings,follow_up_enabled:!settings.follow_up_enabled})} style={{
-              width:44, height:24, borderRadius:12, border:"none", cursor:"pointer",
-              background: settings.follow_up_enabled ? "var(--primary)" : C.overlay,
+              width:40, height:22, borderRadius:20, border:"none", cursor:"pointer",
+              background: settings.follow_up_enabled ? "var(--text-primary)" : "var(--border)",
               position:"relative", transition:"background 0.2s", flexShrink:0,
             }}>
               <div style={{
-                position:"absolute", top:3, left: settings.follow_up_enabled ? 23 : 3,
-                width:18, height:18, borderRadius:"50%", background:"#fff",
-                transition:"left 0.2s", boxShadow:"0 1px 4px rgba(0,0,0,0.3)",
+                position:"absolute", top:3, left: settings.follow_up_enabled ? 21 : 3,
+                width:16, height:16, borderRadius:"50%", background:"var(--bg-base)",
+                transition:"left 0.2s",
               }}/>
             </button>
           </div>
@@ -197,44 +197,45 @@ export default function AISettingsPage() {
         </motion.div>
 
         {/* Meta Compliance */}
-        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.16}} style={{...CARD, border:"1px solid hsla(38,90%,55%,0.2)"}}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:22 }}>
-            <div style={{ width:38, height:38, borderRadius:11, background:"hsla(38,90%,55%,0.1)", border:"1px solid hsla(38,90%,55%,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <AlertCircle size={19} color="hsl(38,90%,65%)"/>
+        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.16}} style={CARD}>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <AlertCircle size={18} color="var(--amber-light)"/>
             </div>
             <div style={{ flex:1 }}>
-              <h2 style={{ fontSize:14, fontWeight:700, color:C.textPrimary, letterSpacing:"-0.02em" }}>Meta WhatsApp Compliance</h2>
-              <p style={{ fontSize:12, color:C.textMuted, marginTop:2 }}>Required to comply with Meta's January 2026 AI policy</p>
+              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Meta WhatsApp Compliance</h2>
+              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>Required to comply with Meta's January 2026 AI policy</p>
             </div>
             <span className="badge badge-amber">Policy Active</span>
           </div>
 
-          <div style={{ padding:"11px 14px", background:"hsla(38,90%,55%,0.07)", borderRadius:10, border:"1px solid hsla(38,90%,55%,0.15)", marginBottom:16, fontSize:12, color:"hsl(38,90%,65%)", lineHeight:1.65 }}>
+          <div style={{ padding:"12px 16px", background:"var(--bg-elevated)", borderRadius:"var(--r-md)", border:"1px solid var(--border)", marginBottom:16, fontSize:12, color:"var(--text-secondary)", lineHeight:1.6 }}>
             The AI is hard-coded to decline all off-topic questions (politics, general knowledge, personal info) and redirect customers to your products.
           </div>
 
           <div>
             <label style={LBL}>Additional Blocked Topics</label>
             <input style={inputStyle} value={(settings.restricted_topics||[]).join(", ")} onChange={e=>setSettings({...settings,restricted_topics:e.target.value.split(",").map(s=>s.trim()).filter(Boolean)})} placeholder="e.g. Competitor Brand, Discount codes"/>
-            <p style={{ fontSize:11, color:C.textMuted, marginTop:7 }}>Comma-separated. The AI will politely decline these topics.</p>
+            <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:6 }}>Comma-separated. The AI will politely decline these topics.</p>
           </div>
         </motion.div>
+        
         {/* Meta App Configuration */}
-        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.4}} style={{...CARD, borderColor: "rgba(245, 158, 11, 0.2)"}}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:22 }}>
-            <div style={{ width:38, height:38, borderRadius:11, background:"rgba(245, 158, 11, 0.1)", border:"1px solid rgba(245, 158, 11, 0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <Zap size={19} color="#f59e0b"/>
+        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.4}} style={CARD}>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Zap size={18} color="var(--brand-light)"/>
             </div>
             <div>
-              <h2 style={{ fontSize:14, fontWeight:700, color:C.textPrimary, letterSpacing:"-0.02em" }}>Meta Developer App (Facebook / Instagram)</h2>
-              <p style={{ fontSize:12, color:C.textMuted, marginTop:2 }}>Connect your page to Growthomic to receive messages via Webhook.</p>
+              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Meta Developer App (Facebook / Instagram)</h2>
+              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>Connect your page to Growthomic to receive messages via Webhook.</p>
             </div>
           </div>
           
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            <div style={{ background: C.surface, padding: 16, borderRadius: 12, border: `1px solid rgba(255,255,255,0.05)`, fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
+            <div style={{ background: "var(--bg-elevated)", padding: 16, borderRadius: "var(--r-md)", border: "1px solid var(--border)", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
               <strong>Webhook Callback URL:</strong><br/>
-              <code style={{ background: "rgba(0,0,0,0.3)", padding: "4px 8px", borderRadius: 6, display: "inline-block", marginTop: 4, marginBottom: 8, color: "#34d399", userSelect: "all" }}>
+              <code style={{ background: "var(--bg-card)", padding: "4px 8px", borderRadius: 4, border:"1px solid var(--border)", display: "inline-block", marginTop: 4, marginBottom: 8, color: "var(--brand-light)", userSelect: "all" }}>
                 https://pfzsursjuchrgawzsluu.supabase.co/functions/v1/webhook-meta?platform=facebook
               </code><br/>
               Copy this URL and paste it into your Meta App's Webhook settings.
@@ -260,19 +261,19 @@ export default function AISettingsPage() {
 
         {/* WooCommerce Sync */}
         <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.4}} style={CARD}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:22 }}>
-            <div style={{ width:38, height:38, borderRadius:11, background:"hsla(280,80%,60%,0.1)", border:"1px solid hsla(280,80%,60%,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <RefreshCw size={19} color="hsl(280,80%,65%)"/>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <RefreshCw size={18} color="var(--text-primary)"/>
             </div>
             <div style={{ flex:1 }}>
-              <h2 style={{ fontSize:14, fontWeight:700, color:C.textPrimary, letterSpacing:"-0.02em" }}>WooCommerce Knowledge Base</h2>
-              <p style={{ fontSize:12, color:C.textMuted, marginTop:2 }}>Keep the AI updated with your latest products, inventory, and prices.</p>
+              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>WooCommerce Knowledge Base</h2>
+              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>Keep the AI updated with your latest products, inventory, and prices.</p>
             </div>
           </div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:C.elevated, borderRadius:12, border:`1px solid ${C.borderWhite}` }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"var(--bg-elevated)", borderRadius:"var(--r-md)", border:"1px solid var(--border)" }}>
             <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.textPrimary }}>Manual Product Sync</div>
-              <div style={{ fontSize:11, color:C.textMuted, marginTop:3 }}>Fetch products and rebuild AI vector embeddings.</div>
+              <div style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)" }}>Manual Product Sync</div>
+              <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:3 }}>Fetch products and rebuild AI vector embeddings.</div>
             </div>
             <button 
               onClick={async () => {
@@ -289,7 +290,7 @@ export default function AISettingsPage() {
                   toast.error("Network error during sync", { id: toastId });
                 }
               }}
-              style={{ padding:"8px 16px", borderRadius:8, background:"var(--primary)", color:"#fff", border:"none", fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}
+              style={{ ...btnPrimary, padding:"8px 16px" }}
             >
               Sync Now
             </button>

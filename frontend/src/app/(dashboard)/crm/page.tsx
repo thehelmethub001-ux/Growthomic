@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, skeletonStyle, thStyle, tdStyle, getCustomerAvatar } from "@/lib/styles";
+import { pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, skeletonStyle, thStyle, tdStyle, getCustomerAvatar } from "@/lib/styles";
 import { Search, Star, Users } from "lucide-react";
 
 type Customer = { id:string; name:string|null; platform:string; platform_id:string; spam_score:number; is_vip:boolean; is_spam:boolean; ai_reply_enabled:boolean; created_at:string };
 
-const PLT_COLOR:Record<string,string> = { messenger:"hsl(217,89%,65%)", instagram:"hsl(330,75%,65%)", whatsapp:"hsl(142,65%,55%)" };
+const PLT_COLOR:Record<string,string> = { messenger:"cyan", instagram:"purple", whatsapp:"green" };
 
 export default function CRMPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -47,7 +47,7 @@ export default function CRMPage() {
           <p style={pageSubtitle}>All customers across connected platforms</p>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-          <div style={{ padding:"6px 14px", borderRadius:8, background:"hsla(262,83%,58%,0.1)", border:"1px solid hsla(262,83%,58%,0.2)", fontSize:12, fontWeight:600, color:"var(--primary-light)", display:"flex", alignItems:"center", gap:6 }}>
+          <div style={{ padding:"6px 14px", borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", fontSize:12, fontWeight:500, color:"var(--text-primary)", display:"flex", alignItems:"center", gap:6 }}>
             <Users size={13}/> {customers.length} Total Customers
           </div>
         </div>
@@ -62,10 +62,10 @@ export default function CRMPage() {
         <div style={{ display:"flex", gap:4 }}>
           {[["all","All"],["messenger","Messenger"],["instagram","Instagram"],["whatsapp","WhatsApp"]].map(([v,l]) => (
             <button key={v} onClick={()=>setPlatform(v)} style={{
-              padding:"7px 13px", borderRadius:8, fontSize:12, fontWeight:500, cursor:"pointer", fontFamily:"inherit",
-              background: platform===v?"hsla(262,83%,58%,0.14)":"var(--bg-elevated)",
-              color: platform===v?"var(--primary-light)":"var(--text-muted)",
-              border: platform===v?"1px solid hsla(262,83%,58%,0.3)":"1px solid var(--border-white)",
+              padding:"7px 13px", borderRadius:"var(--r-md)", fontSize:12, fontWeight:500, cursor:"pointer", fontFamily:"inherit",
+              background: platform===v?"var(--bg-elevated)":"transparent",
+              color: platform===v?"var(--text-primary)":"var(--text-muted)",
+              border: platform===v?"1px solid var(--border)":"1px solid transparent",
             }}>{l}</button>
           ))}
         </div>
@@ -74,20 +74,20 @@ export default function CRMPage() {
       {/* Stats row */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
         {[
-          { label:"Total Customers", value:customers.length, color:"var(--primary-light)", bg:"hsla(262,83%,58%,0.08)" },
-          { label:"VIP Customers",   value:customers.filter(c=>c.is_vip).length,   color:"hsl(38,90%,65%)", bg:"hsla(38,90%,55%,0.08)" },
-          { label:"AI Disabled",     value:customers.filter(c=>!c.ai_reply_enabled).length, color:"hsl(350,85%,70%)", bg:"hsla(350,85%,60%,0.08)" },
-          { label:"Flagged Spam",    value:customers.filter(c=>c.is_spam).length,  color:"hsl(217,89%,65%)", bg:"hsla(217,89%,61%,0.08)" },
+          { label:"Total Customers", value:customers.length, color:"var(--text-primary)" },
+          { label:"VIP Customers",   value:customers.filter(c=>c.is_vip).length,   color:"var(--amber-light)" },
+          { label:"AI Disabled",     value:customers.filter(c=>!c.ai_reply_enabled).length, color:"var(--red-light)" },
+          { label:"Flagged Spam",    value:customers.filter(c=>c.is_spam).length,  color:"var(--brand-light)" },
         ].map(s => (
-          <div key={s.label} style={{ background:s.bg, border:`1px solid ${s.bg.replace("0.08","0.2")}`, borderRadius:12, padding:"14px 18px" }}>
-            <div style={{ fontSize:22, fontWeight:700, color:s.color }}>{s.value}</div>
-            <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:3 }}>{s.label}</div>
+          <div key={s.label} style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", padding:"16px 20px" }}>
+            <div style={{ fontSize:22, fontWeight:600, color:s.color, letterSpacing:"-0.02em" }}>{s.value}</div>
+            <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:4, fontWeight:500 }}>{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* Table */}
-      <div style={{ background:"var(--bg-card)", border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
+      <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", overflow:"hidden" }}>
         <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:0 }}>
           <thead>
             <tr>{["Customer","Platform","Spam Score","Status","AI Reply","VIP"].map(h=>(
@@ -109,11 +109,10 @@ export default function CRMPage() {
                 <td style={tdStyle}>
                   <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                     <div style={{
-                      width:32, height:32, borderRadius:8,
+                      width:32, height:32, borderRadius:"var(--r-md)",
                       background: av.gradient, border: `1px solid ${av.border}`,
                       display:"flex", alignItems:"center", justifyContent:"center",
-                      fontSize:12, fontWeight:700, color:"#fff", flexShrink:0,
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.25)"
+                      fontSize:12, fontWeight:600, color:"#fff", flexShrink:0
                     }}>
                       {av.initial}
                     </div>
@@ -124,16 +123,16 @@ export default function CRMPage() {
                   </div>
                 </td>
                 <td style={tdStyle}>
-                  <span className={`badge badge-${PLT_COLOR[c.platform] ? (c.platform === "messenger" ? "cyan" : c.platform === "instagram" ? "purple" : "green") : "muted"}`} style={{textTransform:"capitalize"}}>
+                  <span className={`badge badge-${PLT_COLOR[c.platform] || "muted"}`} style={{textTransform:"capitalize"}}>
                     {c.platform}
                   </span>
                 </td>
                 <td style={tdStyle}>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <div style={{ width:60, height:4, background:"var(--bg-overlay)", borderRadius:99, overflow:"hidden" }}>
-                      <div style={{ height:"100%", width:`${Math.min(c.spam_score,100)}%`, background:`hsl(${120-c.spam_score*1.2},65%,52%)`, borderRadius:99 }}/>
+                    <div style={{ width:60, height:4, background:"var(--bg-elevated)", borderRadius:99, overflow:"hidden", border:"1px solid var(--border)" }}>
+                      <div style={{ height:"100%", width:`${Math.min(c.spam_score,100)}%`, background:`var(${c.spam_score>70?"--red-light":c.spam_score>40?"--amber-light":"--green-light"})`, borderRadius:99 }}/>
                     </div>
-                    <span style={{ fontSize:12, fontWeight:600, color:c.spam_score>70?"hsl(350,85%,70%)":c.spam_score>40?"hsl(38,90%,65%)":"var(--text-secondary)" }}>{c.spam_score}</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:c.spam_score>70?"var(--red-light)":c.spam_score>40?"var(--amber-light)":"var(--text-secondary)" }}>{c.spam_score}</span>
                   </div>
                 </td>
                 <td style={tdStyle}>
@@ -144,14 +143,14 @@ export default function CRMPage() {
                 </td>
                 <td style={{ ...tdStyle, textAlign:"center" }}>
                   <button onClick={() => toggleAIReply(c.id, c.ai_reply_enabled)} style={{ border:"none", cursor:"pointer", background:"none", padding:0 }}>
-                    <span className={c.ai_reply_enabled ? "badge badge-green" : "badge badge-red"} style={{transition:"all 0.2s"}}>
+                    <span className={c.ai_reply_enabled ? "badge badge-green" : "badge badge-muted"} style={{transition:"all 0.2s"}}>
                       {c.ai_reply_enabled ? "On" : "Off"}
                     </span>
                   </button>
                 </td>
                 <td style={{ ...tdStyle, textAlign:"center" }}>
                   <button onClick={()=>toggleVIP(c.id,c.is_vip)} style={{ background:"none", border:"none", cursor:"pointer", display:"inline-flex", alignItems:"center", padding:4, borderRadius:6 }}>
-                    <Star size={15} style={{ fill:c.is_vip?"hsl(38,90%,65%)":"none", color:c.is_vip?"hsl(38,90%,65%)":"var(--text-muted)" }}/>
+                    <Star size={15} style={{ fill:c.is_vip?"var(--amber-light)":"none", color:c.is_vip?"var(--amber-light)":"var(--text-muted)" }}/>
                   </button>
                 </td>
               </tr>

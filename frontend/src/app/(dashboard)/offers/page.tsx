@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary } from "@/lib/styles";
+import { pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary } from "@/lib/styles";
 import { Plus, Tag, Zap, Clock, CheckCircle2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -21,8 +21,8 @@ type Offer = {
 };
 
 const STATUS_STYLE: Record<string,{color:string;bg:string;icon:React.ReactNode}> = {
-  active:    { color:"hsl(152,60%,60%)", bg:"hsla(152,60%,50%,0.1)", icon:<CheckCircle2 size={11}/> },
-  scheduled: { color:"hsl(38,90%,65%)", bg:"hsla(38,90%,55%,0.1)",  icon:<Clock size={11}/> },
+  active:    { color:"var(--green-light)", bg:"rgba(34,197,94,0.1)", icon:<CheckCircle2 size={11}/> },
+  scheduled: { color:"var(--amber-light)", bg:"rgba(245,158,11,0.1)",  icon:<Clock size={11}/> },
   ended:     { color:"var(--text-muted)", bg:"var(--bg-elevated)",   icon:<X size={11}/> },
 };
 
@@ -116,57 +116,58 @@ export default function OffersPage() {
           <h1 style={pageTitle}>Offers & Events</h1>
           <p style={pageSubtitle}>Manage promotional campaigns and special events</p>
         </div>
-        <motion.button whileHover={{ scale:1.02 }} whileTap={{ scale:0.97 }} onClick={()=>setShowModal(true)} style={{
-          display:"flex", alignItems:"center", gap:8, padding:"9px 18px", borderRadius:10, fontSize:13, fontWeight:600,
-          background:"linear-gradient(135deg,var(--primary),var(--accent))", color:"#fff", border:"none", cursor:"pointer",
-          boxShadow:"0 4px 20px var(--primary-glow)", fontFamily:"inherit",
-        }}>
+        <button onClick={()=>setShowModal(true)} style={{ ...btnPrimary }}>
           <Plus size={15}/> Create Offer
-        </motion.button>
+        </button>
       </div>
 
       {/* Stats */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:12, marginBottom:24 }}>
         {[
-          { label:"Active Campaigns",  value:offers.filter(o=>getOfferStatus(o)==="active").length,    color:"hsl(152,60%,60%)", bg:"hsla(152,60%,50%,0.08)" },
-          { label:"Scheduled",         value:offers.filter(o=>getOfferStatus(o)==="scheduled").length,  color:"hsl(38,90%,65%)",  bg:"hsla(38,90%,55%,0.08)" },
-          { label:"Total Offers",       value:offers.length.toLocaleString(), color:"var(--primary-light)", bg:"hsla(262,83%,58%,0.08)" },
+          { label:"Active Campaigns",  value:offers.filter(o=>getOfferStatus(o)==="active").length,    color:"var(--green-light)" },
+          { label:"Scheduled",         value:offers.filter(o=>getOfferStatus(o)==="scheduled").length,  color:"var(--amber-light)" },
+          { label:"Total Offers",       value:offers.length.toLocaleString(), color:"var(--text-primary)" },
         ].map(s => (
-          <div key={s.label} style={{ background:s.bg, borderRadius:12, padding:"16px 20px", border:`1px solid ${s.bg.replace("0.08","0.2")}` }}>
-            <div style={{ fontSize:24, fontWeight:700, color:s.color }}>{s.value}</div>
-            <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:4 }}>{s.label}</div>
+          <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 12, background:"var(--bg-card)", borderRadius:"var(--r-lg)", padding:"16px 20px", border:"1px solid var(--border)" }}>
+            <div style={{ width: 32, height: 32, borderRadius: "var(--r-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Tag size={15} color="var(--text-muted)" />
+            </div>
+            <div>
+              <div style={{ fontSize:24, fontWeight:600, color:s.color, lineHeight:1, letterSpacing:"-0.02em" }}>{s.value}</div>
+              <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:4, fontWeight:500 }}>{s.label}</div>
+            </div>
           </div>
         ))}
       </div>
 
       {/* Tabs */}
-      <div style={{ display:"flex", borderBottom:`1px solid ${C.borderWhite}`, marginBottom:20, gap:2 }}>
+      <div style={{ display:"flex", borderBottom:"1px solid var(--border)", marginBottom:20, gap:2 }}>
         {(["all","active","scheduled","ended"] as const).map(t => (
           <button key={t} onClick={()=>setTab(t)} style={{
             padding:"8px 14px", fontSize:12, fontWeight:500, cursor:"pointer", border:"none", fontFamily:"inherit", background:"transparent",
-            borderBottom: tab===t?"2px solid var(--primary)":"2px solid transparent",
-            color: tab===t?"var(--primary-light)":"var(--text-muted)", marginBottom:-1, textTransform:"capitalize",
+            borderBottom: tab===t?"2px solid var(--brand)":"2px solid transparent",
+            color: tab===t?"var(--brand-light)":"var(--text-muted)", marginBottom:-1, textTransform:"capitalize",
           }}>{t}</button>
         ))}
       </div>
 
       {/* Offer Cards */}
       {loading ? (
-        <div style={{ color: C.textMuted, padding: 20 }}>Loading offers...</div>
+        <div style={{ color: "var(--text-muted)", padding: 20 }}>Loading offers...</div>
       ) : shown.length === 0 ? (
         <div style={{
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          padding: "56px 24px", background: "var(--bg-card)", borderRadius: 14,
-          border: `1px dashed ${C.border}`, textAlign: "center",
+          padding: "56px 24px", background: "var(--bg-card)", borderRadius: "var(--r-lg)",
+          border: "1px dashed var(--border)", textAlign: "center",
         }}>
           <div style={{
-            width: 48, height: 48, borderRadius: 14, background: "hsla(262,83%,58%,0.12)",
-            border: "1px solid hsla(262,83%,58%,0.25)", display: "flex", alignItems: "center",
-            justifyContent: "center", marginBottom: 16, color: "var(--primary-light)"
+            width: 48, height: 48, borderRadius: "var(--r-md)", background: "var(--bg-elevated)",
+            border: "1px solid var(--border)", display: "flex", alignItems: "center",
+            justifyContent: "center", marginBottom: 16, color: "var(--text-muted)"
           }}>
             <Tag size={22} />
           </div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 6 }}>
             No offers found
           </h3>
           <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 380, marginBottom: 20 }}>
@@ -193,33 +194,32 @@ export default function OffersPage() {
 
               return (
                 <motion.div key={offer.id} layout initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }} whileHover={{ y:-2 }}
-                  style={{ background:"var(--bg-card)", border:`1px solid ${C.border}`, borderRadius:14, padding:20, position:"relative", overflow:"hidden" }}>
-                  <div style={{ position:"absolute", top:0, left:"20%", right:"20%", height:1, background:`linear-gradient(90deg,transparent,${st.color},transparent)` }}/>
+                  style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", padding:20, position:"relative", overflow:"hidden" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-                    <div style={{ width:38, height:38, borderRadius:10, background:`${st.color}22`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", display:"flex", alignItems:"center", justifyContent:"center" }}>
                       <Tag size={17} color={st.color}/>
                     </div>
-                    <button onClick={() => toggleStatus(offer.id, offer.is_active)} style={{ display:"flex", alignItems:"center", gap:4, padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:st.bg, color:st.color, border:"none", cursor:"pointer" }}>
+                    <button onClick={() => toggleStatus(offer.id, offer.is_active)} style={{ display:"flex", alignItems:"center", gap:4, padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:500, background:st.bg, color:st.color, border:"1px solid var(--border)", cursor:"pointer" }}>
                       {st.icon} {statusStr.charAt(0).toUpperCase()+statusStr.slice(1)}
                     </button>
                   </div>
 
-                  <div style={{ fontSize:14, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.02em", marginBottom:6 }}>{offer.name}</div>
+                  <div style={{ fontSize:14, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em", marginBottom:6 }}>{offer.name}</div>
                   <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:14, lineHeight:1.5 }}>{offer.description}</div>
 
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14 }}>
-                    <span style={{ padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:700, background:"hsla(262,83%,58%,0.1)", color:"var(--primary-light)" }}>
+                    <span style={{ padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:500, background:"var(--bg-elevated)", border:"1px solid var(--border)", color:"var(--text-primary)" }}>
                       <Zap size={9} style={{ marginRight:3, display:"inline" }}/>{discountText}
                     </span>
                     {offer.min_order_amount && (
-                      <span style={{ padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:"var(--bg-elevated)", color:"var(--text-secondary)" }}>
+                      <span style={{ padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:500, background:"var(--bg-elevated)", border:"1px solid var(--border)", color:"var(--text-secondary)" }}>
                         Min ৳{offer.min_order_amount}
                       </span>
                     )}
                   </div>
 
-                  <div style={{ display:"flex", justifyContent:"space-between", borderTop:`1px solid ${C.borderWhite}`, paddingTop:12 }}>
-                    <div style={{ fontSize:11, color:"var(--text-muted)", fontWeight:600 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", borderTop:"1px solid var(--border)", paddingTop:12 }}>
+                    <div style={{ fontSize:11, color:"var(--text-muted)", fontWeight:500 }}>
                       {dateRange}
                     </div>
                   </div>
@@ -236,56 +236,56 @@ export default function OffersPage() {
           <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
             style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(6px)" }}
             onClick={e=>e.target===e.currentTarget&&setShowModal(false)}>
-            <motion.div initial={{ scale:0.94, y:16 }} animate={{ scale:1, y:0 }} exit={{ scale:0.94, y:8 }}
-              style={{ background:"var(--bg-card)", border:`1px solid ${C.border}`, borderRadius:18, padding:28, width:460, maxWidth:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
+            <motion.div initial={{ scale:0.95, opacity: 0 }} animate={{ scale:1, opacity: 1 }} exit={{ scale:0.95, opacity: 0 }} transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", padding:28, width:460, maxWidth:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
-                <div style={{ fontSize:16, fontWeight:700, color:"var(--text-primary)" }}>Create New Offer</div>
-                <button onClick={()=>setShowModal(false)} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--text-muted)", padding:4 }}><X size={16}/></button>
+                <div style={{ fontSize:16, fontWeight:600, color:"var(--text-primary)" }}>Create New Offer</div>
+                <button onClick={()=>setShowModal(false)} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--text-muted)", padding:4 }}><X size={18}/></button>
               </div>
               
               <div style={{ marginBottom:14 }}>
-                <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Campaign Name</label>
+                <label style={{ display:"block", fontSize:11, fontWeight:500, color:"var(--text-secondary)", marginBottom:6 }}>Campaign Name</label>
                 <input style={inputStyle} placeholder="Summer Sale" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/>
               </div>
               
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
                 <div>
-                  <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Discount Type</label>
+                  <label style={{ display:"block", fontSize:11, fontWeight:500, color:"var(--text-secondary)", marginBottom:6 }}>Discount Type</label>
                   <select style={inputStyle} value={form.discount_type} onChange={e=>setForm(f=>({...f,discount_type:e.target.value}))}>
                     <option value="percentage">Percentage (%)</option>
                     <option value="fixed_amount">Fixed Amount (৳)</option>
                   </select>
                 </div>
                 <div>
-                  <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Value</label>
+                  <label style={{ display:"block", fontSize:11, fontWeight:500, color:"var(--text-secondary)", marginBottom:6 }}>Value</label>
                   <input style={inputStyle} type="number" placeholder="20" value={form.discount_value} onChange={e=>setForm(f=>({...f,discount_value:e.target.value}))}/>
                 </div>
               </div>
 
               <div style={{ marginBottom:14 }}>
-                <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Minimum Order Amount (Optional)</label>
+                <label style={{ display:"block", fontSize:11, fontWeight:500, color:"var(--text-secondary)", marginBottom:6 }}>Minimum Order Amount (Optional)</label>
                 <input style={inputStyle} type="number" placeholder="1000" value={form.min_order_amount} onChange={e=>setForm(f=>({...f,min_order_amount:e.target.value}))}/>
               </div>
 
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
                 <div>
-                  <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Start Date</label>
+                  <label style={{ display:"block", fontSize:11, fontWeight:500, color:"var(--text-secondary)", marginBottom:6 }}>Start Date</label>
                   <input style={inputStyle} type="date" value={form.start_date} onChange={e=>setForm(f=>({...f,start_date:e.target.value}))}/>
                 </div>
                 <div>
-                  <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>End Date</label>
+                  <label style={{ display:"block", fontSize:11, fontWeight:500, color:"var(--text-secondary)", marginBottom:6 }}>End Date</label>
                   <input style={inputStyle} type="date" value={form.end_date} onChange={e=>setForm(f=>({...f,end_date:e.target.value}))}/>
                 </div>
               </div>
 
               <div style={{ marginBottom:22 }}>
-                <label style={{ display:"block", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Description</label>
+                <label style={{ display:"block", fontSize:11, fontWeight:500, color:"var(--text-secondary)", marginBottom:6 }}>Description</label>
                 <textarea style={{ ...inputStyle, minHeight:70, resize:"vertical" }} placeholder="Describe the offer rules..." value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}/>
               </div>
               
-              <div style={{ display:"flex", gap:10 }}>
-                <button onClick={()=>setShowModal(false)} style={{ flex:1, padding:"10px", borderRadius:10, border:`1px solid ${C.border}`, background:"none", color:"var(--text-muted)", cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>Cancel</button>
-                <button onClick={handleCreate} disabled={saving} style={{ flex:2, padding:"10px", borderRadius:10, border:"none", background:"linear-gradient(135deg,var(--primary),var(--accent))", color:"#fff", cursor:saving?"not-allowed":"pointer", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>
+              <div style={{ display:"flex", gap:10, borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: 16 }}>
+                <button onClick={()=>setShowModal(false)} style={{ flex:1, padding:"10px", borderRadius:"var(--r-md)", border:"1px solid var(--border)", background:"var(--bg-elevated)", color:"var(--text-primary)", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight: 500 }}>Cancel</button>
+                <button onClick={handleCreate} disabled={saving} style={{ flex:2, padding:"10px", borderRadius:"var(--r-md)", border:"none", background:"var(--text-primary)", color:"var(--bg-base)", cursor:saving?"not-allowed":"pointer", fontFamily:"inherit", fontSize:13, fontWeight:500 }}>
                   {saving ? "Creating..." : "Create Offer"}
                 </button>
               </div>

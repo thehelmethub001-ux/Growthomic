@@ -1,13 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3, Bot, ChevronRight, Home, Inbox, LogOut,
   Package, Settings, ShieldAlert, ShoppingCart,
-  Sparkles, Tag, Users, ShieldX, Menu, X,
+  Tag, Users, ShieldX, Menu, X, Zap,
 } from "lucide-react";
-import { C } from "@/lib/styles";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -28,7 +27,7 @@ const navGroups = [
     { href: "/analytics",   icon: BarChart3,     label: "Analytics" },
     { href: "/spam",        icon: ShieldX,       label: "Spam Queue" },
   ]},
-  { label: "SETTINGS", items: [
+  { label: "CONFIG", items: [
     { href: "/ai-settings", icon: Bot,           label: "AI Settings" },
     { href: "/settings",    icon: Settings,      label: "Settings" },
   ]},
@@ -45,37 +44,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
-  const [aiAutomationEnabled, setAiAutomationEnabled] = useState(true);
+  const [aiEnabled, setAiEnabled] = useState(true);
   const [togglingAi, setTogglingAi] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [pathname]);
+  useEffect(() => { setMobileNavOpen(false); }, [pathname]);
 
-  useEffect(() => {
-    supabase.from("business_settings").select("ai_automation_enabled, ai_reply_mode").limit(1).single()
-      .then(({ data }) => {
-        if (data) {
-          if (data.ai_reply_mode === "off" || data.ai_automation_enabled === false) {
-            setAiAutomationEnabled(false);
-          } else {
-            setAiAutomationEnabled(true);
-          }
-        }
-      });
-  }, []);
+  const loadAiStatus = useCallback(async () => {
+    const { data } = await supabase
+      .from("business_settings")
+      .select("ai_automation_enabled, ai_reply_mode")
+      .limit(1).single();
+    if (data) {
+      setAiEnabled(
+        data.ai_reply_mode !== "off" && data.ai_automation_enabled !== false
+      );
+    }
+  }, [supabase]);
 
-  const toggleAiAutomation = async () => {
+  useEffect(() => { loadAiStatus(); }, [loadAiStatus]);
+
+  const toggleAi = async () => {
     setTogglingAi(true);
-    const nextState = !aiAutomationEnabled;
-    setAiAutomationEnabled(nextState);
-    const { data: existing } = await supabase.from("business_settings").select("id").limit(1).single();
-    if (existing) {
-      await supabase.from("business_settings").update({ 
-        ai_automation_enabled: nextState,
-        ai_reply_mode: nextState ? "full_auto" : "off"
-      }).eq("id", existing.id);
+    const next = !aiEnabled;
+    setAiEnabled(next);
+    const { data: s } = await supabase.from("business_settings").select("id").limit(1).single();
+    if (s) {
+      await supabase.from("business_settings").update({
+        ai_automation_enabled: next,
+        ai_reply_mode: next ? "full_auto" : "off",
+      }).eq("id", s.id);
     }
     setTogglingAi(false);
   };
@@ -88,202 +86,287 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const currentPage = Object.entries(pageName).find(([k]) => pathname.startsWith(k))?.[1] ?? "Dashboard";
 
   return (
-    <div style={{ display:"flex", width:"100vw", height:"100vh", overflow:"hidden", background:"var(--bg-base)", position:"relative" }}>
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "var(--sidebar-full) 1fr",
+      width: "100vw",
+      height: "100vh",
+      overflow: "hidden",
+      background: "var(--bg-base)",
+    }}>
 
-      {/* Grid overlay */}
-      <div className="grid-overlay" />
-
-      {/* Ambient orbs */}
-      <div style={{ position:"absolute", width:600, height:600, borderRadius:"50%", background:"radial-gradient(circle,hsla(262,83%,58%,0.07) 0%,transparent 65%)", top:-250, left:-200, pointerEvents:"none", zIndex:1, animation:"orb-drift-1 22s ease-in-out infinite" }}/>
-      <div style={{ position:"absolute", width:400, height:400, borderRadius:"50%", background:"radial-gradient(circle,hsla(271,91%,65%,0.05) 0%,transparent 65%)", bottom:-150, right:-100, pointerEvents:"none", zIndex:1, animation:"orb-drift-2 18s ease-in-out infinite" }}/>
-
-      {/* Backdrop for mobile navigation */}
+      {/* ── Mobile backdrop */}
       {mobileNavOpen && (
         <div className="sidebar-backdrop" onClick={() => setMobileNavOpen(false)} />
       )}
 
       {/* ── Sidebar ─────────────────────────── */}
-      <div className={`dashboard-sidebar ${mobileNavOpen ? "mobile-open" : ""}`} style={{
-        width:240, minWidth:240, height:"100vh", flexShrink:0, zIndex:10, position:"relative",
-        display:"flex", flexDirection:"column",
-        background:"hsla(248,12%,7%,0.9)",
-        backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
-        borderRight:"1px solid var(--border)",
-      }}>
-        {/* Top glow line */}
-        <div style={{ position:"absolute", top:0, left:0, right:0, height:1, background:"linear-gradient(90deg,transparent,var(--primary),var(--accent),transparent)", opacity:0.6 }}/>
-
+      <aside
+        className={`dashboard-sidebar ${mobileNavOpen ? "mobile-open" : ""}`}
+        style={{
+          height: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          background: "var(--bg-void)",
+          borderRight: "1px solid var(--border)",
+          overflow: "hidden",
+          position: "relative",
+          zIndex: 10,
+        }}
+      >
         {/* Logo */}
-        <div style={{ padding:"18px 14px 14px", borderBottom:"1px solid var(--border-white)", display:"flex", alignItems:"center", gap:11, flexShrink:0 }}>
+        <div style={{
+          height: 52,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "0 14px",
+          borderBottom: "1px solid var(--border)",
+          flexShrink: 0,
+        }}>
+          {/* Logo mark */}
           <div style={{
-            width:34, height:34, borderRadius:10, flexShrink:0,
-            background:"linear-gradient(135deg,var(--primary),var(--accent))",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            boxShadow:"0 0 20px var(--primary-glow)",
-            animation:"glow-pulse 3s ease-in-out infinite",
+            width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+            background: "var(--brand)",
+            display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <Sparkles size={15} color="#fff"/>
+            <Zap size={14} color="#fff" fill="#fff" />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize:14, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.025em" }} className="gradient-text">Growthomic</div>
-            <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600, letterSpacing:"0.08em", textTransform:"uppercase", marginTop:1 }}>AI Sales Agent</div>
+          {/* Text — hides in icon-only mode via CSS class */}
+          <div className="sidebar-logo-text" style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 13, fontWeight: 600, color: "var(--text-primary)",
+              letterSpacing: "-0.025em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              Growthomic
+            </div>
+            <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.03em", marginTop: 1 }}>
+              AI Sales Agent
+            </div>
           </div>
+          {/* Mobile close */}
           <button
             className="mobile-menu-btn"
             onClick={() => setMobileNavOpen(false)}
-            aria-label="Close Navigation"
-            style={{
-              background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer",
-              padding: 4, display: "none", alignItems: "center", justifyContent: "center"
-            }}
+            aria-label="Close navigation"
+            style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", display: "none", padding: 4 }}
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
-        {/* Navigation Wrapper */}
-        <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
-          {/* Scrollable Navigation */}
-          <div style={{ flex:1, overflowY:"auto", padding:"12px 8px" }}>
-            {navGroups.map((group, gi) => (
-              <motion.div key={group.label} initial={{ opacity:0, x:-8 }} animate={{ opacity:1, x:0 }} transition={{ delay:gi*0.07, duration:0.3 }} style={{ marginBottom:20 }}>
-                {gi > 0 && <div style={{ height:1, background:"var(--border-white)", marginBottom:12, marginTop:-8 }}/>}
-                <div style={{ fontSize:9, fontWeight:700, color:"var(--text-muted)", letterSpacing:"0.12em", padding:"0 10px", marginBottom:5, textTransform:"uppercase" }}>
-                  {group.label}
-                </div>
-                {group.items.map(({ href, icon: Icon, label }) => {
-                  const active = pathname === href || pathname.startsWith(href + "/");
-                  return (
-                    <Link key={href} href={href} style={{
-                      display:"flex", alignItems:"center", gap:9, padding:"8px 10px", borderRadius:9, marginBottom:1,
-                      color: active ? "#fff" : "var(--text-secondary)",
-                      background: active ? "hsla(262,83%,58%,0.12)" : "transparent",
-                      fontWeight: active ? 600 : 400, fontSize:13,
-                      border: active ? "1px solid hsla(262,83%,58%,0.22)" : "1px solid transparent",
-                      position:"relative", transition:"all 0.12s", letterSpacing:"-0.01em",
-                    }}>
-                      {active && (
-                        <motion.div layoutId="nav-pill" style={{
-                          position:"absolute", left:0, top:"20%", bottom:"20%", width:3,
-                          background:"linear-gradient(180deg,var(--primary),var(--accent))",
-                          borderRadius:"0 3px 3px 0",
-                        }}/>
-                      )}
-                      <Icon size={14} style={{ flexShrink:0, opacity:active?1:0.5, color:active?"var(--primary-light)":"inherit" }}/>
-                      <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label}</span>
-                      {active && <ChevronRight size={11} style={{ opacity:0.4 }}/>}
-                    </Link>
-                  );
-                })}
-              </motion.div>
-            ))}
-          </div>
+        {/* Nav */}
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "10px 6px" }}>
+          {navGroups.map((group, gi) => (
+            <div key={group.label} style={{ marginBottom: 18 }}>
+              {gi > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 0 12px" }} />}
+              {/* Section label */}
+              <div className="sidebar-section-label" style={{
+                fontSize: 9, fontWeight: 600, color: "var(--text-muted)",
+                letterSpacing: "0.1em", padding: "0 10px", marginBottom: 4,
+                textTransform: "uppercase",
+              }}>
+                {group.label}
+              </div>
+
+              {group.items.map(({ href, icon: Icon, label }) => {
+                const active = pathname === href || pathname.startsWith(href + "/");
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    title={label}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 9,
+                      padding: "7px 10px",
+                      borderRadius: "var(--r-md)",
+                      marginBottom: 1,
+                      color: active ? "var(--text-primary)" : "var(--text-muted)",
+                      background: active ? "var(--bg-elevated)" : "transparent",
+                      fontWeight: active ? 500 : 400,
+                      fontSize: 13,
+                      position: "relative",
+                      transition: "background 0.1s, color 0.1s",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {/* Active indicator */}
+                    {active && (
+                      <motion.div
+                        layoutId="nav-indicator"
+                        style={{
+                          position: "absolute", left: 0, top: "15%", bottom: "15%", width: 2,
+                          background: "var(--brand)", borderRadius: "0 2px 2px 0",
+                        }}
+                      />
+                    )}
+                    <Icon
+                      size={15}
+                      style={{
+                        flexShrink: 0,
+                        color: active ? "var(--brand-light)" : "inherit",
+                        opacity: active ? 1 : 0.6,
+                      }}
+                    />
+                    <span className="sidebar-nav-label" style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {label}
+                    </span>
+                    {active && (
+                      <ChevronRight size={10} className="sidebar-nav-label" style={{ opacity: 0.35, flexShrink: 0 }} />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </div>
 
-        {/* AI Status */}
-        <div style={{ padding:"0 8px 8px", flexShrink:0 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:7, padding:"8px 12px", borderRadius:10, background:"hsla(262,83%,58%,0.06)", border:"1px solid hsla(262,83%,58%,0.15)" }}>
-            <div style={{ width:6, height:6, borderRadius:"50%", background:"var(--green)", animation:"pulse 2s infinite", flexShrink:0 }}/>
-            <span style={{ fontSize:12, fontWeight:500, color:"var(--primary-light)", flex:1 }}>AI Agent Online</span>
+        {/* AI status indicator */}
+        <div className="sidebar-ai-badge" style={{ padding: "0 10px 8px", flexShrink: 0 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 7,
+            padding: "7px 10px", borderRadius: "var(--r-md)",
+            background: "var(--bg-elevated)", border: "1px solid var(--border)",
+          }}>
+            <div style={{
+              width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+              background: aiEnabled ? "var(--green)" : "var(--red)",
+              animation: aiEnabled ? "pulse 2s infinite" : "none",
+            }} />
+            <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 500 }}>
+              AI {aiEnabled ? "Active" : "Paused"}
+            </span>
           </div>
         </div>
 
         {/* User footer */}
-        <div style={{ padding:"8px 8px 12px", borderTop:"1px solid var(--border-white)", flexShrink:0 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 11px", borderRadius:10, background:"var(--bg-elevated)", border:"1px solid var(--border-white)", marginBottom:4 }}>
-            <div style={{ width:28, height:28, borderRadius:8, flexShrink:0, background:"linear-gradient(135deg,var(--primary),var(--accent))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"#fff" }}>A</div>
-            <div style={{ minWidth:0 }}>
-              <div style={{ fontSize:12, fontWeight:600, color:"var(--text-primary)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>Admin</div>
-              <div style={{ fontSize:10, color:"var(--text-muted)" }}>Growthomic</div>
+        <div style={{
+          padding: "8px 10px 12px",
+          borderTop: "1px solid var(--border)",
+          flexShrink: 0,
+        }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 9,
+            padding: "7px 8px", borderRadius: "var(--r-md)",
+            marginBottom: 2,
+          }}>
+            <div style={{
+              width: 26, height: 26, borderRadius: "var(--r-sm)", flexShrink: 0,
+              background: "var(--brand)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, fontWeight: 600, color: "#fff",
+            }}>
+              A
+            </div>
+            <div className="sidebar-user-name" style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                Admin
+              </div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Growthomic</div>
             </div>
           </div>
-          <button onClick={handleLogout} style={{
-            display:"flex", alignItems:"center", gap:7, width:"100%",
-            padding:"6px 11px", borderRadius:9, fontSize:12, fontWeight:400,
-            color:"var(--text-muted)", background:"none", border:"none", transition:"color 0.12s",
-          }}
-          onMouseEnter={e=>e.currentTarget.style.color="var(--text-primary)"}
-          onMouseLeave={e=>e.currentTarget.style.color="var(--text-muted)"}>
-            <LogOut size={13}/> Sign Out
+
+          <button
+            onClick={handleLogout}
+            style={{
+              display: "flex", alignItems: "center", gap: 7, width: "100%",
+              padding: "6px 8px", borderRadius: "var(--r-md)",
+              fontSize: 12, color: "var(--text-muted)", background: "none",
+              border: "none", cursor: "pointer", fontFamily: "inherit",
+              transition: "color 0.1s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = "var(--text-secondary)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}
+          >
+            <LogOut size={13} />
+            <span className="sidebar-logout-label">Sign Out</span>
           </button>
         </div>
-      </div>
+      </aside>
 
       {/* ── Main Area ─────────────────────── */}
-      <div style={{ flex:1, height:"100vh", display:"flex", flexDirection:"column", minWidth:0, position:"relative", zIndex:5 }}>
-
-        {/* Top Header Bar */}
-        <div style={{
-          height:52, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between",
-          padding:"0 20px", borderBottom:"1px solid var(--border-white)",
-          background:"hsla(248,12%,7%,0.6)", backdropFilter:"blur(12px)",
+      <div style={{
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+        overflow: "hidden",
+      }}>
+        {/* Top bar */}
+        <header style={{
+          height: 52,
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 20px",
+          borderBottom: "1px solid var(--border)",
+          background: "var(--bg-void)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {/* Mobile hamburger */}
             <button
               className="mobile-menu-btn"
               onClick={() => setMobileNavOpen(true)}
-              aria-label="Open Navigation"
+              aria-label="Open navigation"
               style={{
-                background: "var(--bg-elevated)", border: "1px solid var(--border-white)",
-                borderRadius: 8, padding: "6px 8px", color: "var(--text-primary)", cursor: "pointer",
-                display: "none", alignItems: "center", justifyContent: "center"
+                background: "var(--bg-elevated)", border: "1px solid var(--border)",
+                borderRadius: "var(--r-sm)", padding: "5px 7px",
+                color: "var(--text-primary)", cursor: "pointer", display: "none",
+                alignItems: "center", justifyContent: "center",
               }}
             >
-              <Menu size={18} />
+              <Menu size={16} />
             </button>
             <div>
-              <div style={{ fontSize:10, color:"var(--text-muted)", fontWeight:500, letterSpacing:"0.04em" }}>Dashboard</div>
-              <div style={{ fontSize:14, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.02em" }}>{currentPage}</div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                Dashboard
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", letterSpacing: "-0.015em" }}>
+                {currentPage}
+              </div>
             </div>
           </div>
-          
-          {/* Interactive Global AI Automation Toggle Switch */}
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <button
-              onClick={toggleAiAutomation}
-              disabled={togglingAi}
-              title={aiAutomationEnabled ? "Click to Pause AI Automation" : "Click to Enable AI Automation"}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "6px 14px",
-                borderRadius: 20,
-                border: `1px solid ${aiAutomationEnabled ? "rgba(16,185,129,0.3)" : "rgba(244,63,94,0.3)"}`,
-                background: aiAutomationEnabled ? "rgba(16,185,129,0.12)" : "rgba(244,63,94,0.12)",
-                color: aiAutomationEnabled ? "#34d399" : "#fb7185",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: togglingAi ? "not-allowed" : "pointer",
-                transition: "all 0.2s"
-              }}
-            >
-              <div style={{
-                width: 8, height: 8, borderRadius: "50%",
-                background: aiAutomationEnabled ? "#34d399" : "#fb7185",
-                boxShadow: aiAutomationEnabled ? "0 0 8px #34d399" : "none",
-                animation: aiAutomationEnabled ? "pulse 2s infinite" : "none"
-              }} />
-              {aiAutomationEnabled ? "🤖 AI Automation: ON" : "⏸️ AI Automation: OFF"}
-            </button>
-          </div>
-        </div>
 
-        {/* Page Content Wrapper */}
-        <div style={{ flex:1, display:"flex", flexDirection:"column", minHeight:0, overflow:"hidden" }}>
-          {/* Scrollable Page Content */}
-          <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", minHeight:0 }}>
-            <motion.div
-              key={pathname}
-              initial={{ opacity:0 }}
-              animate={{ opacity:1 }}
-              transition={{ duration:0.18, ease:"easeOut" }}
-              style={{ minHeight:"100%" }}
-            >
-              {children}
-            </motion.div>
-          </div>
-        </div>
+          {/* AI Automation toggle */}
+          <button
+            onClick={toggleAi}
+            disabled={togglingAi}
+            title={aiEnabled ? "Click to pause AI" : "Click to enable AI"}
+            style={{
+              display: "flex", alignItems: "center", gap: 7,
+              padding: "5px 12px", borderRadius: 100,
+              border: `1px solid ${aiEnabled ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`,
+              background: aiEnabled ? "rgba(34,197,94,0.07)" : "rgba(239,68,68,0.07)",
+              color: aiEnabled ? "var(--green-light)" : "var(--red-light)",
+              fontSize: 12, fontWeight: 500, cursor: togglingAi ? "not-allowed" : "pointer",
+              transition: "all 0.15s", fontFamily: "inherit",
+            }}
+          >
+            <div style={{
+              width: 6, height: 6, borderRadius: "50%",
+              background: aiEnabled ? "var(--green)" : "var(--red)",
+              animation: aiEnabled ? "pulse 2s infinite" : "none",
+            }} />
+            AI Automation: {aiEnabled ? "Active" : "Paused"}
+          </button>
+        </header>
+
+        {/* Page content */}
+        <main style={{ flex: 1, overflowY: "auto", overflowX: "hidden", minHeight: 0 }}>
+          <motion.div
+            key={pathname}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            style={{ minHeight: "100%" }}
+          >
+            {children}
+          </motion.div>
+        </main>
       </div>
     </div>
   );

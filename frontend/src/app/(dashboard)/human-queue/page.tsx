@@ -46,19 +46,19 @@ export default function HumanQueuePage() {
         )}
       </div>
 
-      <div style={{ display:"flex", borderBottom:`1px solid ${C.borderWhite}`, marginBottom:24, gap:2 }}>
+      <div style={{ display:"flex", borderBottom:"1px solid var(--border)", marginBottom:24, gap:2 }}>
         {["pending","resolved"].map(t=>(
           <button key={t} onClick={()=>setFilter(t)} style={{
             padding:"8px 14px", fontSize:12, fontWeight:500, cursor:"pointer", border:"none", fontFamily:"inherit", background:"transparent",
-            borderBottom: filter===t?`2px solid var(--primary)`:"2px solid transparent",
-            color: filter===t?"var(--primary-light)":C.textMuted, marginBottom:-1,
+            borderBottom: filter===t?"2px solid var(--brand)":"2px solid transparent",
+            color: filter===t?"var(--brand-light)":"var(--text-muted)", marginBottom:-1,
           }}>
             {t.charAt(0).toUpperCase()+t.slice(1)}
           </button>
         ))}
       </div>
 
-      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
+      <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", overflow:"hidden" }}>
         <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:0 }}>
           <thead>
             <tr>{["Time","Customer","Reason","Note","Actions"].map(h=><th key={h} style={{...thStyle,textAlign:h==="Actions"?"right":thStyle.textAlign}}>{h}</th>)}</tr>
@@ -70,7 +70,7 @@ export default function HumanQueuePage() {
                 <UserRoundX size={44} style={{opacity:0.1,display:"block",margin:"0 auto 12px"}}/> No {filter} items
               </td></tr>
             ) : queue.map(item=>{
-              const [bc,bbg]=rColors[item.reason]??[C.textMuted,C.elevated];
+              const [bc,bbg]=rColors[item.reason]??["var(--text-muted)","var(--bg-elevated)"];
               return (
                 <tr key={item.id}>
                   <td style={tdStyle}>
@@ -90,7 +90,7 @@ export default function HumanQueuePage() {
                   <td style={tdStyle}><div style={{fontSize:12,color:C.textMuted,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.note||"—"}</div></td>
                   <td style={{...tdStyle,textAlign:"right"}}>
                     <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
-                      <a href={`/inbox?chat=${item.conversations.id}`} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:600,background:C.elevated,color:C.textSecondary,border:`1px solid ${C.border}`}}>
+                      <a href={`/inbox?chat=${item.conversations.id}`} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:"var(--r-md)",fontSize:12,fontWeight:500,background:"var(--bg-elevated)",color:"var(--text-secondary)",border:"1px solid var(--border)"}}>
                         <MessageSquare size={12}/> Chat
                       </a>
                       {filter==="pending"&&(

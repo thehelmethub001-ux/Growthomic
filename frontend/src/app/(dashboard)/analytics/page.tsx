@@ -1,22 +1,24 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, skeletonStyle } from "@/lib/styles";
+import { pageWrap, pageTitle, pageSubtitle, pageHeader, skeletonStyle } from "@/lib/styles";
 import { BarChart3, TrendingUp, MessageCircle, Bot, ShoppingCart, Users } from "lucide-react";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Legend, PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar,
+  BarChart, Bar, Legend, PieChart, Pie, Cell
 } from "recharts";
 
 const PIE_COLORS = ["#8b5cf6","#a78bfa","#6d28d9","#c084fc","#4c1d95","#7c3aed"];
+const STATUS_COLORS = ["#8b5cf6","#10b981","#22d3ee","#34d399","#fb7185","#f59e0b"];
+
 const tt: React.CSSProperties = {
-  backgroundColor: "#141330",
-  border: "1px solid rgba(139,92,246,0.2)",
-  borderRadius: 12,
+  backgroundColor: "var(--bg-elevated)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
   fontSize: 12,
-  color: "#ededf8",
-  boxShadow: "0 8px 30px rgba(0,0,0,0.4)",
+  color: "var(--text-primary)",
+  boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
   padding: "10px 14px",
 };
 
@@ -103,11 +105,11 @@ export default function AnalyticsPage() {
   const totalOrd = orderStatusData.reduce((s,p)=>s+p.value,0);
 
   const sumCards = [
-    {label:"7-Day Revenue",    value:`৳${totalRev.toLocaleString()}`, icon:<TrendingUp size={19} color="#10b981"/>, glow:"rgba(16,185,129,0.1)", border:"rgba(16,185,129,0.2)"},
-    {label:"AI Automation",    value:`${aiPct}%`,                      icon:<Bot size={19} color="#a78bfa"/>,       glow:"rgba(139,92,246,0.1)", border:"rgba(139,92,246,0.25)"},
-    {label:"Total Messages",   value:(totalAI+totalH).toLocaleString(),icon:<MessageCircle size={19} color="#22d3ee"/>,glow:"rgba(6,182,212,0.1)",border:"rgba(6,182,212,0.2)"},
-    {label:"Total Orders",     value:totalOrd.toLocaleString(),        icon:<ShoppingCart size={19} color="#f59e0b"/>,glow:"rgba(245,158,11,0.1)",border:"rgba(245,158,11,0.2)"},
-    {label:"Active Platforms", value:platformData.length.toString(),   icon:<Users size={19} color="#ec4899"/>,     glow:"rgba(236,72,153,0.1)", border:"rgba(236,72,153,0.2)"},
+    {label:"7-Day Revenue",    value:`৳${totalRev.toLocaleString()}`, icon:<TrendingUp size={16} color="var(--text-muted)"/>},
+    {label:"AI Automation",    value:`${aiPct}%`,                      icon:<Bot size={16} color="var(--text-muted)"/>},
+    {label:"Total Messages",   value:(totalAI+totalH).toLocaleString(),icon:<MessageCircle size={16} color="var(--text-muted)"/>},
+    {label:"Total Orders",     value:totalOrd.toLocaleString(),        icon:<ShoppingCart size={16} color="var(--text-muted)"/>},
+    {label:"Active Platforms", value:platformData.length.toString(),   icon:<Users size={16} color="var(--text-muted)"/>},
   ];
 
   const RADIAN = Math.PI / 180;
@@ -116,7 +118,7 @@ export default function AnalyticsPage() {
     const r = innerRadius+(outerRadius-innerRadius)*0.5;
     const x = cx+r*Math.cos(-midAngle*RADIAN);
     const y = cy+r*Math.sin(-midAngle*RADIAN);
-    return <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700}>{`${(percent*100).toFixed(0)}%`}</text>;
+    return <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={600}>{`${(percent*100).toFixed(0)}%`}</text>;
   };
 
   return (
@@ -125,22 +127,24 @@ export default function AnalyticsPage() {
       <div style={pageHeader}>
         <div>
           <h1 style={{ ...pageTitle, display:"flex", alignItems:"center", gap:10 }}>
-            <BarChart3 size={22} color={C.brandLight}/> Analytics
+            <BarChart3 size={20} color="var(--text-primary)"/> Analytics
           </h1>
           <p style={pageSubtitle}>7-day performance overview across all channels</p>
         </div>
-        <div style={{ padding:"6px 14px", borderRadius:20, background:"rgba(139,92,246,0.1)", border:`1px solid ${C.borderBrand}`, fontSize:11, fontWeight:700, color:C.brandLight }}>
+        <div style={{ padding:"6px 14px", borderRadius:100, background:"var(--bg-elevated)", border:"1px solid var(--border)", fontSize:11, fontWeight:600, color:"var(--text-secondary)" }}>
           Last 7 days
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:14, marginBottom:24 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:14, marginBottom:24 }}>
         {sumCards.map(c=>(
-          <div key={c.label} style={{ background:C.card, border:`1px solid ${c.border}`, borderRadius:18, padding:20 }}>
-            <div style={{ width:42,height:42,borderRadius:12,background:c.glow,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14 }}>{c.icon}</div>
-            <div style={{ fontSize:26,fontWeight:900,color:C.textPrimary,letterSpacing:"-0.02em",marginBottom:3 }}>{loading?<div style={{...skeletonStyle,height:28,width:70}}/>:c.value}</div>
-            <div style={{ fontSize:11,color:C.textMuted,fontWeight:600 }}>{c.label}</div>
+          <div key={c.label} style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", padding:20, display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:36,height:36,borderRadius:"var(--r-md)",background:"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{c.icon}</div>
+            <div>
+              <div style={{ fontSize:22,fontWeight:600,color:"var(--text-primary)",letterSpacing:"-0.02em",lineHeight:1 }}>{loading?<div style={{...skeletonStyle,height:22,width:70,marginTop:2}}/>:c.value}</div>
+              <div style={{ fontSize:11,color:"var(--text-muted)",fontWeight:500,marginTop:4 }}>{c.label}</div>
+            </div>
           </div>
         ))}
       </div>
@@ -148,26 +152,20 @@ export default function AnalyticsPage() {
       {/* Row 1: Revenue + AI vs Human */}
       <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16, marginBottom:16 }}>
         {/* Revenue area chart */}
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:24 }}>
+        <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", padding:24 }}>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
-            <div style={{ fontSize:14,fontWeight:800,color:C.textPrimary }}>Revenue Trend</div>
-            <div style={{ padding:"3px 10px",borderRadius:20,background:"rgba(16,185,129,0.1)",color:"#34d399",fontSize:11,fontWeight:700 }}>৳{totalRev.toLocaleString()}</div>
+            <div style={{ fontSize:14,fontWeight:600,color:"var(--text-primary)" }}>Revenue Trend</div>
+            <div style={{ padding:"3px 10px",borderRadius:100,background:"var(--bg-elevated)",border:"1px solid var(--border)",color:"var(--text-secondary)",fontSize:11,fontWeight:500 }}>৳{totalRev.toLocaleString()}</div>
           </div>
           <div style={{height:220}}>
-            {loading?<div style={{...skeletonStyle,height:"100%",borderRadius:12}}/>:(
+            {loading?<div style={{...skeletonStyle,height:"100%",borderRadius:"var(--r-md)"}}/>:(
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={revData} margin={{top:5,right:5,left:-20,bottom:0}}>
-                  <defs>
-                    <linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(139,92,246,0.08)" vertical={false}/>
-                  <XAxis dataKey="name" stroke={C.textMuted} fontSize={11} tickLine={false} axisLine={false}/>
-                  <YAxis stroke={C.textMuted} fontSize={11} tickLine={false} axisLine={false} tickFormatter={v=>`৳${v}`}/>
-                  <Tooltip contentStyle={tt} formatter={(v)=>[`৳${Number(v).toLocaleString()}`,"Revenue"]}/>
-                  <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2.5} fill="url(#rg)" dot={{r:3.5,fill:"#10b981",strokeWidth:0}}/>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false}/>
+                  <XAxis dataKey="name" stroke="#888" fontSize={11} tickLine={false} axisLine={false}/>
+                  <YAxis stroke="#888" fontSize={11} tickLine={false} axisLine={false} tickFormatter={v=>`৳${v}`}/>
+                  <Tooltip contentStyle={tt} formatter={(v:any)=>[`৳${Number(v).toLocaleString()}`,"Revenue"]}/>
+                  <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} fill="#10b981" fillOpacity={0.15} dot={{r:3,fill:"var(--bg-card)",stroke:"#10b981",strokeWidth:2}} activeDot={{r:5,fill:"#10b981"}}/>
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -175,22 +173,22 @@ export default function AnalyticsPage() {
         </div>
 
         {/* AI vs Human bar */}
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:24 }}>
+        <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", padding:24 }}>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
-            <div style={{ fontSize:14,fontWeight:800,color:C.textPrimary }}>AI vs Human</div>
-            <div style={{ padding:"3px 10px",borderRadius:20,background:"rgba(139,92,246,0.12)",color:C.brandLight,fontSize:11,fontWeight:700 }}>{aiPct}% automated</div>
+            <div style={{ fontSize:14,fontWeight:600,color:"var(--text-primary)" }}>AI vs Human Messages</div>
+            <div style={{ padding:"3px 10px",borderRadius:100,background:"var(--bg-elevated)",border:"1px solid var(--border)",color:"var(--brand-light)",fontSize:11,fontWeight:500 }}>{aiPct}% automated</div>
           </div>
           <div style={{height:220}}>
-            {loading?<div style={{...skeletonStyle,height:"100%",borderRadius:12}}/>:(
+            {loading?<div style={{...skeletonStyle,height:"100%",borderRadius:"var(--r-md)"}}/>:(
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={aiData} margin={{top:5,right:5,left:-20,bottom:0}}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(139,92,246,0.08)" vertical={false}/>
-                  <XAxis dataKey="name" stroke={C.textMuted} fontSize={11} tickLine={false} axisLine={false}/>
-                  <YAxis stroke={C.textMuted} fontSize={11} tickLine={false} axisLine={false}/>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false}/>
+                  <XAxis dataKey="name" stroke="#888" fontSize={11} tickLine={false} axisLine={false}/>
+                  <YAxis stroke="#888" fontSize={11} tickLine={false} axisLine={false}/>
                   <Tooltip contentStyle={tt}/>
-                  <Legend wrapperStyle={{fontSize:11,color:C.textMuted,paddingTop:8}}/>
-                  <Bar dataKey="AI" fill="#8b5cf6" radius={[6,6,0,0]} maxBarSize={28}/>
-                  <Bar dataKey="Human" fill="#f59e0b" radius={[6,6,0,0]} maxBarSize={28}/>
+                  <Legend wrapperStyle={{fontSize:11,color:"#888",paddingTop:8}}/>
+                  <Bar dataKey="AI" fill="#8b5cf6" radius={[4,4,0,0]} maxBarSize={28}/>
+                  <Bar dataKey="Human" fill="#f59e0b" radius={[4,4,0,0]} maxBarSize={28}/>
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -201,29 +199,29 @@ export default function AnalyticsPage() {
       {/* Row 2: Platform Pie + Order Status Pie + Product Messages */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1.3fr", gap:16, marginBottom:16 }}>
         {/* Platform Pie */}
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:24 }}>
-          <div style={{ fontSize:14,fontWeight:800,color:C.textPrimary,marginBottom:20 }}>Conversations by Platform</div>
+        <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", padding:24 }}>
+          <div style={{ fontSize:14,fontWeight:600,color:"var(--text-primary)",marginBottom:20 }}>Conversations by Platform</div>
           <div style={{height:180,display:"flex",alignItems:"center",justifyContent:"center"}}>
-            {loading?<div style={{...skeletonStyle,height:"100%",width:"100%",borderRadius:12}}/>:
+            {loading?<div style={{...skeletonStyle,height:"100%",width:"100%",borderRadius:"var(--r-md)"}}/>:
             platformData.length===0?(
-              <div style={{textAlign:"center",color:C.textMuted,fontSize:12}}>No data yet</div>
+              <div style={{textAlign:"center",color:"var(--text-muted)",fontSize:12}}>No data yet</div>
             ):(
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={platformData} cx="50%" cy="50%" outerRadius={75} innerRadius={40} dataKey="value" labelLine={false} label={renderLabel}>
+                  <Pie data={platformData} cx="50%" cy="50%" outerRadius={75} innerRadius={45} dataKey="value" stroke="none" labelLine={false} label={renderLabel}>
                     {platformData.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}
                   </Pie>
-                  <Tooltip contentStyle={tt}/>
+                  <Tooltip contentStyle={tt} itemStyle={{color:"var(--text-primary)"}}/>
                 </PieChart>
               </ResponsiveContainer>
             )}
           </div>
           {!loading && platformData.length>0 && (
-            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:12}}>
+            <div style={{display:"flex",flexWrap:"wrap",gap:10,marginTop:16,justifyContent:"center"}}>
               {platformData.map((p,i)=>(
-                <div key={p.name} style={{display:"flex",alignItems:"center",gap:5}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:PIE_COLORS[i%PIE_COLORS.length]}}/>
-                  <span style={{fontSize:11,color:C.textSecondary}}>{p.name} ({p.value})</span>
+                <div key={p.name} style={{display:"flex",alignItems:"center",gap:6}}>
+                  <div style={{width:10,height:10,borderRadius:"2px",background:PIE_COLORS[i%PIE_COLORS.length]}}/>
+                  <span style={{fontSize:11,color:"var(--text-secondary)",fontWeight:500}}>{p.name} ({p.value})</span>
                 </div>
               ))}
             </div>
@@ -231,29 +229,29 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Order Status Pie */}
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:24 }}>
-          <div style={{ fontSize:14,fontWeight:800,color:C.textPrimary,marginBottom:20 }}>Order Status Breakdown</div>
+        <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", padding:24 }}>
+          <div style={{ fontSize:14,fontWeight:600,color:"var(--text-primary)",marginBottom:20 }}>Order Status Breakdown</div>
           <div style={{height:180}}>
-            {loading?<div style={{...skeletonStyle,height:"100%",borderRadius:12}}/>:
+            {loading?<div style={{...skeletonStyle,height:"100%",borderRadius:"var(--r-md)"}}/>:
             orderStatusData.length===0?(
-              <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:C.textMuted,fontSize:12}}>No orders yet</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:"var(--text-muted)",fontSize:12}}>No orders yet</div>
             ):(
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={75} innerRadius={40} dataKey="value" labelLine={false} label={renderLabel}>
-                    {orderStatusData.map((_,i)=><Cell key={i} fill={["#8b5cf6","#10b981","#22d3ee","#34d399","#fb7185","#f59e0b"][i%6]}/>)}
+                  <Pie data={orderStatusData} cx="50%" cy="50%" outerRadius={75} innerRadius={45} dataKey="value" stroke="none" labelLine={false} label={renderLabel}>
+                    {orderStatusData.map((_,i)=><Cell key={i} fill={STATUS_COLORS[i%STATUS_COLORS.length]}/>)}
                   </Pie>
-                  <Tooltip contentStyle={tt}/>
+                  <Tooltip contentStyle={tt} itemStyle={{color:"var(--text-primary)"}}/>
                 </PieChart>
               </ResponsiveContainer>
             )}
           </div>
           {!loading && orderStatusData.length>0 && (
-            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:12}}>
+            <div style={{display:"flex",flexWrap:"wrap",gap:10,marginTop:16,justifyContent:"center"}}>
               {orderStatusData.map((s,i)=>(
-                <div key={s.name} style={{display:"flex",alignItems:"center",gap:5}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:["#8b5cf6","#10b981","#22d3ee","#34d399","#fb7185","#f59e0b"][i%6]}}/>
-                  <span style={{fontSize:11,color:C.textSecondary}}>{s.name} ({s.value})</span>
+                <div key={s.name} style={{display:"flex",alignItems:"center",gap:6}}>
+                  <div style={{width:10,height:10,borderRadius:"2px",background:STATUS_COLORS[i%STATUS_COLORS.length]}}/>
+                  <span style={{fontSize:11,color:"var(--text-secondary)",fontWeight:500}}>{s.name} ({s.value})</span>
                 </div>
               ))}
             </div>
@@ -261,31 +259,24 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Product Message Count */}
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:24 }}>
-          <div style={{ fontSize:14,fontWeight:800,color:C.textPrimary,marginBottom:6 }}>Product Mentions in Chats</div>
-          <div style={{ fontSize:11,color:C.textMuted,marginBottom:18 }}>How often each product is discussed</div>
+        <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", padding:24 }}>
+          <div style={{ fontSize:14,fontWeight:600,color:"var(--text-primary)",marginBottom:4 }}>Product Mentions in Chats</div>
+          <div style={{ fontSize:11,color:"var(--text-muted)",marginBottom:20 }}>How often each product is discussed</div>
           <div style={{height:210}}>
-            {loading?<div style={{...skeletonStyle,height:"100%",borderRadius:12}}/>:
+            {loading?<div style={{...skeletonStyle,height:"100%",borderRadius:"var(--r-md)"}}/>:
             productMsgData.length===0?(
-              <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:10,color:C.textMuted}}>
-                <MessageCircle size={40} style={{opacity:0.1}}/>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:10,color:"var(--text-muted)"}}>
+                <MessageCircle size={32} style={{opacity:0.2}}/>
                 <p style={{fontSize:12}}>No product data yet.</p>
-                <p style={{fontSize:11,opacity:0.6}}>Add products first.</p>
               </div>
             ):(
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={productMsgData} layout="vertical" margin={{top:0,right:10,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(139,92,246,0.08)" horizontal={false}/>
-                  <XAxis type="number" stroke={C.textMuted} fontSize={11} tickLine={false} axisLine={false}/>
-                  <YAxis type="category" dataKey="product" width={90} stroke={C.textMuted} fontSize={11} tickLine={false} axisLine={false}/>
-                  <Tooltip contentStyle={tt}/>
-                  <Bar dataKey="messages" fill="url(#barGrad)" radius={[0,6,6,0]} maxBarSize={22}/>
-                  <defs>
-                    <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#6d28d9"/>
-                      <stop offset="100%" stopColor="#a78bfa"/>
-                    </linearGradient>
-                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={false}/>
+                  <XAxis type="number" stroke="#888" fontSize={11} tickLine={false} axisLine={false}/>
+                  <YAxis type="category" dataKey="product" width={100} stroke="#888" fontSize={11} tickLine={false} axisLine={false}/>
+                  <Tooltip contentStyle={tt} cursor={{fill:"rgba(255,255,255,0.05)"}}/>
+                  <Bar dataKey="messages" fill="#8b5cf6" radius={[0,4,4,0]} maxBarSize={20}/>
                 </BarChart>
               </ResponsiveContainer>
             )}
