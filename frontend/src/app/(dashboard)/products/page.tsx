@@ -172,14 +172,14 @@ export default function ProductsPage() {
 
       {/* Stats row */}
       {!loading && products.length > 0 && (
-        <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 24 }}>
           {[
-            { label: "Total Products", value: products.length, color: C.brandLight, bg: "rgba(139,92,246,0.1)" },
-            { label: "Active", value: activeCount, color: "#34d399", bg: "rgba(16,185,129,0.1)" },
-            { label: "Low Stock (≤5)", value: lowStock, color: "#fbbf24", bg: "rgba(245,158,11,0.1)" },
-            { label: "Out of Stock", value: outOfStock, color: "#fb7185", bg: "rgba(244,63,94,0.1)" },
+            { label: "Total Products", value: products.length, color: "var(--primary-light)", bg: "hsla(262,83%,58%,0.1)" },
+            { label: "Active", value: activeCount, color: "var(--green-light)", bg: "hsla(152,69%,40%,0.1)" },
+            { label: "Low Stock (≤5)", value: lowStock, color: "hsl(38,90%,65%)", bg: "hsla(38,90%,55%,0.1)" },
+            { label: "Out of Stock", value: outOfStock, color: "hsl(350,85%,70%)", bg: "hsla(350,85%,60%,0.1)" },
           ].map(s => (
-            <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, flex: 1 }}>
+            <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 12, background: C.card, border: `1px solid ${C.border}` }}>
               <div style={{ width: 32, height: 32, borderRadius: 9, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Package size={15} color={s.color} />
               </div>
@@ -221,7 +221,7 @@ export default function ProductsPage() {
                   </p>
                 </td></tr>
               ) : shown.map(p => {
-                const stockColor = p.stock_quantity === 0 ? "#fb7185" : p.stock_quantity <= 5 ? "#fbbf24" : "#34d399";
+                const stockColor = p.stock_quantity === 0 ? "hsl(350,85%,70%)" : p.stock_quantity <= 5 ? "hsl(38,90%,65%)" : "hsl(152,60%,55%)";
                 return (
                   <tr key={p.id} style={{ transition: "background 0.12s" }}>
                     <td style={tdStyle}>
@@ -240,10 +240,10 @@ export default function ProductsPage() {
                           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                             <div style={{ fontWeight: 700, fontSize: 13, color: C.textPrimary }}>{p.name}</div>
                             {p.manually_edited && (
-                              <div title="Manually edited — won't auto-update from WooCommerce" style={{ display: "flex", alignItems: "center", background: "rgba(245,158,11,0.15)", padding: "2px 6px", borderRadius: 4, gap: 4 }}>
-                                <Lock size={10} color="#fbbf24" />
-                                <span style={{ fontSize: 9, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase" }}>Locked</span>
-                              </div>
+                              <span title="Manually edited — won't auto-update from WooCommerce" className="badge badge-amber" style={{gap:4}}>
+                                <Lock size={10} />
+                                Locked
+                              </span>
                             )}
                           </div>
                           <div style={{ fontSize: 11, color: C.textMuted }}>{p.sku ? `SKU: ${p.sku}` : "No SKU"}</div>
@@ -258,8 +258,8 @@ export default function ProductsPage() {
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <div style={{ width: 6, height: 6, borderRadius: "50%", background: stockColor, flexShrink: 0 }} />
                         <span style={{ fontWeight: 700, fontSize: 13, color: stockColor }}>{p.stock_quantity}</span>
-                        {p.stock_quantity === 0 && <span style={{ fontSize: 10, fontWeight: 700, color: "#fb7185" }}>OUT</span>}
-                        {p.stock_quantity > 0 && p.stock_quantity <= 5 && <span style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24" }}>LOW</span>}
+                        {p.stock_quantity === 0 && <span className="badge badge-red" style={{fontSize:10}}>OUT</span>}
+                        {p.stock_quantity > 0 && p.stock_quantity <= 5 && <span className="badge badge-amber" style={{fontSize:10}}>LOW</span>}
                       </div>
                     </td>
                     <td style={tdStyle}>
@@ -385,13 +385,13 @@ export default function ProductsPage() {
               </div>
 
               {/* Variations */}
-              <div style={{ padding: 16, background: "rgba(245,158,11,0.04)", border: `1px solid rgba(245,158,11,0.15)`, borderRadius: 12 }}>
+              <div style={{ padding: 16, background: "hsla(38,90%,55%,0.04)", border: "1px solid hsla(38,90%,55%,0.15)", borderRadius: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                   <div>
-                    <h3 style={{ fontSize: 14, fontWeight: 700, color: "#fbbf24", display: "flex", alignItems: "center", gap: 6 }}>🏷️ Product Variations</h3>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: "hsl(38,90%,65%)", display: "flex", alignItems: "center", gap: 6 }}>🏷️ Product Variations</h3>
                     <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>Define sizes, colors, and specific image URLs for variations</p>
                   </div>
-                  <button onClick={() => setFormData({ ...formData, variations: [...(formData.variations || []), { id: Date.now(), attributes: { "Color/Size": "" }, price: formData.regular_price || 0, stock: 0, image_url: "" }] })} style={{ background: "rgba(245,158,11,0.1)", border: "none", color: "#fbbf24", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                  <button onClick={() => setFormData({ ...formData, variations: [...(formData.variations || []), { id: Date.now(), attributes: { "Color/Size": "" }, price: formData.regular_price || 0, stock: 0, image_url: "" }] })} className="badge badge-amber" style={{ padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
                     <Plus size={12} /> Add Variation
                   </button>
                 </div>

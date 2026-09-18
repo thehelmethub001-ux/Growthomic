@@ -18,13 +18,14 @@ type Order = {
 };
 
 const TABS = ["all","new","confirmed","shipped","delivered","returned","cancelled","failed"];
-const statusColors: Record<string,[string,string]> = {
-  new:       [C.brandLight,"rgba(124,92,252,0.12)"],
-  confirmed: ["#34d399","rgba(16,185,129,0.12)"],
-  shipped:   ["#22d3ee","rgba(6,182,212,0.12)"],
-  delivered: ["#34d399","rgba(16,185,129,0.15)"],
-  returned:  ["#fbbf24","rgba(245,158,11,0.12)"],
-  cancelled: ["#fb7185","rgba(244,63,94,0.12)"],
+const statusBadgeClass: Record<string,string> = {
+  new:       "badge badge-purple",
+  confirmed: "badge badge-green",
+  shipped:   "badge badge-cyan",
+  delivered: "badge badge-green",
+  returned:  "badge badge-amber",
+  cancelled: "badge badge-red",
+  failed:    "badge badge-red",
 };
 
 export default function OrdersPage() {
@@ -347,7 +348,6 @@ export default function OrdersPage() {
                   No orders found
                 </td></tr>
               ) : shown.map(o=>{
-                const [sc,sbg] = statusColors[o.status]??[C.textMuted,C.elevated];
                 const isSelected = selectedOrderIds.has(o.id);
                 const isDuplicate = duplicateIds.has(o.id);
                 return (
@@ -364,7 +364,7 @@ export default function OrdersPage() {
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
                         <div style={{fontWeight:600,fontSize:12,color:C.textPrimary,fontFamily:"monospace"}}>#{o.id.slice(0,8)}</div>
                         {isDuplicate && (
-                          <span title="Same customer ordered within 3 days" style={{fontSize:9,fontWeight:700,background:"rgba(251,191,36,0.18)",color:"#fbbf24",borderRadius:6,padding:"2px 6px",border:"1px solid rgba(251,191,36,0.35)",letterSpacing:"0.04em"}}>🔁 DUP</span>
+                          <span title="Same customer ordered within 3 days" className="badge badge-amber" style={{fontSize:9,letterSpacing:"0.04em"}}>🔁 DUP</span>
                         )}
                       </div>
                       <div style={{fontSize:11,color:C.textMuted,marginTop:2}}>{format(new Date(o.created_at),"MMM d, h:mm a")}</div>
@@ -408,7 +408,7 @@ export default function OrdersPage() {
                       <div style={{fontSize:11,color:C.textMuted,textTransform:"uppercase"}}>{o.payment_method}</div>
                     </td>
                     <td style={tdStyle}>
-                      <span style={{padding:"3px 10px",borderRadius:100,fontSize:11,fontWeight:700,background:sbg,color:sc}}>{o.status}</span>
+                      <span className={statusBadgeClass[o.status] ?? "badge badge-muted"} style={{textTransform:"capitalize"}}>{o.status}</span>
                     </td>
                     <td style={tdStyle}>
                       {o.woo_sync_status==="synced" ? (
@@ -417,13 +417,13 @@ export default function OrdersPage() {
                         </div>
                       ) : o.woo_sync_status==="failed" ? (
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <span style={{padding:"2px 8px",borderRadius:100,fontSize:10,fontWeight:700,background:"rgba(244,63,94,0.12)",color:"#fb7185"}}>Failed</span>
+                          <span className="badge badge-red">Failed</span>
                           <button onClick={()=>retrySync(o.id)} disabled={syncId===o.id} style={{background:"none",border:"none",cursor:syncId===o.id?"not-allowed":"pointer",color:C.textMuted,padding:2,display:"flex"}}>
                             <RefreshCcw size={13} style={{animation:syncId===o.id?"spin 1s linear infinite":"none"}}/>
                           </button>
                         </div>
                       ) : (
-                        <span style={{padding:"2px 8px",borderRadius:100,fontSize:10,fontWeight:700,background:"rgba(245,158,11,0.12)",color:"#fbbf24"}}>Pending</span>
+                        <span className="badge badge-amber">Pending</span>
                       )}
                     </td>
                     <td style={tdStyle}>

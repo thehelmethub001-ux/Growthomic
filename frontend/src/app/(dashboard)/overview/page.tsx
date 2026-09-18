@@ -15,6 +15,7 @@ export default function OverviewPage() {
   const [kpiData, setKpiData] = useState({ messages:0, handleRate:0, orders:0, revenue:0 });
   const [queueCounts, setQueueCounts] = useState({ ai_failed:0, return:0, complaint:0 });
   const [chartData, setChartData] = useState<{time:string; messages:number}[]>([]);
+  const [businessName, setBusinessName] = useState("");
   const sb = createClient();
 
   useEffect(() => { loadData(); }, []);
@@ -61,6 +62,10 @@ export default function OverviewPage() {
       setKpiData({ messages: msgCount||0, handleRate, orders: ordCount||0, revenue: rev });
       setQueueCounts(qc);
       setChartData(cData);
+
+      // Fetch business name
+      const { data: biz } = await sb.from("business_settings").select("business_name").limit(1).single();
+      if (biz?.business_name) setBusinessName(biz.business_name);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -90,7 +95,7 @@ export default function OverviewPage() {
           All Systems Live
         </p>
         <h1 style={{ fontSize:30, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.03em", lineHeight:1.15 }}>
-          {greeting}, <span className="gradient-text">Admin!</span> 👋
+          {greeting}, <span className="gradient-text">{businessName || "there"}!</span> 👋
         </h1>
         <p style={{ fontSize:13, color:"var(--text-muted)", marginTop:6 }}>
           Here&apos;s what&apos;s happening with your AI agent today.
@@ -98,7 +103,7 @@ export default function OverviewPage() {
       </motion.div>
 
       {/* KPI Cards */}
-      <motion.div variants={stagger} initial="hidden" animate="show" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:20 }}>
+      <motion.div variants={stagger} initial="hidden" animate="show" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))", gap:14, marginBottom:20 }}>
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
           return (

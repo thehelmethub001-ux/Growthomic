@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { C, inputStyle, skeletonStyle } from "@/lib/styles";
+import { C, inputStyle, skeletonStyle, getCustomerAvatar } from "@/lib/styles";
 import { MessageSquare, Pause, Play, Search, User, Clock, Star } from "lucide-react";
 import { format } from "date-fns";
 
@@ -247,11 +247,14 @@ export default function InboxPage() {
                   <div style={{ display:"flex", alignItems:"center", gap:6, overflow:"hidden", flex:1, minWidth:0 }}>
                     {c.customers.profile_pic ? (
                       <img src={c.customers.profile_pic} alt="" style={{ width:22, height:22, borderRadius:"50%", objectFit:"cover", flexShrink:0 }} />
-                    ) : (
-                      <div style={{ width:22, height:22, borderRadius:"50%", background:"var(--bg-elevated)", border:`1px solid var(--border)`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                        <User size={12} color="var(--text-muted)" />
-                      </div>
-                    )}
+                    ) : (() => {
+                      const av = getCustomerAvatar(c.customers.id || c.customers.platform_id, c.customers.name);
+                      return (
+                        <div style={{ width:22, height:22, borderRadius:"50%", background:av.gradient, border:`1px solid ${av.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:10, fontWeight:700, color:"#fff" }}>
+                          {av.initial}
+                        </div>
+                      );
+                    })()}
                     <span style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                       {getDisplayName(c.customers.name, c.customers.platform_id, c.platform)}
                     </span>
@@ -277,11 +280,14 @@ export default function InboxPage() {
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
               {sel.customers.profile_pic ? (
                 <img src={sel.customers.profile_pic} alt="" style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover", flexShrink:0 }} />
-              ) : (
-                <div style={{ width:36, height:36, borderRadius:"50%", background:"var(--bg-elevated)", border:`1px solid var(--border)`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                  <User size={18} color="var(--text-muted)" />
-                </div>
-              )}
+              ) : (() => {
+                const av = getCustomerAvatar(sel.customers.id || sel.customers.platform_id, sel.customers.name);
+                return (
+                  <div style={{ width:36, height:36, borderRadius:"50%", background:av.gradient, border:`1px solid ${av.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:14, fontWeight:700, color:"#fff", boxShadow:"0 2px 10px rgba(0,0,0,0.25)" }}>
+                    {av.initial}
+                  </div>
+                );
+              })()}
               <div>
                 <div style={{ fontSize:14, fontWeight:600, color:"var(--text-primary)" }}>{getDisplayName(sel.customers.name, sel.customers.platform_id, sel.platform)}</div>
                 <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2, textTransform:"capitalize" }}>{sel.platform} · {sel.status.replace("_"," ")}</div>

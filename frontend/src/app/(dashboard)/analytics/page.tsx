@@ -120,7 +120,7 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <div style={{ ...pageWrap, maxWidth:1200 }}>
+    <div style={{ ...pageWrap }}>
       {/* Header */}
       <div style={pageHeader}>
         <div>
@@ -135,7 +135,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Summary Cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:14, marginBottom:24 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:14, marginBottom:24 }}>
         {sumCards.map(c=>(
           <div key={c.label} style={{ background:C.card, border:`1px solid ${c.border}`, borderRadius:18, padding:20 }}>
             <div style={{ width:42,height:42,borderRadius:12,background:c.glow,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14 }}>{c.icon}</div>

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle } from "@/lib/styles";
+import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary } from "@/lib/styles";
 import { Plus, Tag, Zap, Clock, CheckCircle2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -126,7 +126,7 @@ export default function OffersPage() {
       </div>
 
       {/* Stats */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:12, marginBottom:24 }}>
         {[
           { label:"Active Campaigns",  value:offers.filter(o=>getOfferStatus(o)==="active").length,    color:"hsl(152,60%,60%)", bg:"hsla(152,60%,50%,0.08)" },
           { label:"Scheduled",         value:offers.filter(o=>getOfferStatus(o)==="scheduled").length,  color:"hsl(38,90%,65%)",  bg:"hsla(38,90%,55%,0.08)" },
@@ -154,8 +154,29 @@ export default function OffersPage() {
       {loading ? (
         <div style={{ color: C.textMuted, padding: 20 }}>Loading offers...</div>
       ) : shown.length === 0 ? (
-        <div style={{ color: C.textMuted, padding: 20, textAlign: "center", background: C.card, borderRadius: 12, border: `1px dashed ${C.border}` }}>
-          No offers found. Create one above!
+        <div style={{
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          padding: "56px 24px", background: "var(--bg-card)", borderRadius: 14,
+          border: `1px dashed ${C.border}`, textAlign: "center",
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 14, background: "hsla(262,83%,58%,0.12)",
+            border: "1px solid hsla(262,83%,58%,0.25)", display: "flex", alignItems: "center",
+            justifyContent: "center", marginBottom: 16, color: "var(--primary-light)"
+          }}>
+            <Tag size={22} />
+          </div>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>
+            No offers found
+          </h3>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 380, marginBottom: 20 }}>
+            {tab === "all"
+              ? "Create special discount offers or promotional campaigns to boost conversion."
+              : `There are currently no ${tab} offers in your campaigns.`}
+          </p>
+          <button onClick={() => setShowModal(true)} style={btnPrimary}>
+            <Plus size={15} /> Create Offer
+          </button>
         </div>
       ) : (
         <motion.div layout style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:14 }}>

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, skeletonStyle, thStyle, tdStyle } from "@/lib/styles";
+import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, skeletonStyle, thStyle, tdStyle, getCustomerAvatar } from "@/lib/styles";
 import { Search, Star, Users } from "lucide-react";
 
 type Customer = { id:string; name:string|null; platform:string; platform_id:string; spam_score:number; is_vip:boolean; is_spam:boolean; ai_reply_enabled:boolean; created_at:string };
@@ -102,21 +102,29 @@ export default function CRMPage() {
                 <Users size={40} style={{ opacity:0.1, display:"block", margin:"0 auto 10px" }}/>
                 No customers found in database
               </td></tr>
-            ) : shown.map(c => (
+            ) : shown.map(c => {
+              const av = getCustomerAvatar(c.id, c.name);
+              return (
               <tr key={c.id}>
                 <td style={tdStyle}>
                   <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <div style={{ width:32, height:32, borderRadius:8, background:"hsla(262,83%,58%,0.1)", border:"1px solid hsla(262,83%,58%,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"var(--primary-light)", flexShrink:0 }}>
-                      {(c.name||"?")[0].toUpperCase()}
+                    <div style={{
+                      width:32, height:32, borderRadius:8,
+                      background: av.gradient, border: `1px solid ${av.border}`,
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                      fontSize:12, fontWeight:700, color:"#fff", flexShrink:0,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.25)"
+                    }}>
+                      {av.initial}
                     </div>
                     <div>
-                      <div style={{ fontWeight:600, fontSize:13, color:"var(--text-primary)" }}>{c.name||"Unknown"}</div>
+                      <div style={{ fontWeight:600, fontSize:13, color:"var(--text-primary)" }}>{c.name||"Unknown Customer"}</div>
                       <div style={{ fontSize:11, color:"var(--text-muted)" }}>{c.platform_id}</div>
                     </div>
                   </div>
                 </td>
                 <td style={tdStyle}>
-                  <span style={{ padding:"2px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:`${PLT_COLOR[c.platform]||"var(--primary-light)"}22`, color:PLT_COLOR[c.platform]||"var(--primary-light)", textTransform:"capitalize" }}>
+                  <span className={`badge badge-${PLT_COLOR[c.platform] ? (c.platform === "messenger" ? "cyan" : c.platform === "instagram" ? "purple" : "green") : "muted"}`} style={{textTransform:"capitalize"}}>
                     {c.platform}
                   </span>
                 </td>
@@ -130,13 +138,13 @@ export default function CRMPage() {
                 </td>
                 <td style={tdStyle}>
                   {c.is_spam
-                    ? <span style={{ padding:"2px 9px", borderRadius:100, fontSize:10, fontWeight:700, background:"hsla(350,85%,60%,0.12)", color:"hsl(350,85%,70%)" }}>Spam</span>
-                    : <span style={{ padding:"2px 9px", borderRadius:100, fontSize:10, fontWeight:700, background:"hsla(152,60%,50%,0.1)", color:"hsl(152,60%,60%)" }}>Clean</span>
+                    ? <span className="badge badge-red">Spam</span>
+                    : <span className="badge badge-green">Clean</span>
                   }
                 </td>
                 <td style={{ ...tdStyle, textAlign:"center" }}>
                   <button onClick={() => toggleAIReply(c.id, c.ai_reply_enabled)} style={{ border:"none", cursor:"pointer", background:"none", padding:0 }}>
-                    <span style={{ padding:"4px 12px", borderRadius:100, fontSize:11, fontWeight:700, background:c.ai_reply_enabled?"hsla(152,60%,50%,0.1)":"hsla(350,85%,60%,0.1)", color:c.ai_reply_enabled?"hsl(152,60%,60%)":"hsl(350,85%,70%)", transition:"all 0.2s" }}>
+                    <span className={c.ai_reply_enabled ? "badge badge-green" : "badge badge-red"} style={{transition:"all 0.2s"}}>
                       {c.ai_reply_enabled ? "On" : "Off"}
                     </span>
                   </button>
@@ -147,7 +155,8 @@ export default function CRMPage() {
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

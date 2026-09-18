@@ -76,13 +76,17 @@ export default function HumanQueuePage() {
                   <td style={tdStyle}>
                     <div style={{fontSize:13,fontWeight:600,color:C.textPrimary}}>{format(new Date(item.created_at),"h:mm a")}</div>
                     <div style={{fontSize:11,color:C.textMuted}}>{format(new Date(item.created_at),"MMM d")}</div>
-                    {item.priority===2&&<div style={{fontSize:9,fontWeight:800,color:"#fb7185",letterSpacing:"0.06em",marginTop:2}}>HIGH PRIORITY</div>}
+                    {item.priority===2&&<span className="badge badge-red" style={{fontSize:9,letterSpacing:"0.06em"}}>HIGH PRIORITY</span>}
                   </td>
                   <td style={tdStyle}>
                     <div style={{fontWeight:600,fontSize:13,color:C.textPrimary}}>{item.conversations.customers.name||"Unknown"}</div>
                     <div style={{fontSize:11,color:C.textMuted,textTransform:"capitalize"}}>{item.conversations.customers.platform}</div>
                   </td>
-                  <td style={tdStyle}><span style={{padding:"3px 10px",borderRadius:100,fontSize:11,fontWeight:700,background:bbg,color:bc}}>{item.reason}</span></td>
+                  <td style={tdStyle}>
+                    <span className={`badge badge-${item.reason==="ai_failed"?"red":item.reason==="complaint"?"red":item.reason==="return"?"amber":item.reason==="user_requested"?"purple":"muted"}`} style={{textTransform:"capitalize"}}>
+                      {item.reason.replace("_"," ")}
+                    </span>
+                  </td>
                   <td style={tdStyle}><div style={{fontSize:12,color:C.textMuted,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.note||"—"}</div></td>
                   <td style={{...tdStyle,textAlign:"right"}}>
                     <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>

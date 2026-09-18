@@ -32,7 +32,8 @@ export const C = {
 
 export const pageWrap: React.CSSProperties = {
   padding: "28px 36px 64px",
-  maxWidth: 1280,
+  width: "100%",
+  maxWidth: "100%",
 };
 
 export const pageHeader: React.CSSProperties = {
@@ -130,3 +131,34 @@ export const btnSecondary: React.CSSProperties = {
   transition: "all 0.15s",
   fontFamily: "inherit",
 };
+
+const AVATAR_PALETTES = [
+  { bg: "linear-gradient(135deg, hsl(262,83%,58%), hsl(271,91%,65%))", border: "hsla(262,83%,58%,0.3)" },
+  { bg: "linear-gradient(135deg, hsl(190,90%,45%), hsl(217,89%,61%))", border: "hsla(190,90%,45%,0.3)" },
+  { bg: "linear-gradient(135deg, hsl(152,69%,40%), hsl(190,90%,45%))", border: "hsla(152,69%,40%,0.3)" },
+  { bg: "linear-gradient(135deg, hsl(38,90%,55%), hsl(350,85%,60%))", border: "hsla(38,90%,55%,0.3)" },
+  { bg: "linear-gradient(135deg, hsl(271,91%,65%), hsl(330,75%,65%))", border: "hsla(271,91%,65%,0.3)" },
+  { bg: "linear-gradient(135deg, hsl(217,89%,61%), hsl(262,83%,58%))", border: "hsla(217,89%,61%,0.3)" },
+];
+
+export function getCustomerAvatar(id?: string | null, name?: string | null) {
+  const seed = (id || "") + (name || "");
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) & 0xffffff;
+  }
+  const palette = AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
+
+  let initial = "";
+  if (name && name.trim() && name.toLowerCase() !== "unknown") {
+    initial = name.trim()[0].toUpperCase();
+  } else if (id && id.trim()) {
+    const clean = id.replace(/[^a-zA-Z0-9]/g, "");
+    initial = (clean[0] || "C").toUpperCase();
+  } else {
+    initial = "C";
+  }
+
+  return { gradient: palette.bg, border: palette.border, initial };
+}
+

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, btnPrimary, btnSecondary, inputStyle } from "@/lib/styles";
-import { Globe, Smartphone, MessageCircle, ShoppingBag, Key, Save, Copy, CheckCheck } from "lucide-react";
+import { Globe, Smartphone, MessageCircle, ShoppingBag, Save, Copy, CheckCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
@@ -97,29 +97,6 @@ export default function SettingsPage() {
                 <input style={inputStyle} value={wooSecret} onChange={e => setWooSecret(e.target.value)} placeholder="cs_••••••••••••••••" type="password"/>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Edge Function Secrets */}
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:28, position:"relative", overflow:"hidden" }}>
-          <div style={{ position:"absolute", top:0, left:0, bottom:0, width:4, background:"#f59e0b" }}/>
-          
-          <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:20, paddingLeft:8 }}>
-            <div style={{ width:38, height:38, borderRadius:12, background:"rgba(245,158,11,0.1)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <Key size={20} color="#fbbf24"/>
-            </div>
-            <div>
-              <h2 style={{ fontSize:16, fontWeight:800, color:C.textPrimary }}>Edge Function Secrets</h2>
-              <p style={{ fontSize:12, color:C.textMuted, marginTop:2, fontWeight:500 }}>Set via Supabase CLI — not stored in this dashboard</p>
-            </div>
-          </div>
-
-          <div style={{ marginLeft:8, background:C.elevated, borderRadius:12, padding:"18px 22px", border:`1px solid ${C.borderWhite}`, fontFamily:"monospace", fontSize:13, color:C.textSecondary, lineHeight:1.8 }}>
-            <div><span style={{opacity:0.5}}>supabase secrets set </span><span style={{color:C.brandLight,fontWeight:700}}>GEMINI_API_KEY</span>=xxx</div>
-            <div><span style={{opacity:0.5}}>supabase secrets set </span><span style={{color:C.brandLight,fontWeight:700}}>OPENAI_API_KEY</span>=xxx</div>
-            <div><span style={{opacity:0.5}}>supabase secrets set </span><span style={{color:C.brandLight,fontWeight:700}}>UPSTASH_REDIS_REST_URL</span>=xxx</div>
-            <div><span style={{opacity:0.5}}>supabase secrets set </span><span style={{color:C.brandLight,fontWeight:700}}>QSTASH_TOKEN</span>=xxx</div>
-            <div><span style={{opacity:0.5}}>supabase secrets set </span><span style={{color:C.brandLight,fontWeight:700}}>META_APP_SECRET</span>=xxx</div>
           </div>
         </div>
 

@@ -77,27 +77,25 @@ export default function SpamPage() {
                     <div style={{width:64,height:5,background:C.overlay,borderRadius:99,overflow:"hidden"}}>
                       <div style={{height:"100%",width:`${Math.min(c.spam_score,100)}%`,background:`hsl(${120-c.spam_score*1.2},65%,52%)`,borderRadius:99}}/>
                     </div>
-                    <span style={{fontSize:12,fontWeight:700,color:c.spam_score>70?"#fb7185":c.spam_score>40?"#fbbf24":C.textSecondary}}>{c.spam_score}</span>
+                    <span style={{fontSize:12,fontWeight:700,color:c.spam_score>70?"hsl(350,85%,70%)":c.spam_score>40?"hsl(38,90%,65%)":"var(--text-secondary)"}}>{c.spam_score}</span>
                   </div>
                 </td>
                 <td style={tdStyle}>
                   {c.is_spam
-                    ? <span style={{padding:"2px 9px",borderRadius:100,fontSize:10,fontWeight:700,background:"rgba(244,63,94,0.12)",color:"#fb7185"}}>Auto-flagged</span>
-                    : <span style={{padding:"2px 9px",borderRadius:100,fontSize:10,fontWeight:700,background:"rgba(255,255,255,0.05)",color:C.textSecondary}}>Warning</span>
+                    ? <span className="badge badge-red">Auto-flagged</span>
+                    : <span className="badge badge-amber">Warning</span>
                   }
                 </td>
                 <td style={{...tdStyle,textAlign:"center"}}>
-                  <button onClick={()=>toggleAI(c.id,c.ai_reply_enabled)} style={{
-                    padding:"3px 10px", borderRadius:100, fontSize:11, fontWeight:700, cursor:"pointer", border:"none", fontFamily:"inherit",
-                    background:c.ai_reply_enabled?"rgba(16,185,129,0.12)":"rgba(244,63,94,0.12)",
-                    color:c.ai_reply_enabled?"#34d399":"#fb7185",
-                  }}>
-                    {c.ai_reply_enabled?"Enabled":"Disabled"}
+                  <button onClick={()=>toggleAI(c.id,c.ai_reply_enabled)} style={{ border:"none", cursor:"pointer", background:"none", padding:0 }}>
+                    <span className={c.ai_reply_enabled ? "badge badge-green" : "badge badge-red"}>
+                      {c.ai_reply_enabled ? "Enabled" : "Disabled"}
+                    </span>
                   </button>
                 </td>
                 <td style={{...tdStyle,textAlign:"center"}}>
                   <button onClick={()=>toggleVIP(c.id,c.is_vip)} style={{background:"none",border:"none",cursor:"pointer",display:"inline-flex",alignItems:"center",padding:4,borderRadius:6}}>
-                    <Star size={16} style={{fill:c.is_vip?"#f59e0b":"none",color:c.is_vip?"#f59e0b":C.textMuted}}/>
+                    <Star size={16} style={{fill:c.is_vip?"hsl(38,90%,65%)":"none",color:c.is_vip?"hsl(38,90%,65%)":"var(--text-muted)"}}/>
                   </button>
                 </td>
                 <td style={{...tdStyle,textAlign:"right"}}>

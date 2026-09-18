@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3, Bot, ChevronRight, Home, Inbox, LogOut,
   Package, Settings, ShieldAlert, ShoppingCart,
-  Sparkles, Tag, Users, ShieldX,
+  Sparkles, Tag, Users, ShieldX, Menu, X,
 } from "lucide-react";
 import { C } from "@/lib/styles";
 import { motion } from "framer-motion";
@@ -47,6 +47,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const supabase = createClient();
   const [aiAutomationEnabled, setAiAutomationEnabled] = useState(true);
   const [togglingAi, setTogglingAi] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     supabase.from("business_settings").select("ai_automation_enabled, ai_reply_mode").limit(1).single()
@@ -85,12 +90,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div style={{ display:"flex", width:"100vw", height:"100vh", overflow:"hidden", background:"var(--bg-base)", position:"relative" }}>
 
+      {/* Grid overlay */}
+      <div className="grid-overlay" />
+
       {/* Ambient orbs */}
-      <div style={{ position:"absolute", width:600, height:600, borderRadius:"50%", background:"radial-gradient(circle,hsla(262,83%,58%,0.07) 0%,transparent 65%)", top:-250, left:-200, pointerEvents:"none", zIndex:0, animation:"orb-drift-1 22s ease-in-out infinite" }}/>
-      <div style={{ position:"absolute", width:400, height:400, borderRadius:"50%", background:"radial-gradient(circle,hsla(271,91%,65%,0.05) 0%,transparent 65%)", bottom:-150, right:-100, pointerEvents:"none", zIndex:0, animation:"orb-drift-2 18s ease-in-out infinite" }}/>
+      <div style={{ position:"absolute", width:600, height:600, borderRadius:"50%", background:"radial-gradient(circle,hsla(262,83%,58%,0.07) 0%,transparent 65%)", top:-250, left:-200, pointerEvents:"none", zIndex:1, animation:"orb-drift-1 22s ease-in-out infinite" }}/>
+      <div style={{ position:"absolute", width:400, height:400, borderRadius:"50%", background:"radial-gradient(circle,hsla(271,91%,65%,0.05) 0%,transparent 65%)", bottom:-150, right:-100, pointerEvents:"none", zIndex:1, animation:"orb-drift-2 18s ease-in-out infinite" }}/>
+
+      {/* Backdrop for mobile navigation */}
+      {mobileNavOpen && (
+        <div className="sidebar-backdrop" onClick={() => setMobileNavOpen(false)} />
+      )}
 
       {/* ── Sidebar ─────────────────────────── */}
-      <div style={{
+      <div className={`dashboard-sidebar ${mobileNavOpen ? "mobile-open" : ""}`} style={{
         width:240, minWidth:240, height:"100vh", flexShrink:0, zIndex:10, position:"relative",
         display:"flex", flexDirection:"column",
         background:"hsla(248,12%,7%,0.9)",
@@ -111,10 +124,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }}>
             <Sparkles size={15} color="#fff"/>
           </div>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize:14, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.025em" }} className="gradient-text">Growthomic</div>
             <div style={{ fontSize:9, color:"var(--text-muted)", fontWeight:600, letterSpacing:"0.08em", textTransform:"uppercase", marginTop:1 }}>AI Sales Agent</div>
           </div>
+          <button
+            className="mobile-menu-btn"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Close Navigation"
+            style={{
+              background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer",
+              padding: 4, display: "none", alignItems: "center", justifyContent: "center"
+            }}
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Navigation Wrapper */}
@@ -123,6 +147,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div style={{ flex:1, overflowY:"auto", padding:"12px 8px" }}>
             {navGroups.map((group, gi) => (
               <motion.div key={group.label} initial={{ opacity:0, x:-8 }} animate={{ opacity:1, x:0 }} transition={{ delay:gi*0.07, duration:0.3 }} style={{ marginBottom:20 }}>
+                {gi > 0 && <div style={{ height:1, background:"var(--border-white)", marginBottom:12, marginTop:-8 }}/>}
                 <div style={{ fontSize:9, fontWeight:700, color:"var(--text-muted)", letterSpacing:"0.12em", padding:"0 10px", marginBottom:5, textTransform:"uppercase" }}>
                   {group.label}
                 </div>
@@ -190,12 +215,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Top Header Bar */}
         <div style={{
           height:52, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between",
-          padding:"0 28px", borderBottom:"1px solid var(--border-white)",
+          padding:"0 20px", borderBottom:"1px solid var(--border-white)",
           background:"hsla(248,12%,7%,0.6)", backdropFilter:"blur(12px)",
         }}>
-          <div>
-            <div style={{ fontSize:10, color:"var(--text-muted)", fontWeight:500, letterSpacing:"0.04em" }}>Dashboard</div>
-            <div style={{ fontSize:14, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.02em" }}>{currentPage}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open Navigation"
+              style={{
+                background: "var(--bg-elevated)", border: "1px solid var(--border-white)",
+                borderRadius: 8, padding: "6px 8px", color: "var(--text-primary)", cursor: "pointer",
+                display: "none", alignItems: "center", justifyContent: "center"
+              }}
+            >
+              <Menu size={18} />
+            </button>
+            <div>
+              <div style={{ fontSize:10, color:"var(--text-muted)", fontWeight:500, letterSpacing:"0.04em" }}>Dashboard</div>
+              <div style={{ fontSize:14, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.02em" }}>{currentPage}</div>
+            </div>
           </div>
           
           {/* Interactive Global AI Automation Toggle Switch */}
