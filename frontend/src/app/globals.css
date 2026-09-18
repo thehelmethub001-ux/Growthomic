@@ -1,68 +1,176 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── Google Fonts ── */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap");
 
 /* ─────────────────────────────────────────────────────────────
-   DESIGN TOKENS
+   TAILWIND v4 THEME — MD3 Stitch Color Tokens
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  /* ── MD3 Surface scale ── */
+  --color-background:                 #131313;
+  --color-surface:                    #131313;
+  --color-surface-dim:                #131313;
+  --color-surface-bright:             #3a3939;
+  --color-surface-container-lowest:   #0e0e0e;
+  --color-surface-container-low:      #1c1b1b;
+  --color-surface-container:          #201f1f;
+  --color-surface-container-high:     #2a2a2a;
+  --color-surface-container-highest:  #353534;
+  --color-surface-variant:            #353534;
+  --color-surface-tint:               #d0bcff;
+
+  /* ── MD3 On-Surface ── */
+  --color-on-surface:         #e5e2e1;
+  --color-on-surface-variant: #cbc3d7;
+  --color-on-background:      #e5e2e1;
+  --color-outline:            #958ea0;
+  --color-outline-variant:    #494454;
+
+  /* ── MD3 Primary ── */
+  --color-primary:                  #d0bcff;
+  --color-on-primary:               #3c0091;
+  --color-primary-container:        #a078ff;
+  --color-on-primary-container:     #340080;
+  --color-primary-fixed:            #e9ddff;
+  --color-primary-fixed-dim:        #d0bcff;
+  --color-on-primary-fixed:         #23005c;
+  --color-on-primary-fixed-variant: #5516be;
+  --color-inverse-primary:          #6d3bd7;
+
+  /* ── MD3 Secondary ── */
+  --color-secondary:                  #d0bcff;
+  --color-on-secondary:               #372464;
+  --color-secondary-container:        #513e7f;
+  --color-on-secondary-container:     #c3adf7;
+  --color-secondary-fixed:            #e9ddff;
+  --color-secondary-fixed-dim:        #d0bcff;
+  --color-on-secondary-fixed:         #220b4e;
+  --color-on-secondary-fixed-variant: #4e3b7c;
+
+  /* ── MD3 Tertiary ── */
+  --color-tertiary:                  #ffb869;
+  --color-on-tertiary:               #482900;
+  --color-tertiary-container:        #ca801e;
+  --color-on-tertiary-container:     #3f2300;
+  --color-tertiary-fixed:            #ffdcbb;
+  --color-tertiary-fixed-dim:        #ffb869;
+  --color-on-tertiary-fixed:         #2c1700;
+  --color-on-tertiary-fixed-variant: #673d00;
+
+  /* ── MD3 Error ── */
+  --color-error:            #ffb4ab;
+  --color-on-error:         #690005;
+  --color-error-container:  #93000a;
+  --color-on-error-container: #ffdad6;
+
+  /* ── MD3 Inverse ── */
+  --color-inverse-surface:    #e5e2e1;
+  --color-inverse-on-surface: #313030;
+
+  /* ── Font families ── */
+  --font-family-headline-lg: 'Geist', ui-sans-serif, system-ui;
+  --font-family-headline-md: 'Geist', ui-sans-serif, system-ui;
+  --font-family-headline-sm: 'Geist', ui-sans-serif, system-ui;
+  --font-family-body-lg:     'Inter', 'Noto Sans Bengali', ui-sans-serif;
+  --font-family-body-md:     'Inter', 'Noto Sans Bengali', ui-sans-serif;
+  --font-family-body-sm:     'Inter', 'Noto Sans Bengali', ui-sans-serif;
+  --font-family-label-md:    'Inter', ui-sans-serif;
+  --font-family-label-sm:    'Inter', ui-sans-serif;
+
+  /* ── Font sizes (scale from Stitch) ── */
+  --font-size-headline-lg: 30px;
+  --line-height-headline-lg: 38px;
+  --font-size-headline-md: 24px;
+  --line-height-headline-md: 32px;
+  --font-size-headline-sm: 20px;
+  --line-height-headline-sm: 28px;
+  --font-size-body-lg: 16px;
+  --line-height-body-lg: 24px;
+  --font-size-body-md: 14px;
+  --line-height-body-md: 20px;
+  --font-size-body-sm: 12px;
+  --line-height-body-sm: 16px;
+  --font-size-label-md: 12px;
+  --line-height-label-md: 16px;
+  --font-size-label-sm: 10px;
+  --line-height-label-sm: 14px;
+
+  /* ── Border radius (Stitch scale) ── */
+  --radius:     0.125rem;   /* DEFAULT rounded */
+  --radius-lg:  0.25rem;    /* rounded-lg */
+  --radius-xl:  0.5rem;     /* rounded-xl */
+  --radius-2xl: 0.75rem;    /* rounded-2xl */
+  --radius-full: 9999px;
+
+  /* ── Custom spacing (Stitch) ── */
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.25rem;
+  --spacing-space-xl: 1.5rem;
+  --spacing-gutter:   1.25rem;
+  --spacing-margin:   1.5rem;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   CSS CUSTOM PROPERTIES (backward compat for inline-style pages)
+   These mirror the MD3 palette above.
    ───────────────────────────────────────────────────────────── */
 :root {
-  /* ── Backgrounds — true zinc/slate, no hue cast ── */
-  --bg-void:     hsl(0 0% 3%);
-  --bg-base:     hsl(0 0% 6%);
-  --bg-surface:  hsl(0 0% 8%);
-  --bg-card:     hsl(0 0% 10%);
-  --bg-elevated: hsl(0 0% 13%);
-  --bg-overlay:  hsl(0 0% 16%);
-  --bg-hover:    hsl(0 0% 19%);
+  /* Backgrounds */
+  --bg-void:     #0e0e0e;   /* surface-container-lowest */
+  --bg-base:     #131313;   /* background */
+  --bg-surface:  #131313;   /* surface */
+  --bg-card:     #1c1b1b;   /* surface-container-low */
+  --bg-elevated: #201f1f;   /* surface-container */
+  --bg-overlay:  #2a2a2a;   /* surface-container-high */
+  --bg-hover:    #353534;   /* surface-container-highest */
 
-  /* ── Brand — single accent only ── */
-  --brand:         hsl(258 90% 62%);
-  --brand-dim:     hsl(258 70% 55%);
-  --brand-light:   hsl(258 85% 72%);
-  --brand-subtle:  hsla(258, 90%, 62%, 0.09);
-  --brand-border:  hsla(258, 90%, 62%, 0.22);
+  /* Brand */
+  --brand:         #8b5cf6;
+  --brand-dim:     #6d3bd7;
+  --brand-light:   #d0bcff;
+  --brand-subtle:  rgba(160, 120, 255, 0.12);
+  --brand-border:  rgba(73, 68, 84, 0.4);
 
-  /* ── Borders — white opacity only ── */
-  --border:      rgba(255, 255, 255, 0.07);
-  --border-mid:  rgba(255, 255, 255, 0.12);
-  --border-strong: rgba(255, 255, 255, 0.20);
+  /* Borders (outline-variant with opacity) */
+  --border:        rgba(73, 68, 84, 0.3);
+  --border-mid:    rgba(73, 68, 84, 0.5);
+  --border-strong: rgba(73, 68, 84, 0.8);
 
-  /* ── Text ── */
-  --text-primary:   hsl(0 0% 96%);
-  --text-secondary: hsl(0 0% 62%);
-  --text-muted:     hsl(0 0% 40%);
-  --text-brand:     var(--brand-light);
+  /* Text */
+  --text-primary:   #e5e2e1;  /* on-surface */
+  --text-secondary: #cbc3d7;  /* on-surface-variant */
+  --text-muted:     #958ea0;  /* outline */
+  --text-brand:     #d0bcff;  /* primary */
 
-  /* ── Status — functional only, low saturation ── */
-  --green:       hsl(150 55% 42%);
-  --green-light: hsl(150 50% 58%);
-  --amber:       hsl(38  80% 52%);
-  --amber-light: hsl(38  75% 64%);
-  --red:         hsl(350 72% 54%);
-  --red-light:   hsl(350 70% 68%);
-  --blue:        hsl(214 80% 58%);
+  /* Status */
+  --green:       #22c55e;
+  --green-light: #4ade80;
+  --amber:       #f59e0b;
+  --amber-light: #fbbf24;
+  --red:         #ef4444;
+  --red-light:   #f87171;
+  --blue:        #3b82f6;
 
-  /* ── Spacing scale (4px base) ── */
-  --sp-1:  4px;
-  --sp-2:  8px;
-  --sp-3:  12px;
-  --sp-4:  16px;
-  --sp-5:  20px;
-  --sp-6:  24px;
-  --sp-8:  32px;
-  --sp-10: 40px;
-  --sp-12: 48px;
+  /* Spacing */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
 
-  /* ── Radii ── */
-  --r-sm:  6px;
-  --r-md:  9px;
-  --r-lg:  12px;
-  --r-xl:  16px;
+  /* Radii — matching Stitch */
+  --r-sm:  2px;   /* rounded */
+  --r-md:  4px;   /* rounded-lg */
+  --r-lg:  8px;   /* rounded-xl */
+  --r-xl:  12px;  /* rounded-2xl */
 
-  /* ── Sidebar widths ── */
-  --sidebar-full:  220px;
-  --sidebar-icon:  52px;
+  /* Sidebar */
+  --sidebar-full: 220px;
+  --sidebar-icon: 52px;
 }
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ─────────────────────────────────────────────────────────────
    BASE
@@ -78,6 +186,14 @@ html, body {
   font-size: 14px;
   line-height: 1.5;
   letter-spacing: -0.011em;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+.material-symbols-outlined {
+  font-size: 18px;
+  line-height: 1;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+  vertical-align: middle;
 }
 
 #__next { height: 100%; }
@@ -90,14 +206,11 @@ input, textarea, select { font-family: inherit; }
    ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: var(--border-mid);
-  border-radius: 100px;
-}
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+::-webkit-scrollbar-thumb { background: rgba(73, 68, 84, 0.4); border-radius: 100px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(73, 68, 84, 0.7); }
 
 /* ─────────────────────────────────────────────────────────────
-   KEYFRAMES — functional only, no decoration
+   KEYFRAMES
    ───────────────────────────────────────────────────────────── */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
@@ -105,7 +218,7 @@ input, textarea, select { font-family: inherit; }
 }
 @keyframes shimmer {
   0%   { background-position: -600px 0; }
-  100% { background-position: 600px 0; }
+  100% { background-position:  600px 0; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn {
@@ -114,52 +227,38 @@ input, textarea, select { font-family: inherit; }
 }
 
 /* ─────────────────────────────────────────────────────────────
-   UTILITIES
+   BADGES
    ───────────────────────────────────────────────────────────── */
-
-/* Badges */
 .badge {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px; border-radius: 100px;
   font-size: 11px; font-weight: 500; letter-spacing: 0.01em;
 }
-.badge-purple { background: var(--brand-subtle);        color: var(--brand-light);  border: 1px solid var(--brand-border); }
-.badge-green  { background: hsla(150,55%,42%,0.1);      color: var(--green-light);  border: 1px solid hsla(150,55%,42%,0.2); }
-.badge-amber  { background: hsla(38,80%,52%,0.1);       color: var(--amber-light);  border: 1px solid hsla(38,80%,52%,0.2); }
-.badge-red    { background: hsla(350,72%,54%,0.1);      color: var(--red-light);    border: 1px solid hsla(350,72%,54%,0.2); }
-.badge-muted  { background: var(--bg-overlay);          color: var(--text-secondary); border: 1px solid var(--border); }
-.badge-blue   { background: hsla(214,80%,58%,0.1);      color: hsl(214,80%,72%);    border: 1px solid hsla(214,80%,58%,0.2); }
-.badge-cyan   { background: hsla(190,80%,48%,0.1);      color: hsl(190,80%,65%);    border: 1px solid hsla(190,80%,48%,0.2); }
+.badge-purple { background: rgba(160,120,255,0.12); color: #d0bcff; border: 1px solid rgba(73,68,84,0.4); }
+.badge-green  { background: rgba(34,197,94,0.1);   color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
+.badge-amber  { background: rgba(245,158,11,0.1);  color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
+.badge-red    { background: rgba(239,68,68,0.1);   color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+.badge-muted  { background: var(--bg-overlay);     color: var(--text-secondary); border: 1px solid var(--border); }
+.badge-blue   { background: rgba(59,130,246,0.1);  color: #60a5fa; border: 1px solid rgba(59,130,246,0.2); }
+.badge-cyan   { background: rgba(6,182,212,0.1);   color: #22d3ee; border: 1px solid rgba(6,182,212,0.2); }
 
 /* ─────────────────────────────────────────────────────────────
-   SIDEBAR — Responsive Collapse
+   SIDEBAR RESPONSIVE
    ───────────────────────────────────────────────────────────── */
-
-/* Default: full sidebar on large screens */
-.sidebar-nav-label { display: block; }
-.sidebar-logo-text  { display: block; }
+.sidebar-nav-label     { display: block; }
+.sidebar-logo-text     { display: block; }
 .sidebar-section-label { display: block; }
-.sidebar-user-name   { display: block; }
+.sidebar-user-name     { display: block; }
 
-/* Icon-only mode on medium screens (1024–1279px) */
 @media (max-width: 1279px) and (min-width: 769px) {
-  .dashboard-sidebar {
-    width: var(--sidebar-icon) !important;
-    min-width: var(--sidebar-icon) !important;
-  }
-  .sidebar-nav-label     { display: none !important; }
-  .sidebar-logo-text     { display: none !important; }
-  .sidebar-section-label { display: none !important; }
-  .sidebar-user-name     { display: none !important; }
-  .sidebar-ai-badge      { display: none !important; }
-  .sidebar-logout-label  { display: none !important; }
+  .dashboard-sidebar { width: var(--sidebar-icon) !important; min-width: var(--sidebar-icon) !important; }
+  .sidebar-nav-label, .sidebar-logo-text, .sidebar-section-label,
+  .sidebar-user-name, .sidebar-ai-badge, .sidebar-logout-label { display: none !important; }
 }
 
-/* Off-canvas on mobile (≤768px) */
 @media (max-width: 768px) {
   .dashboard-sidebar {
-    position: fixed !important;
-    top: 0; left: 0; bottom: 0;
+    position: fixed !important; top: 0; left: 0; bottom: 0;
     z-index: 50 !important;
     transform: translateX(-100%);
     transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
@@ -167,21 +266,16 @@ input, textarea, select { font-family: inherit; }
     width: var(--sidebar-full) !important;
     min-width: var(--sidebar-full) !important;
   }
-  .dashboard-sidebar.mobile-open {
-    transform: translateX(0) !important;
-  }
-  .mobile-menu-btn {
-    display: inline-flex !important;
-  }
+  .dashboard-sidebar.mobile-open { transform: translateX(0) !important; }
+  .mobile-menu-btn { display: inline-flex !important; }
   .sidebar-backdrop {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.6);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
     z-index: 45;
   }
 }
 @media (min-width: 769px) {
-  .mobile-menu-btn    { display: none !important; }
-  .sidebar-backdrop   { display: none !important; }
+  .mobile-menu-btn  { display: none !important; }
+  .sidebar-backdrop { display: none !important; }
 }

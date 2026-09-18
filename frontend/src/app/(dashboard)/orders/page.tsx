@@ -1,445 +1,224 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { C, pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, btnSecondary, skeletonStyle, thStyle, tdStyle } from "@/lib/styles";
 
-import { CheckCircle2, MessageCircle, RefreshCcw, Search, ShoppingCart } from "lucide-react";
-import { format } from "date-fns";
-import { toast } from "sonner";
+interface Order {
+  id: string;
+  woo_order_id?: number;
+  customer_name?: string;
+  customer_phone?: string;
+  status?: string;
+  total_amount?: number;
+  channel?: string;
+  created_at?: string;
+  line_items?: Array<{ name?: string; product_id?: number; quantity?: number; price?: number }>;
+}
 
-type OrderItem = { name:string; qty:number; unitPrice:number; productId?:string };
-type Order = {
-  id:string; total_amount:number; payment_method:string; status:string;
-  woo_order_id:number|null; woo_sync_status:string; created_at:string; items:OrderItem[];
-  customers:{ name:string|null; platform:string; platform_id:string };
-  delivery_address?:string;
-  customer_phone?: string | null;
-  customer_name?: string | null;
+const statusConfig: Record<string, { color: string; bg: string; border: string; dot: string }> = {
+  completed:  { color: "#4ade80", bg: "rgba(22,163,74,0.1)",   border: "rgba(22,163,74,0.3)",   dot: "#4ade80" },
+  processing: { color: "#60a5fa", bg: "rgba(59,130,246,0.1)",  border: "rgba(59,130,246,0.3)",  dot: "#60a5fa" },
+  pending:    { color: "#fbbf24", bg: "rgba(245,158,11,0.1)",  border: "rgba(245,158,11,0.3)",  dot: "#fbbf24" },
+  cancelled:  { color: "#f87171", bg: "rgba(239,68,68,0.1)",   border: "rgba(239,68,68,0.3)",   dot: "#f87171" },
+  on_hold:    { color: "#a78bfa", bg: "rgba(139,92,246,0.1)",  border: "rgba(139,92,246,0.3)",  dot: "#a78bfa" },
 };
 
-const TABS = ["all","new","confirmed","shipped","delivered","returned","cancelled","failed"];
-const statusBadgeClass: Record<string,string> = {
-  new:       "badge badge-purple",
-  confirmed: "badge badge-green",
-  shipped:   "badge badge-cyan",
-  delivered: "badge badge-green",
-  returned:  "badge badge-amber",
-  cancelled: "badge badge-red",
-  failed:    "badge badge-red",
+const channelIcon: Record<string, string> = {
+  whatsapp: "chat", messenger: "forum", instagram: "photo_camera", web: "language",
 };
 
 export default function OrdersPage() {
-  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [syncId, setSyncId] = useState<string|null>(null);
-  const [syncEnabled, setSyncEnabled] = useState(true);
-  const [syncingAll, setSyncingAll] = useState(false);
-  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
-  const [syncingSelected, setSyncingSelected] = useState(false);
-  const [editOrder, setEditOrder] = useState<Order | null>(null);
-  const [editCustomerName, setEditCustomerName] = useState("");
-  const [editCustomerPhone, setEditCustomerPhone] = useState("");
-  const [editDeliveryAddress, setEditDeliveryAddress] = useState("");
-  const [updating, setUpdating] = useState(false);
-  const [expandedOrder, setExpandedOrder] = useState<string|null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
   const sb = createClient();
 
-  const openEditModal = (o: Order) => {
-    setEditCustomerName(o.customer_name || o.customers?.name || "");
-    setEditCustomerPhone(o.customer_phone || (o.customers?.platform === "whatsapp" ? o.customers.platform_id : "") || "");
-    setEditDeliveryAddress(o.delivery_address || "");
-    setEditOrder(o);
+  useEffect(() => {
+    async function load() {
+      const { data } = await sb.from("orders").select("*").order("created_at", { ascending: false }).limit(100);
+      setOrders(data ?? []);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  const filtered = orders.filter(o => {
+    const matchSearch = !search ||
+      o.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
+      o.customer_phone?.includes(search) ||
+      String(o.woo_order_id ?? "").includes(search);
+    const matchStatus = statusFilter === "all" || o.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const counts = {
+    total: orders.length,
+    pending:   orders.filter(o => o.status === "pending").length,
+    processing: orders.filter(o => o.status === "processing").length,
+    completed: orders.filter(o => o.status === "completed").length,
   };
 
-  useEffect(() => { load(); }, [filter]);
-
-  const toggleSelectAll = () => {
-    if (shown.length > 0 && selectedOrderIds.size === shown.length) {
-      setSelectedOrderIds(new Set());
-    } else {
-      setSelectedOrderIds(new Set(shown.map(o => o.id)));
-    }
+  const th: React.CSSProperties = {
+    padding: "10px 16px", fontSize: 10, fontWeight: 500, color: "#958ea0",
+    letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "1px solid rgba(73,68,84,0.3)",
+    background: "rgba(14,14,14,0.5)", textAlign: "left" as const, whiteSpace: "nowrap" as const,
   };
-
-  const toggleSelectOrder = (id: string) => {
-    const next = new Set(selectedOrderIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedOrderIds(next);
+  const td: React.CSSProperties = {
+    padding: "10px 16px", fontSize: 13, color: "#cbc3d7",
+    borderBottom: "1px solid rgba(73,68,84,0.15)", verticalAlign: "middle" as const,
   };
-
-  const retrySync = async (id: string) => {
-    setSyncId(id);
-    toast.loading("Retrying sync...", { id: "retry-sync" });
-    try {
-      const res = await fetch("/api/sync-pending-orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderIds: [id] }),
-      });
-      const json = await res.json();
-      if (res.ok) {
-        toast.success("Sync successful!", { id: "retry-sync" });
-        load();
-      } else {
-        toast.error(json.error || "Sync failed", { id: "retry-sync" });
-      }
-    } catch (e) {
-      toast.error("Network error during sync", { id: "retry-sync" });
-    }
-    setSyncId(null);
-  };
-
-  const syncSelectedOrders = async () => {
-    if (selectedOrderIds.size === 0) return;
-    setSyncingSelected(true);
-    toast.loading(`Sending ${selectedOrderIds.size} selected order(s) to website...`, { id: "sync-selected" });
-    try {
-      const res = await fetch("/api/sync-pending-orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderIds: Array.from(selectedOrderIds) }),
-      });
-      const json = await res.json();
-      if (res.ok) {
-        toast.success(`Successfully sent ${json.count || selectedOrderIds.size} order(s) to website!`, { id: "sync-selected" });
-        setSelectedOrderIds(new Set());
-        load();
-      } else {
-        toast.error(json.error || "Sync failed", { id: "sync-selected" });
-      }
-    } catch (e) {
-      toast.error("Network error during sync", { id: "sync-selected" });
-    }
-    setSyncingSelected(false);
-  };
-
-  const load = async () => {
-    setLoading(true);
-    
-    // Fetch sync status
-    const { data: settings } = await sb.from("business_settings").select("woo_sync_enabled").limit(1).single();
-    if (settings) setSyncEnabled(settings.woo_sync_enabled);
-
-    let q = sb.from("orders").select("*,customers(name,platform,platform_id)").order("created_at",{ascending:false});
-    if (filter==="failed") q = q.eq("woo_sync_status","failed");
-    else if (filter!=="all") q = q.eq("status",filter);
-    const { data } = await q;
-
-    const dummy = [
-      { id:"ord-1", total_amount:4500, payment_method:"cod", status:"new", woo_order_id:null, woo_sync_status:"pending", created_at:new Date().toISOString(), items:[{name:"Leather Office Shoes", qty:1, unitPrice:4500}], customers:{name:"Mahi Vai", platform:"messenger", platform_id:"123"} },
-      { id:"ord-2", total_amount:15000, payment_method:"bkash", status:"confirmed", woo_order_id:1002, woo_sync_status:"synced", created_at:new Date(Date.now()-86400000).toISOString(), items:[{name:"Wireless Noise Cancelling Headphones", qty:1, unitPrice:15000}], customers:{name:"Hasib", platform:"whatsapp", platform_id:"456"} },
-      { id:"ord-3", total_amount:2850, payment_method:"cod", status:"shipped", woo_order_id:1001, woo_sync_status:"synced", created_at:new Date(Date.now()-172800000).toISOString(), items:[{name:"Premium Cotton T-Shirt", qty:3, unitPrice:950}], customers:{name:"Junaid", platform:"instagram", platform_id:"789"} },
-      { id:"ord-4", total_amount:3200, payment_method:"nagad", status:"new", woo_order_id:null, woo_sync_status:"failed", created_at:new Date().toISOString(), items:[{name:"Gaming Mouse Pro", qty:1, unitPrice:3200}], customers:{name:"Sakib", platform:"messenger", platform_id:"abc"} },
-    ] as Order[];
-    const filteredDummy = filter==="all"?dummy : filter==="failed"?dummy.filter(d=>d.woo_sync_status==="failed") : dummy.filter(d=>d.status===filter);
-
-    setOrders(data && data.length > 0 ? (data as Order[]) : filteredDummy);
-    setLoading(false);
-  };
-
-  const toggleSync = async () => {
-    const newState = !syncEnabled;
-    setSyncEnabled(newState);
-    
-    // Update DB
-    const { data: settings } = await sb.from("business_settings").select("id").limit(1).single();
-    if (settings) {
-      await sb.from("business_settings").update({ woo_sync_enabled: newState }).eq("id", settings.id);
-    }
-
-    if (newState) {
-      // Switched to ON -> sync pending orders
-      setSyncingAll(true);
-      toast.loading("Sending pending orders to WooCommerce...", { id: "sync-all" });
-      try {
-        const res = await fetch("/api/sync-pending-orders", { method: "POST" });
-        const json = await res.json();
-        if (res.ok) {
-          toast.success(`Successfully sent ${json.count} orders to website!`, { id: "sync-all" });
-          load();
-        } else {
-          toast.error(json.error || "Sync failed", { id: "sync-all" });
-        }
-      } catch (e) {
-        toast.error("Network error during sync", { id: "sync-all" });
-      }
-      setSyncingAll(false);
-    } else {
-      toast.info("Auto-sync paused. Orders will be saved locally.");
-    }
-  };
-
-  const saveOrder = async () => {
-    if (!editOrder) return;
-    setUpdating(true);
-    
-    // If it's a dummy order (starts with ord-), just show success and close
-    if (editOrder.id.startsWith("ord-")) {
-      setTimeout(() => {
-        setOrders(orders.map(o => o.id === editOrder.id ? { ...o, ...editOrder } : o));
-        setEditOrder(null);
-        setUpdating(false);
-        toast.success("Order updated (Dummy)");
-      }, 500);
-      return;
-    }
-    const { error } = await sb.from("orders").update({ 
-      status: editOrder.status,
-      total_amount: editOrder.total_amount,
-      payment_method: editOrder.payment_method,
-      customer_name: editCustomerName || null,
-      customer_phone: editCustomerPhone || null,
-      delivery_address: editDeliveryAddress
-    }).eq("id", editOrder.id);
-    
-    if (editCustomerName && editOrder.customers?.platform_id) {
-      await sb.from("customers").update({ name: editCustomerName }).eq("platform_id", editOrder.customers.platform_id);
-    }
-
-    if (error) {
-      toast.error("Failed to update order");
-    } else {
-      toast.success("Order updated!");
-      setOrders(orders.map(o => o.id === editOrder.id ? { 
-        ...o, 
-        status: editOrder.status, 
-        total_amount: editOrder.total_amount,
-        payment_method: editOrder.payment_method,
-        customer_name: editCustomerName || null,
-        customer_phone: editCustomerPhone || null,
-        delivery_address: editDeliveryAddress,
-        customers: { ...o.customers, name: editCustomerName || o.customers.name }
-      } : o));
-      setEditOrder(null);
-    }
-    setUpdating(false);
-  };
-
-  const shown = orders.filter(o=>!search||(o.customers.name||"").toLowerCase().includes(search.toLowerCase()));
-
-  // ── Duplicate detection: same customer (platform_id) who has 2+ orders within 3 days of each other
-  const duplicateIds = new Set<string>();
-  const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-  const ordersByCustomer: Record<string, Order[]> = {};
-  for (const o of orders) {
-    const key = o.customers.platform_id;
-    if (!ordersByCustomer[key]) ordersByCustomer[key] = [];
-    ordersByCustomer[key].push(o);
-  }
-  for (const group of Object.values(ordersByCustomer)) {
-    if (group.length < 2) continue;
-    const sorted = [...group].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    for (let i = 1; i < sorted.length; i++) {
-      const gap = new Date(sorted[i].created_at).getTime() - new Date(sorted[i-1].created_at).getTime();
-      if (gap <= THREE_DAYS_MS) {
-        duplicateIds.add(sorted[i].id);
-        duplicateIds.add(sorted[i-1].id);
-      }
-    }
-  }
 
   return (
-    <div style={pageWrap}>
-      <div style={pageHeader}>
+    <div style={{ maxWidth: 1440, margin: "0 auto", padding: "24px 24px 48px", display: "flex", flexDirection: "column", gap: 20 }}>
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={pageTitle}>Orders</h1>
-          <p style={pageSubtitle}>Manage orders and WooCommerce sync</p>
+          <h1 style={{ fontSize: 20, fontWeight: 600, color: "#e5e2e1", letterSpacing: "-0.025em", fontFamily: "Geist, system-ui" }}>Orders</h1>
+          <p style={{ fontSize: 13, color: "#958ea0", marginTop: 4 }}>Manage and track all customer orders</p>
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          {/* Send Selected to Website Button */}
-          {selectedOrderIds.size > 0 && (
-            <button
-              onClick={syncSelectedOrders}
-              disabled={syncingSelected}
-              style={{
-                ...btnPrimary,
-                padding: "8px 16px",
-                background: "var(--green)",
-                fontSize: 12,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <RefreshCcw size={13} style={{ animation: syncingSelected ? "spin 1s linear infinite" : "none" }} />
-              ওয়েবসাইটে পাঠান ({selectedOrderIds.size} selected)
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {(["all","pending","processing","completed"] as const).map(s => (
+            <button key={s} onClick={() => setStatusFilter(s)} style={{
+              padding: "6px 14px", borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: "pointer",
+              background: statusFilter === s ? "#1c1b1b" : "transparent",
+              border: statusFilter === s ? "1px solid rgba(73,68,84,0.5)" : "1px solid rgba(73,68,84,0.3)",
+              color: statusFilter === s ? "#e5e2e1" : "#958ea0",
+            }}>
+              {s === "all" ? "All Statuses" : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
-          )}
-
-          {/* Toggle Switch */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg-card)", padding: "7px 12px", borderRadius: "var(--r-md)", border: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: syncEnabled ? C.brandLight : C.textMuted }}>
-              {syncEnabled ? "Website Sync: ON" : "Website Sync: OFF"}
-            </div>
-            <button 
-              onClick={toggleSync}
-              disabled={syncingAll}
-              style={{
-                width: 36, height: 20, borderRadius: 20, border: "none", cursor: syncingAll ? "not-allowed" : "pointer",
-                background: syncEnabled ? C.brand : "rgba(255,255,255,0.1)", position: "relative",
-                transition: "background 0.2s"
-              }}
-            >
-              <div style={{
-                width: 14, height: 14, borderRadius: "50%", background: "#fff",
-                position: "absolute", top: 3, left: syncEnabled ? 19 : 3,
-                transition: "left 0.2s"
-              }} />
-            </button>
-          </div>
-
-          <div style={{ position:"relative" }}>
-            <Search size={14} style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", color:C.textMuted, pointerEvents:"none" }}/>
-            <input style={{ ...inputStyle, paddingLeft:33, width:220 }} placeholder="Search customer..." value={search} onChange={e=>setSearch(e.target.value)}/>
-          </div>
+          ))}
+          <button style={{ padding: "6px 14px", borderRadius: 4, fontSize: 12, display: "flex", alignItems: "center", gap: 6, background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", color: "#958ea0", cursor: "pointer" }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>download</span>
+            Export CSV
+          </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display:"flex", borderBottom:`1px solid rgba(255,255,255,0.05)`, marginBottom:24, gap:2 }}>
-        {TABS.map(t=>(
-          <button key={t} onClick={()=>setFilter(t)} style={{
-            padding:"9px 14px", fontSize:12, fontWeight:600, cursor:"pointer", border:"none", fontFamily:"inherit",
-            borderBottom: filter===t ? `2px solid ${C.brand}` : "2px solid transparent",
-            color: filter===t ? C.brandLight : C.textMuted,
-            background:"transparent", marginBottom:-1, transition:"all 0.15s",
-            whiteSpace:"nowrap" as const,
+      {/* Metric Chips */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        {[
+          { label: "Total Orders",  value: counts.total.toLocaleString(), color: "#e5e2e1" },
+          { label: "Pending",       value: counts.pending.toString(),     color: "#fbbf24", dot: "#f59e0b" },
+          { label: "Processing",    value: counts.processing.toString(),  color: "#60a5fa", dot: "#3b82f6" },
+          { label: "Completed",     value: counts.completed.toLocaleString(), color: "#4ade80", dot: "#22c55e" },
+        ].map(({ label, value, color, dot }) => (
+          <div key={label} style={{
+            background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.2)",
+            padding: "10px 16px", borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
           }}>
-            {t==="failed"?"⚠ Sync Failed":t.charAt(0).toUpperCase()+t.slice(1)}
-          </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {dot && <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot, display: "inline-block" }} />}
+              <span style={{ fontSize: 13, color: "#958ea0" }}>{label}</span>
+            </div>
+            <span style={{ fontSize: 20, fontWeight: 600, color, fontFamily: "Geist, system-ui" }}>{value}</span>
+          </div>
         ))}
       </div>
 
+      {/* Search */}
+      <div style={{ position: "relative", maxWidth: 360 }}>
+        <span className="material-symbols-outlined" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: "#958ea0" }}>search</span>
+        <input
+          value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search orders, customers, phone..."
+          style={{
+            width: "100%", paddingLeft: 36, paddingRight: 12, paddingTop: 8, paddingBottom: 8,
+            background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 4,
+            color: "#e5e2e1", fontSize: 13, outline: "none",
+          }}
+        />
+      </div>
+
       {/* Table */}
-      <div style={{ background:C.surface, border:`1px solid rgba(255,255,255,0.05)`, borderRadius:16, overflow:"hidden" }}>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:0 }}>
+      <div style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={{ ...thStyle, width: 40, textAlign: "center" }}>
-                  <input 
-                    type="checkbox"
-                    checked={shown.length > 0 && selectedOrderIds.size === shown.length}
-                    onChange={toggleSelectAll}
-                    style={{ cursor: "pointer", accentColor: C.brand }}
-                  />
-                </th>
-                {["Order","Customer","Items","Amount","Status","WooSync","Action"].map(h=>(
-                  <th key={h} style={thStyle}>{h}</th>
+                {["Order ID","Customer","Items","Total","Status","Channel","Date","Actions"].map(h => (
+                  <th key={h} style={{ ...th, textAlign: h === "Actions" ? "right" : "left" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                [...Array(5)].map((_,i)=>(
-                  <tr key={i}><td colSpan={8} style={{padding:"8px 16px"}}>
-                    <div style={{...skeletonStyle,height:24}}/>
-                  </td></tr>
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>
+                    {Array.from({ length: 8 }).map((_, j) => (
+                      <td key={j} style={td}>
+                        <div style={{ height: 14, background: "#201f1f", borderRadius: 2, width: j === 0 ? 60 : j === 1 ? 100 : 80 }} />
+                      </td>
+                    ))}
+                  </tr>
                 ))
-              ) : shown.length===0 ? (
-                <tr><td colSpan={8} style={{padding:"60px 16px",textAlign:"center",color:C.textMuted}}>
-                  <ShoppingCart size={44} style={{opacity:0.1,margin:"0 auto 12px",display:"block"}}/>
-                  No orders found
-                </td></tr>
-              ) : shown.map(o=>{
-                const isSelected = selectedOrderIds.has(o.id);
-                const isDuplicate = duplicateIds.has(o.id);
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ ...td, textAlign: "center", padding: "48px 16px", color: "#958ea0" }}>
+                    No orders found
+                  </td>
+                </tr>
+              ) : filtered.map(order => {
+                const st = statusConfig[order.status ?? ""] ?? statusConfig["pending"];
+                const items = order.line_items ?? [];
+                const itemNames = items.map((i: { name?: string }) => i.name).filter(Boolean).join(", ");
+                const ch = (order.channel ?? "").toLowerCase();
+                const chIcon = channelIcon[ch] || "devices";
                 return (
-                  <tr key={o.id} style={{transition:"background 0.12s", background: isSelected ? "rgba(124,92,252,0.08)" : isDuplicate ? "rgba(251,191,36,0.04)" : "transparent"}}>
-                    <td style={{ ...tdStyle, width: 40, textAlign: "center" }}>
-                      <input 
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelectOrder(o.id)}
-                        style={{ cursor: "pointer", accentColor: C.brand }}
-                      />
+                  <tr key={order.id} style={{ transition: "background 0.1s" }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#201f1f"}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
+                  >
+                    <td style={{ ...td, color: "#e5e2e1", fontWeight: 500 }}>
+                      #{order.woo_order_id ?? order.id.slice(0, 6)}
                     </td>
-                    <td style={tdStyle}>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <div style={{fontWeight:600,fontSize:12,color:C.textPrimary,fontFamily:"monospace"}}>#{o.id.slice(0,8)}</div>
-                        {isDuplicate && (
-                          <span title="Same customer ordered within 3 days" className="badge badge-amber" style={{fontSize:9,letterSpacing:"0.04em"}}>🔁 DUP</span>
-                        )}
+                    <td style={td}>
+                      <div>
+                        <div style={{ color: "#e5e2e1", fontWeight: 500 }}>{order.customer_name ?? "Unknown"}</div>
+                        <div style={{ fontSize: 11, color: "#958ea0" }}>{order.customer_phone}</div>
                       </div>
-                      <div style={{fontSize:11,color:C.textMuted,marginTop:2}}>{format(new Date(o.created_at),"MMM d, h:mm a")}</div>
                     </td>
-                    <td style={tdStyle}>
-                      <div style={{fontWeight:600,fontSize:13,color:C.textPrimary}}>{o.customers.name||"Unknown"}</div>
-                      <div style={{fontSize:11,color:C.textMuted,textTransform:"capitalize"}}>{o.customers.platform}</div>
+                    <td style={td}>
+                      <div style={{ color: "#e5e2e1", fontWeight: 500 }}>{items.length || 1} item{items.length !== 1 ? "s" : ""}</div>
+                      <div style={{ fontSize: 11, color: "#958ea0", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{itemNames || "—"}</div>
                     </td>
-                    <td style={tdStyle}>
-                      <div 
-                        onClick={() => setExpandedOrder(expandedOrder === o.id ? null : o.id)}
-                        style={{cursor:"pointer"}}
-                      >
-                        <div style={{fontSize:13,fontWeight:600,color:C.textPrimary}}>{o.items.length} item(s)</div>
-                        <div style={{fontSize:11,color:C.brandLight,marginTop:2}}>
-                          {expandedOrder === o.id ? "▲ collapse" : "▼ details"}
-                        </div>
-                      </div>
-                      {expandedOrder === o.id && (
-                        <div style={{marginTop:8,background:"rgba(124,92,252,0.06)",borderRadius:8,padding:"8px 10px",border:"1px solid rgba(124,92,252,0.15)"}}>
-                          {o.items.map((item, idx) => (
-                            <div key={idx} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",borderBottom:idx<o.items.length-1?"1px solid rgba(255,255,255,0.05)":"none"}}>
-                              <div>
-                                <div style={{fontSize:12,fontWeight:600,color:C.textPrimary}}>{item.name}</div>
-                                <div style={{fontSize:11,color:C.textMuted}}>Qty: {item.qty}</div>
-                              </div>
-                              <div style={{fontSize:12,fontWeight:700,color:"#34d399"}}>৳{(item.unitPrice * item.qty).toLocaleString()}</div>
-                            </div>
-                          ))}
-                          {(o.customer_phone || o.delivery_address) && (
-                            <div style={{marginTop:8, paddingTop:6, borderTop:"1px solid rgba(255,255,255,0.08)", fontSize:11}}>
-                              {o.customer_phone && <div style={{marginBottom:3, color:C.brandLight, fontWeight:600}}>📞 {o.customer_phone}</div>}
-                              {o.delivery_address && <div style={{color:C.textMuted}}>📍 {o.delivery_address}</div>}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                    <td style={{ ...td, color: "#e5e2e1", fontWeight: 500, whiteSpace: "nowrap" }}>
+                      ৳ {(order.total_amount ?? 0).toLocaleString()}
                     </td>
-                    <td style={tdStyle}>
-                      <div style={{fontWeight:700,color:C.textPrimary,fontSize:14}}>৳{o.total_amount.toLocaleString()}</div>
-                      <div style={{fontSize:11,color:C.textMuted,textTransform:"uppercase"}}>{o.payment_method}</div>
+                    <td style={td}>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 500,
+                        background: st.bg, color: st.color, border: `1px solid ${st.border}`,
+                      }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot, display: "inline-block" }} />
+                        {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : "Unknown"}
+                      </span>
                     </td>
-                    <td style={tdStyle}>
-                      <span className={statusBadgeClass[o.status] ?? "badge badge-muted"} style={{textTransform:"capitalize"}}>{o.status}</span>
+                    <td style={td}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "#201f1f", border: "1px solid rgba(73,68,84,0.3)", color: "#e5e2e1" }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>{chIcon}</span>
+                        {ch ? ch.charAt(0).toUpperCase() + ch.slice(1) : "—"}
+                      </span>
                     </td>
-                    <td style={tdStyle}>
-                      {o.woo_sync_status==="synced" ? (
-                        <div style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"#34d399"}}>
-                          <CheckCircle2 size={13}/> #{o.woo_order_id}
-                        </div>
-                      ) : o.woo_sync_status==="failed" ? (
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <span className="badge badge-red">Failed</span>
-                          <button onClick={()=>retrySync(o.id)} disabled={syncId===o.id} style={{background:"none",border:"none",cursor:syncId===o.id?"not-allowed":"pointer",color:C.textMuted,padding:2,display:"flex"}}>
-                            <RefreshCcw size={13} style={{animation:syncId===o.id?"spin 1s linear infinite":"none"}}/>
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="badge badge-amber">Pending</span>
-                      )}
+                    <td style={{ ...td, whiteSpace: "nowrap", color: "#958ea0" }}>
+                      {order.created_at ? new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
                     </td>
-                    <td style={tdStyle}>
-                      <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                        <button
-                          onClick={() => openEditModal(o)}
-                          style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${C.border}`, color: C.textPrimary, padding: "5px 12px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "background 0.2s" }}
-                          onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
-                          onMouseOut={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
-                        >Edit</button>
-                        <button
-                          title="View conversation"
-                          onClick={() => router.push(`/inbox?pid=${encodeURIComponent(o.customers.platform_id)}&platform=${o.customers.platform}`)}
-                          style={{ background: "rgba(124,92,252,0.12)", border: `1px solid rgba(124,92,252,0.3)`, color: C.brandLight, padding: "5px 8px", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", transition: "background 0.2s" }}
-                          onMouseOver={e => e.currentTarget.style.background = "rgba(124,92,252,0.25)"}
-                          onMouseOut={e => e.currentTarget.style.background = "rgba(124,92,252,0.12)"}
-                        ><MessageCircle size={13}/></button>
+                    <td style={{ ...td, textAlign: "right" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                        <button style={{ padding: 4, borderRadius: 4, background: "none", border: "none", color: "#958ea0", cursor: "pointer" }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#2a2a2a"; (e.currentTarget as HTMLElement).style.color = "#e5e2e1"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = "#958ea0"; }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>visibility</span>
+                        </button>
+                        <button style={{ padding: 4, borderRadius: 4, background: "none", border: "none", color: "#958ea0", cursor: "pointer" }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#2a2a2a"; (e.currentTarget as HTMLElement).style.color = "#e5e2e1"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = "#958ea0"; }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -449,90 +228,6 @@ export default function OrdersPage() {
           </table>
         </div>
       </div>
-      
-      {editOrder && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
-          <div style={{ background: C.card, padding: 24, borderRadius: 16, width: 360, border: `1px solid ${C.border}`, boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: C.textPrimary }}>Edit Order #{editOrder.id.slice(0,8)}</h2>
-            
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>👤 Customer Name (নাম)</label>
-            <input 
-              type="text"
-              value={editCustomerName}
-              onChange={(e) => setEditCustomerName(e.target.value)}
-              style={{ ...inputStyle, width: "100%", marginBottom: 14, padding: "8px 12px", fontSize: 12 }}
-              placeholder="যেমন: Kausar Hosen Rosan"
-            />
-
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>📞 Phone Number (ফোন নম্বর)</label>
-            <input 
-              type="text"
-              value={editCustomerPhone}
-              onChange={(e) => setEditCustomerPhone(e.target.value)}
-              style={{ ...inputStyle, width: "100%", marginBottom: 14, padding: "8px 12px", fontSize: 12 }}
-              placeholder="যেমন: 01815666821"
-            />
-
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>📍 Street Address (ঠিকানা)</label>
-            <textarea 
-              value={editDeliveryAddress}
-              onChange={(e) => setEditDeliveryAddress(e.target.value)}
-              rows={2}
-              style={{ ...inputStyle, width: "100%", marginBottom: 14, padding: "8px 12px", fontFamily: "inherit", fontSize: 12, resize: "vertical" }}
-              placeholder="যেমন: Bagnibari, Savar, Dhaka"
-            />
-
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Items Ordered</label>
-            <div style={{ padding: "8px 12px", background: C.surface, borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, marginBottom: 14 }}>
-              {editOrder.items.map((item, idx) => (
-                <div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:idx<editOrder.items.length-1?"1px solid rgba(255,255,255,0.05)":"none"}}>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:600,color:C.textPrimary}}>{item.name}</div>
-                    <div style={{fontSize:11,color:C.textMuted}}>Qty: {item.qty} × ৳{item.unitPrice.toLocaleString()}</div>
-                  </div>
-                  <div style={{fontSize:12,fontWeight:700,color:"#34d399"}}>৳{(item.qty * item.unitPrice).toLocaleString()}</div>
-                </div>
-              ))}
-            </div>
-
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Total Amount (৳)</label>
-            <input 
-              type="number"
-              value={editOrder.total_amount}
-              onChange={(e) => setEditOrder({ ...editOrder, total_amount: Number(e.target.value) })}
-              style={{ ...inputStyle, width: "100%", marginBottom: 16, padding: "10px 14px" }}
-            />
-
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Payment Method</label>
-            <input 
-              type="text"
-              value={editOrder.payment_method}
-              onChange={(e) => setEditOrder({ ...editOrder, payment_method: e.target.value })}
-              style={{ ...inputStyle, width: "100%", marginBottom: 16, padding: "10px 14px", textTransform: "uppercase" }}
-            />
-
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Order Status</label>
-            <select 
-              value={editOrder.status}
-              onChange={(e) => setEditOrder({ ...editOrder, status: e.target.value })}
-              style={{ ...inputStyle, width: "100%", marginBottom: 24, padding: "10px 14px" }}
-            >
-              {TABS.filter(t => t !== "all" && t !== "failed").map(t => (
-                <option key={t} value={t} style={{ background: C.card }}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-              ))}
-            </select>
-            
-            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              <button style={{ ...btnSecondary, padding: "8px 16px" }} onClick={() => setEditOrder(null)}>Cancel</button>
-              <button style={{ ...btnPrimary, padding: "8px 16px" }} onClick={saveOrder} disabled={updating}>
-                {updating ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}} tr:hover td{background:rgba(255,255,255,0.015)}`}</style>
     </div>
   );
 }
