@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, skeletonStyle } from "@/lib/styles";
-import { Bot, Save, CheckCircle2, AlertCircle, Zap, RefreshCw } from "lucide-react";
+// Icons use Material Symbols via className in JSX — no import needed
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -78,8 +78,8 @@ export default function AISettingsPage() {
           <p style={pageSubtitle}>Configure your agent's persona, behavior, and compliance rules</p>
         </div>
         <button onClick={handleSave} disabled={saving} style={{...btnPrimary, display:"flex", gap:6}}>
-          {saving ? <><RefreshCw size={14} style={{animation:"spin 0.7s linear infinite"}}/> Saving...</>
-           : <><Save size={14}/> Save Changes</>}
+          {saving ? <><span className="material-symbols-outlined" style={{ fontSize: 16, animation:"spin 0.7s linear infinite" }}>sync</span> Saving...</>
+           : <><span className="material-symbols-outlined" style={{ fontSize: 16 }}>save</span> Save Changes</>}
         </button>
       </div>
 
@@ -89,7 +89,7 @@ export default function AISettingsPage() {
         <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} style={CARD}>
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
             <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <Bot size={18} color="var(--text-primary)"/>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--text-primary)" }}>smart_toy</span>
             </div>
             <div>
               <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Agent Identity</h2>
@@ -136,7 +136,7 @@ export default function AISettingsPage() {
         <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.04}} style={CARD}>
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
             <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <CheckCircle2 size={18} color="var(--green-light)"/>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--green-light)" }}>check_circle</span>
             </div>
             <div>
               <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>API Keys & Models</h2>
@@ -162,7 +162,7 @@ export default function AISettingsPage() {
         <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.08}} style={CARD}>
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
             <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <Zap size={18} color="var(--brand-light)"/>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--brand-light)" }}>bolt</span>
             </div>
             <div>
               <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Follow-up Engine</h2>
@@ -200,7 +200,7 @@ export default function AISettingsPage() {
         <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.16}} style={CARD}>
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
             <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <AlertCircle size={18} color="var(--amber-light)"/>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--amber-light)" }}>error</span>
             </div>
             <div style={{ flex:1 }}>
               <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Meta WhatsApp Compliance</h2>
@@ -224,7 +224,7 @@ export default function AISettingsPage() {
         <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.4}} style={CARD}>
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
             <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <Zap size={18} color="var(--brand-light)"/>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--brand-light)" }}>bolt</span>
             </div>
             <div>
               <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Meta Developer App (Facebook / Instagram)</h2>
@@ -263,7 +263,7 @@ export default function AISettingsPage() {
         <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.4}} style={CARD}>
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
             <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <RefreshCw size={18} color="var(--text-primary)"/>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--text-primary)" }}>sync</span>
             </div>
             <div style={{ flex:1 }}>
               <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>WooCommerce Knowledge Base</h2>

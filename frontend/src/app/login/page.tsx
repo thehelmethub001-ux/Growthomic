@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Mail, Lock, ArrowRight, Sparkles, Zap, ShieldCheck, Eye, EyeOff } from "lucide-react";
+// Icons via Material Symbols
 import { motion } from "framer-motion";
 
 const features = [
-  { icon: Zap,         label: "AI replies in seconds, 24/7 — no agents needed" },
-  { icon: ShieldCheck, label: "SpamGuard auto-blocks abusive customers" },
-  { icon: Sparkles,    label: "Understands Banglish natively" },
+  { icon: "bolt",         label: "AI replies in seconds, 24/7 — no agents needed" },
+  { icon: "verified_user", label: "SpamGuard auto-blocks abusive customers" },
+  { icon: "temp_preferences_custom",    label: "Understands Banglish natively" },
 ];
 
 export default function LoginPage() {
@@ -62,7 +62,7 @@ export default function LoginPage() {
             background:"hsla(262,83%,58%,0.1)", border:"1px solid hsla(262,83%,58%,0.25)",
             color:"var(--primary)", fontSize:12, fontWeight:700, letterSpacing:"0.02em",
           }}>
-            <Sparkles size={12}/> Bangladesh&apos;s #1 AI Sales Platform
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>temp_preferences_custom</span> Bangladesh&apos;s #1 AI Sales Platform
           </span>
         </motion.div>
 
@@ -90,7 +90,7 @@ export default function LoginPage() {
                 background:"hsla(262,83%,58%,0.1)", border:"1px solid hsla(262,83%,58%,0.22)",
                 display:"flex", alignItems:"center", justifyContent:"center",
               }}>
-                <Icon size={16} color="var(--primary)"/>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--primary)" }}>{Icon}</span>
               </div>
               <span style={{ fontSize:14, color:"var(--text-muted)" }}>{label}</span>
             </motion.div>
@@ -138,7 +138,7 @@ export default function LoginPage() {
             <div>
               <label style={{ display:"block", fontSize:13, fontWeight:500, color:"var(--text-primary)", marginBottom:8 }}>Email address</label>
               <div style={{ position:"relative" }}>
-                <Mail size={15} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", pointerEvents:"none" }}/>
+                <span className="material-symbols-outlined" style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", pointerEvents:"none", fontSize: 18 }}>mail</span>
                 <input
                   type="email" value={email} onChange={e=>setEmail(e.target.value)}
                   placeholder="admin@growthomic.com" required autoComplete="email"
@@ -158,7 +158,7 @@ export default function LoginPage() {
             <div>
               <label style={{ display:"block", fontSize:13, fontWeight:500, color:"var(--text-primary)", marginBottom:8 }}>Password</label>
               <div style={{ position:"relative" }}>
-                <Lock size={15} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", pointerEvents:"none" }}/>
+                <span className="material-symbols-outlined" style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", pointerEvents:"none", fontSize: 18 }}>lock</span>
                 <input
                   type={showPw?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)}
                   placeholder="••••••••" required autoComplete="current-password"
@@ -172,7 +172,7 @@ export default function LoginPage() {
                   onBlur={e  => { e.target.style.borderColor="var(--border-white)"; e.target.style.boxShadow="none"; }}
                 />
                 <button type="button" onClick={()=>setShowPw(p=>!p)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"var(--text-muted)", cursor:"pointer", display:"flex", padding:0 }}>
-                  {showPw ? <EyeOff size={15}/> : <Eye size={15}/>}
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{showPw ? "visibility_off" : "visibility"}</span>
                 </button>
               </div>
             </div>
@@ -196,7 +196,7 @@ export default function LoginPage() {
                   Signing in...
                 </span>
               ) : (
-                <><span>Sign In</span><ArrowRight size={16}/></>
+                <><span>Sign In</span><span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_forward</span></>
               )}
             </button>
           </form>

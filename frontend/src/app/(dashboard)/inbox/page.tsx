@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inputStyle, skeletonStyle, getCustomerAvatar } from "@/lib/styles";
-import { MessageSquare, Pause, Play, Search, User, Clock, Star } from "lucide-react";
+// Icons via Material Symbols className in JSX
 import { format } from "date-fns";
 
 type Conv = { id:string; platform:string; status:string; is_locked_for_ai:boolean; updated_at:string; customers:{id:string; name:string|null;platform_id:string;spam_score?:number;is_vip?:boolean;profile_pic?:string|null} };
@@ -205,7 +205,7 @@ export default function InboxPage() {
             </button>
           </div>
           <div style={{ position:"relative", marginBottom:8 }}>
-            <Search size={12} style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", pointerEvents:"none" }}/>
+            <span className="material-symbols-outlined" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", pointerEvents:"none", fontSize: 16 }}>search</span>
             <input style={{ ...inputStyle, paddingLeft:28, fontSize:12 }} placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)}/>
           </div>
           <div style={{ display:"flex", gap:3, marginBottom:8, flexWrap:"wrap" }}>
@@ -300,7 +300,7 @@ export default function InboxPage() {
               border:`1px solid ${sel.is_locked_for_ai?"var(--border)":"var(--brand-border)"}`,
               cursor:"pointer", fontFamily:"inherit",
             }}>
-              {sel.is_locked_for_ai ? <><Play size={12}/> Resume AI</> : <><Pause size={12}/> Pause AI</>}
+              {sel.is_locked_for_ai ? <><span className="material-symbols-outlined" style={{ fontSize: 16 }}>play_arrow</span> Resume AI</> : <><span className="material-symbols-outlined" style={{ fontSize: 16 }}>pause</span> Pause AI</>}
             </button>
           </div>
 
@@ -377,7 +377,7 @@ export default function InboxPage() {
           </div>
         </>) : (
           <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"var(--text-muted)", gap:10 }}>
-            <MessageSquare size={56} style={{ opacity:0.08 }}/>
+            <span className="material-symbols-outlined" style={{ fontSize: 56, opacity: 0.08 }}>chat</span>
             <p style={{ fontSize:14 }}>Select a conversation to view messages</p>
           </div>
         )}
@@ -412,7 +412,7 @@ export default function InboxPage() {
           {/* CRM Details */}
           <div style={{ padding:"16px 20px", borderBottom:"1px solid var(--border)" }}>
             <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12 }}>
-              <User size={12} color="var(--text-muted)"/>
+              <span className="material-symbols-outlined" style={{ fontSize: 16, color: "var(--text-muted)" }}>person</span>
               <span style={{ fontSize:11, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.07em" }}>CRM Details</span>
             </div>
             {[["Platform ID",sel.customers.platform_id],["Spam Score",String(sel.customers.spam_score??0)]].map(([k,v]) => (
@@ -426,7 +426,7 @@ export default function InboxPage() {
           {/* AI Status */}
           <div style={{ padding:"16px 20px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12 }}>
-              <Clock size={12} color="var(--text-muted)"/>
+              <span className="material-symbols-outlined" style={{ fontSize: 16, color: "var(--text-muted)" }}>schedule</span>
               <span style={{ fontSize:11, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.07em" }}>AI Status</span>
             </div>
             <div style={{ padding:"12px 14px", background:sel.is_locked_for_ai?"hsla(350,85%,60%,0.07)":"hsla(152,60%,50%,0.07)", borderRadius:10, border:`1px solid ${sel.is_locked_for_ai?"hsla(350,85%,60%,0.2)":"hsla(152,60%,50%,0.2)"}` }}>
@@ -444,7 +444,7 @@ export default function InboxPage() {
               padding:"9px 12px", borderRadius:"var(--r-md)", border:"1px solid var(--border)",
               background:"var(--bg-elevated)", cursor:"pointer", fontFamily:"inherit",
             }}>
-              <Star size={13} color="hsl(38,90%,65%)" style={{ fill:sel.customers.is_vip?"hsl(38,90%,65%)":"none" }}/>
+              <span className="material-symbols-outlined" style={{ fontSize: 16, color: "hsl(38,90%,65%)", fontVariationSettings: sel.customers.is_vip ? "'FILL' 1" : "'FILL' 0" }}>star</span>
               <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{sel.customers.is_vip?"Remove VIP":"Mark as VIP"}</span>
             </button>
           </div>

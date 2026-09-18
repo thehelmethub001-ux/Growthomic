@@ -2,22 +2,21 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { pageWrap, pageTitle, pageSubtitle, pageHeader, skeletonStyle } from "@/lib/styles";
-import { BarChart3, TrendingUp, MessageCircle, Bot, ShoppingCart, Users } from "lucide-react";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend, PieChart, Pie, Cell
 } from "recharts";
 
-const PIE_COLORS = ["#8b5cf6","#a78bfa","#6d28d9","#c084fc","#4c1d95","#7c3aed"];
-const STATUS_COLORS = ["#8b5cf6","#10b981","#22d3ee","#34d399","#fb7185","#f59e0b"];
+const PIE_COLORS = ["#a078ff","#d0bcff","#6d3bd7","#c084fc","#4c1d95","#7c3aed"];
+const STATUS_COLORS = ["#a078ff","#4ade80","#22d3ee","#34d399","#fb7185","#f59e0b"];
 
 const tt: React.CSSProperties = {
-  backgroundColor: "var(--bg-elevated)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
+  backgroundColor: "#2a2a2a",
+  border: "1px solid rgba(73,68,84,0.5)",
+  borderRadius: 6,
   fontSize: 12,
-  color: "var(--text-primary)",
+  color: "#e5e2e1",
   boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
   padding: "10px 14px",
 };
@@ -105,11 +104,11 @@ export default function AnalyticsPage() {
   const totalOrd = orderStatusData.reduce((s,p)=>s+p.value,0);
 
   const sumCards = [
-    {label:"7-Day Revenue",    value:`৳${totalRev.toLocaleString()}`, icon:<TrendingUp size={16} color="var(--text-muted)"/>},
-    {label:"AI Automation",    value:`${aiPct}%`,                      icon:<Bot size={16} color="var(--text-muted)"/>},
-    {label:"Total Messages",   value:(totalAI+totalH).toLocaleString(),icon:<MessageCircle size={16} color="var(--text-muted)"/>},
-    {label:"Total Orders",     value:totalOrd.toLocaleString(),        icon:<ShoppingCart size={16} color="var(--text-muted)"/>},
-    {label:"Active Platforms", value:platformData.length.toString(),   icon:<Users size={16} color="var(--text-muted)"/>},
+    {label:"7-Day Revenue",    value:`৳${totalRev.toLocaleString()}`, icon:<span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-muted)" }}>trending_up</span>},
+    {label:"AI Automation",    value:`${aiPct}%`,                      icon:<span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-muted)" }}>smart_toy</span>},
+    {label:"Total Messages",   value:(totalAI+totalH).toLocaleString(),icon:<span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-muted)" }}>chat</span>},
+    {label:"Total Orders",     value:totalOrd.toLocaleString(),        icon:<span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-muted)" }}>shopping_cart</span>},
+    {label:"Active Platforms", value:platformData.length.toString(),   icon:<span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-muted)" }}>group</span>},
   ];
 
   const RADIAN = Math.PI / 180;
@@ -127,7 +126,7 @@ export default function AnalyticsPage() {
       <div style={pageHeader}>
         <div>
           <h1 style={{ ...pageTitle, display:"flex", alignItems:"center", gap:10 }}>
-            <BarChart3 size={20} color="var(--text-primary)"/> Analytics
+            <span className="material-symbols-outlined" style={{ fontSize: 24, color: "var(--text-primary)" }}>bar_chart</span> Analytics
           </h1>
           <p style={pageSubtitle}>7-day performance overview across all channels</p>
         </div>
@@ -266,7 +265,7 @@ export default function AnalyticsPage() {
             {loading?<div style={{...skeletonStyle,height:"100%",borderRadius:"var(--r-md)"}}/>:
             productMsgData.length===0?(
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:10,color:"var(--text-muted)"}}>
-                <MessageCircle size={32} style={{opacity:0.2}}/>
+                <span className="material-symbols-outlined" style={{ fontSize: 32, opacity: 0.2 }}>chat</span>
                 <p style={{fontSize:12}}>No product data yet.</p>
               </div>
             ):(

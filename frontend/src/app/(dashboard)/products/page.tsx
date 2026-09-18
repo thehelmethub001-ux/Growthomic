@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, skeletonStyle, thStyle, tdStyle } from "@/lib/styles";
-import { Plus, Search, Package, Edit2, Trash2, Tag, ToggleLeft, ToggleRight, X, Save, Lock } from "lucide-react";
+// Icons via Material Symbols className
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -157,14 +157,14 @@ export default function ProductsPage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ position: "relative" }}>
-            <Search size={13} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
+            <span className="material-symbols-outlined" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none", fontSize: 18 }}>search</span>
             <input style={{ ...inputStyle, paddingLeft: 32, width: 220, fontSize: 12 }} placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <button style={{ ...btnPrimary, background: "var(--bg-elevated)", color: "var(--text-primary)", border: "1px solid var(--border)", boxShadow: "none" }} onClick={handleSync} disabled={syncing}>
             {syncing ? "Syncing..." : "Sync WooCommerce"}
           </button>
           <button style={btnPrimary} onClick={openAddModal}>
-            <Plus size={15} /> Add Product
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span> Add Product
           </button>
         </div>
       </div>
@@ -180,7 +180,7 @@ export default function ProductsPage() {
           ].map(s => (
             <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderRadius: "var(--r-lg)", background: "var(--bg-card)", border: "1px solid var(--border)" }}>
               <div style={{ width: 32, height: 32, borderRadius: "var(--r-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Package size={15} color="var(--text-muted)" />
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-muted)" }}>inventory_2</span>
               </div>
               <div>
                 <div style={{ fontSize: 24, fontWeight: 600, color: s.color, lineHeight: 1, letterSpacing: "-0.02em" }}>{s.value}</div>
@@ -211,7 +211,7 @@ export default function ProductsPage() {
                 ))
               ) : shown.length === 0 ? (
                 <tr><td colSpan={6} style={{ padding: "60px 16px", textAlign: "center", color: "var(--text-muted)" }}>
-                  <Package size={52} style={{ opacity: 0.1, display: "block", margin: "0 auto 14px" }} />
+                  <span className="material-symbols-outlined" style={{ fontSize: 52, opacity: 0.1, display: "block", margin: "0 auto 14px" }}>inventory_2</span>
                   <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 4 }}>
                     {search ? "No products match your search" : "No products yet"}
                   </p>
@@ -232,7 +232,7 @@ export default function ProductsPage() {
                         }}>
                           {p.images?.[0]
                             ? <img src={p.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            : <Package size={18} color="var(--text-muted)" />
+                            : <span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-muted)" }}>inventory_2</span>
                           }
                         </div>
                         <div>
@@ -240,7 +240,7 @@ export default function ProductsPage() {
                             <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>{p.name}</div>
                             {p.manually_edited && (
                               <span title="Manually edited — won't auto-update from WooCommerce" className="badge badge-amber" style={{gap:4}}>
-                                <Lock size={10} />
+                                <span className="material-symbols-outlined" style={{ fontSize: 10 }}>lock</span>
                                 Locked
                               </span>
                             )}
@@ -264,7 +264,7 @@ export default function ProductsPage() {
                     <td style={tdStyle}>
                       {p.category
                         ? <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 100, background: "var(--bg-elevated)", border: "1px solid var(--border)", width: "fit-content" }}>
-                          <Tag size={10} color="var(--text-secondary)" />
+                          <span className="material-symbols-outlined" style={{ fontSize: 10, color: "var(--text-secondary)" }}>sell</span>
                           <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)" }}>{p.category}</span>
                         </div>
                         : <span style={{ fontSize: 11, color: "var(--text-muted)" }}>—</span>
@@ -278,8 +278,8 @@ export default function ProductsPage() {
                         fontSize: 11, fontWeight: 500,
                       }}>
                         {p.is_active
-                          ? <ToggleRight size={14} style={{ flexShrink: 0 }} />
-                          : <ToggleLeft size={14} style={{ flexShrink: 0 }} />
+                          ? <span className="material-symbols-outlined" style={{ fontSize: 16, flexShrink: 0 }}>toggle_on</span>
+                          : <span className="material-symbols-outlined" style={{ fontSize: 16, flexShrink: 0 }}>toggle_off</span>
                         }
                         {p.is_active ? "Active" : "Draft"}
                       </button>
@@ -291,14 +291,14 @@ export default function ProductsPage() {
                           background: "var(--bg-elevated)", color: "var(--text-secondary)", display: "flex", alignItems: "center", justifyContent: "center",
                           transition: "all 0.15s",
                         }}>
-                          <Edit2 size={13} />
+                          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
                         </button>
                         <button onClick={() => handleDelete(p.id)} disabled={deleting === p.id} style={{
                           width: 32, height: 32, borderRadius: "var(--r-md)", border: "1px solid rgba(239,68,68,0.2)", cursor: "pointer",
                           background: "rgba(239,68,68,0.06)", color: "var(--red-light)", display: "flex", alignItems: "center", justifyContent: "center",
                           opacity: deleting === p.id ? 0.5 : 1,
                         }}>
-                          <Trash2 size={13} />
+                          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
                         </button>
                       </div>
                     </td>
@@ -326,7 +326,7 @@ export default function ProductsPage() {
                 <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>Define product details and AI instructions</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 4 }}>
-                <X size={18} />
+                <span className="material-symbols-outlined" style={{ fontSize: 24 }}>close</span>
               </button>
             </div>
 
@@ -335,7 +335,7 @@ export default function ProductsPage() {
               
               {/* Basic Info */}
               <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}><Package size={15} color="var(--text-muted)"/> Basic Details</h3>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}><span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-muted)" }}>inventory_2</span> Basic Details</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Product Name *</label>
@@ -390,11 +390,11 @@ export default function ProductsPage() {
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                   <div>
-                    <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}><Tag size={15} color="var(--text-muted)"/> Product Variations</h3>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}><span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-muted)" }}>sell</span> Product Variations</h3>
                     <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Define sizes, colors, and specific image URLs for variations</p>
                   </div>
                   <button onClick={() => setFormData({ ...formData, variations: [...(formData.variations || []), { id: Date.now(), attributes: { "Color/Size": "" }, price: formData.regular_price || 0, stock: 0, image_url: "" }] })} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 12px", borderRadius: "var(--r-md)", fontSize: 11, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-                    <Plus size={12} /> Add Variation
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Add Variation
                   </button>
                 </div>
                 
@@ -439,7 +439,7 @@ export default function ProductsPage() {
                         newVars.splice(idx, 1);
                         setFormData({ ...formData, variations: newVars });
                       }} style={{ background: "rgba(239,68,68,0.1)", border: "none", color: "var(--red-light)", padding: 6, borderRadius: "var(--r-sm)", cursor: "pointer", height: "fit-content" }}>
-                        <Trash2 size={14} />
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
                       </button>
                     </div>
                   )})}
@@ -459,7 +459,7 @@ export default function ProductsPage() {
                     <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Teach the AI how to answer specific questions about this product</p>
                   </div>
                   <button onClick={() => setFormData({ ...formData, qna_pairs: [...(formData.qna_pairs || []), { question: "", answer: "" }] })} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 12px", borderRadius: "var(--r-md)", fontSize: 11, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-                    <Plus size={12} /> Add Q&A
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Add Q&A
                   </button>
                 </div>
                 
@@ -483,7 +483,7 @@ export default function ProductsPage() {
                         newQna.splice(idx, 1);
                         setFormData({ ...formData, qna_pairs: newQna });
                       }} style={{ background: "rgba(239,68,68,0.1)", border: "none", color: "var(--red-light)", padding: 6, borderRadius: "var(--r-sm)", cursor: "pointer" }}>
-                        <Trash2 size={14} />
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
                       </button>
                     </div>
                   ))}
@@ -503,7 +503,7 @@ export default function ProductsPage() {
                     <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>What the AI must ask before confirming an order for this item</p>
                   </div>
                   <button onClick={() => setFormData({ ...formData, required_order_fields: [...(formData.required_order_fields || []), { fieldName: "", question: "" }] })} style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 12px", borderRadius: "var(--r-md)", fontSize: 11, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-                    <Plus size={12} /> Add Field
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Add Field
                   </button>
                 </div>
 
@@ -527,7 +527,7 @@ export default function ProductsPage() {
                         newFields.splice(idx, 1);
                         setFormData({ ...formData, required_order_fields: newFields });
                       }} style={{ background: "rgba(239,68,68,0.1)", border: "none", color: "var(--red-light)", padding: 6, borderRadius: "var(--r-sm)", cursor: "pointer" }}>
-                        <Trash2 size={14} />
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
                       </button>
                     </div>
                   ))}
@@ -545,7 +545,7 @@ export default function ProductsPage() {
                 Cancel
               </button>
               <button onClick={handleSave} disabled={saving} style={{ ...btnPrimary, padding: "8px 20px" }}>
-                {saving ? "Saving..." : <><Save size={15}/> Save Product</>}
+                {saving ? "Saving..." : <><span className="material-symbols-outlined" style={{ fontSize: 16 }}>save</span> Save Product</>}
               </button>
             </div>
           </motion.div>
