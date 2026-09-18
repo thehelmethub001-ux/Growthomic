@@ -12,15 +12,14 @@ export default function SpamPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const sb = createClient();
-
-  useEffect(() => { load(); }, []);
-
   const load = async () => {
     setLoading(true);
     const { data } = await sb.from("customers").select("*").or("is_spam.eq.true,ai_reply_enabled.eq.false,spam_score.gt.0").order("spam_score", { ascending: false });
     setCusts((data ?? []) as Cust[]);
     setLoading(false);
   };
+
+  useEffect(() => { load(); }, []);
 
   const toggleAI = async (id: string, cur: boolean) => {
     await sb.from("customers").update({ ai_reply_enabled: !cur }).eq("id", id);
