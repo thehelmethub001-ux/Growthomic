@@ -105,12 +105,12 @@ export default function HumanQueuePage() {
         {/* Top summary stats inline chips/badges & Filter pills */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, paddingBottom: 16 }}>
           {/* Summary badges */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <div style={{
               display: "inline-flex", alignItems: "center", gap: 6,
               padding: "4px 10px", borderRadius: 6,
               background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)",
-              color: "#f87171", fontSize: 11, fontWeight: 600,
+              color: "#f87171", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
             }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} />
               AI Failed: {counts.ai_failed || 3}
@@ -119,7 +119,7 @@ export default function HumanQueuePage() {
               display: "inline-flex", alignItems: "center", gap: 6,
               padding: "4px 10px", borderRadius: 6,
               background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)",
-              color: "#fbbf24", fontSize: 11, fontWeight: 600,
+              color: "#fbbf24", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
             }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b" }} />
               Returns: {counts.return || 2}
@@ -128,7 +128,7 @@ export default function HumanQueuePage() {
               display: "inline-flex", alignItems: "center", gap: 6,
               padding: "4px 10px", borderRadius: 6,
               background: "rgba(160,120,255,0.12)", border: "1px solid rgba(160,120,255,0.3)",
-              color: "#d0bcff", fontSize: 11, fontWeight: 600,
+              color: "#d0bcff", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
             }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#a078ff" }} />
               Complaints: {counts.complaint || 1}

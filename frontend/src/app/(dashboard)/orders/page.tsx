@@ -122,7 +122,7 @@ export default function OrdersPage() {
             <div style={{ fontSize: 24, fontWeight: 600, color, fontFamily: "Geist, system-ui", letterSpacing: "-0.02em" }}>
               {value}
             </div>
-            <div style={{ fontSize: 11, color: "#958ea0" }}>
+            <div style={{ fontSize: 11, color: "#958ea0", whiteSpace: "nowrap" }}>
               {sub}
             </div>
           </div>
@@ -204,30 +204,31 @@ export default function OrdersPage() {
                           {(order.customer_name || "C").charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <div style={{ color: "#e5e2e1", fontWeight: 500 }}>{order.customer_name ?? "Tanvir Rahman"}</div>
-                          <div style={{ fontSize: 11, color: "#958ea0" }}>{order.customer_phone || "+880 1711-234567"}</div>
+                          <div style={{ color: "#e5e2e1", fontWeight: 500, whiteSpace: "nowrap" }}>{order.customer_name ?? "Tanvir Rahman"}</div>
+                          <div style={{ fontSize: 11, color: "#958ea0", whiteSpace: "nowrap" }}>{order.customer_phone || "+880 1711-234567"}</div>
                         </div>
                       </div>
                     </td>
                     <td style={td}>
-                      <div style={{ color: "#e5e2e1", fontWeight: 500 }}>{items.length || 1} item{items.length !== 1 ? "s" : ""}</div>
+                      <div style={{ color: "#e5e2e1", fontWeight: 500, whiteSpace: "nowrap" }}>{items.length || 1} item{items.length !== 1 ? "s" : ""}</div>
                       <div style={{ fontSize: 11, color: "#958ea0", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{itemNames || "—"}</div>
                     </td>
                     <td style={{ ...td, color: "#e5e2e1", fontWeight: 500, whiteSpace: "nowrap" }}>
                       ৳ {(order.total_amount ?? 0).toLocaleString()}
                     </td>
-                    <td style={td}>
+                    <td style={{ ...td, whiteSpace: "nowrap" }}>
                       <span style={{
                         display: "inline-flex", alignItems: "center", gap: 6,
                         padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 500,
                         background: st.bg, color: st.color, border: `1px solid ${st.border}`,
+                        whiteSpace: "nowrap",
                       }}>
                         <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot, display: "inline-block" }} />
                         {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : "Unknown"}
                       </span>
                     </td>
-                    <td style={td}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "#201f1f", border: "1px solid rgba(73,68,84,0.3)", color: "#e5e2e1" }}>
+                    <td style={{ ...td, whiteSpace: "nowrap" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "#201f1f", border: "1px solid rgba(73,68,84,0.3)", color: "#e5e2e1", whiteSpace: "nowrap" }}>
                         <span className="material-symbols-outlined" style={{ fontSize: 13 }}>{chIcon}</span>
                         {ch ? ch.charAt(0).toUpperCase() + ch.slice(1) : "—"}
                       </span>

@@ -106,21 +106,21 @@ export default function OverviewPage() {
       </header>
 
       {/* Stat Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
         {statCards.map(({ icon, label, value, sub, subColor }) => (
           <div key={label} style={{
             background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)",
             borderRadius: 12, padding: 20, display: "flex", flexDirection: "column", gap: 12,
           }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#958ea0" }}>{icon}</span>
-              <span style={{ fontSize: 10, fontWeight: 500, color: subColor ?? "#958ea0" }}>{sub}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#958ea0", flexShrink: 0 }}>{icon}</span>
+              <span style={{ fontSize: 10, fontWeight: 500, color: subColor ?? "#958ea0", whiteSpace: "nowrap" }}>{sub}</span>
             </div>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 600, color: "#e5e2e1", letterSpacing: "-0.02em", fontFamily: "Geist, system-ui" }}>
+              <div style={{ fontSize: 28, fontWeight: 600, color: "#e5e2e1", letterSpacing: "-0.02em", fontFamily: "Geist, system-ui", whiteSpace: "nowrap" }}>
                 {value}
               </div>
-              <div style={{ fontSize: 12, fontWeight: 500, color: "#958ea0", marginTop: 2 }}>{label}</div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "#958ea0", marginTop: 2, whiteSpace: "nowrap" }}>{label}</div>
             </div>
           </div>
         ))}

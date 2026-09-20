@@ -289,7 +289,7 @@ export default function ProductsPage() {
       <div style={{ background: "rgba(28,27,27,0.6)", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           {/* Category Tabs */}
-          <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#0e0e0e", padding: 4, borderRadius: 6, border: "1px solid rgba(73,68,84,0.3)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#0e0e0e", padding: 4, borderRadius: 6, border: "1px solid rgba(73,68,84,0.3)", overflowX: "auto", maxWidth: "100%" }}>
             <button
               onClick={() => setCategoryFilter("all")}
               style={{
@@ -301,6 +301,7 @@ export default function ProductsPage() {
                 background: categoryFilter === "all" ? "#201f1f" : "transparent",
                 border: "none",
                 color: categoryFilter === "all" ? "#e5e2e1" : "#958ea0",
+                whiteSpace: "nowrap",
               }}
             >
               All <span style={{ fontSize: 11, color: "#958ea0", marginLeft: 4 }}>{totalSKUs}</span>
@@ -320,6 +321,7 @@ export default function ProductsPage() {
                     background: categoryFilter === cat.toLowerCase() ? "#201f1f" : "transparent",
                     border: "none",
                     color: categoryFilter === cat.toLowerCase() ? "#e5e2e1" : "#958ea0",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {cat} <span style={{ fontSize: 11, color: "#958ea0", marginLeft: 4 }}>{count}</span>

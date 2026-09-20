@@ -220,20 +220,20 @@ export default function AnalyticsPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
         {/* Card 1: Total Messages */}
         <div style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, color: "#958ea0" }}>Total Messages</span>
-            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ fontSize: 13, color: "#958ea0", whiteSpace: "nowrap" }}>Total Messages</span>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)", whiteSpace: "nowrap" }}>
               +14.2%
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: 14 }}>
             <div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: "#e5e2e1", letterSpacing: "-0.02em" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#e5e2e1", letterSpacing: "-0.02em", whiteSpace: "nowrap" }}>
                 {(totalAI + totalH || 12840).toLocaleString()}
               </div>
-              <div style={{ fontSize: 11, color: "#958ea0", marginTop: 2 }}>vs prev period</div>
+              <div style={{ fontSize: 11, color: "#958ea0", marginTop: 2, whiteSpace: "nowrap" }}>vs prev period</div>
             </div>
-            <div style={{ width: 75, height: 32 }}>
+            <div style={{ width: 75, height: 32, flexShrink: 0 }}>
               <svg width="75" height="32" viewBox="0 0 75 32" fill="none">
                 <path d="M2 28 L 15 22 L 28 25 L 42 14 L 55 18 L 68 6 L 73 3" stroke="#a078ff" strokeWidth="2" strokeLinecap="round" />
               </svg>
@@ -243,20 +243,20 @@ export default function AnalyticsPage() {
 
         {/* Card 2: AI Handle Rate */}
         <div style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, color: "#958ea0" }}>AI Handle Rate</span>
-            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ fontSize: 13, color: "#958ea0", whiteSpace: "nowrap" }}>AI Handle Rate</span>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)", whiteSpace: "nowrap" }}>
               +1.8%
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: 14 }}>
             <div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: "#e5e2e1", letterSpacing: "-0.02em" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#e5e2e1", letterSpacing: "-0.02em", whiteSpace: "nowrap" }}>
                 {aiPct}.2%
               </div>
-              <div style={{ fontSize: 11, color: "#958ea0", marginTop: 2 }}>Autonomous workflows</div>
+              <div style={{ fontSize: 11, color: "#958ea0", marginTop: 2, whiteSpace: "nowrap" }}>Autonomous workflows</div>
             </div>
-            <div style={{ width: 75, height: 32 }}>
+            <div style={{ width: 75, height: 32, flexShrink: 0 }}>
               <svg width="75" height="32" viewBox="0 0 75 32" fill="none">
                 <path d="M2 14 L 14 12 L 26 15 L 40 9 L 52 10 L 65 6 L 73 5" stroke="#a078ff" strokeWidth="2" strokeLinecap="round" />
               </svg>
@@ -266,20 +266,20 @@ export default function AnalyticsPage() {
 
         {/* Card 3: Conversion Rate */}
         <div style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, color: "#958ea0" }}>Conversion Rate</span>
-            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ fontSize: 13, color: "#958ea0", whiteSpace: "nowrap" }}>Conversion Rate</span>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)", whiteSpace: "nowrap" }}>
               +3.4%
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: 14 }}>
             <div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: "#e5e2e1", letterSpacing: "-0.02em" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#e5e2e1", letterSpacing: "-0.02em", whiteSpace: "nowrap" }}>
                 18.7%
               </div>
-              <div style={{ fontSize: 11, color: "#958ea0", marginTop: 2 }}>Chat-to-checkout</div>
+              <div style={{ fontSize: 11, color: "#958ea0", marginTop: 2, whiteSpace: "nowrap" }}>Chat-to-checkout</div>
             </div>
-            <div style={{ width: 75, height: 32 }}>
+            <div style={{ width: 75, height: 32, flexShrink: 0 }}>
               <svg width="75" height="32" viewBox="0 0 75 32" fill="none">
                 <path d="M2 26 L 15 22 L 28 24 L 40 17 L 52 18 L 65 8 L 73 4" stroke="#a078ff" strokeWidth="2" strokeLinecap="round" />
               </svg>
@@ -289,20 +289,20 @@ export default function AnalyticsPage() {
 
         {/* Card 4: Avg Response Time */}
         <div style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, color: "#958ea0" }}>Avg Response Time</span>
-            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ fontSize: 13, color: "#958ea0", whiteSpace: "nowrap" }}>Avg Response Time</span>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)", whiteSpace: "nowrap" }}>
               -0.3s
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: 14 }}>
             <div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: "#e5e2e1", letterSpacing: "-0.02em" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#e5e2e1", letterSpacing: "-0.02em", whiteSpace: "nowrap" }}>
                 1.4s
               </div>
-              <div style={{ fontSize: 11, color: "#958ea0", marginTop: 2 }}>Gemini Flash latency</div>
+              <div style={{ fontSize: 11, color: "#958ea0", marginTop: 2, whiteSpace: "nowrap" }}>Gemini Flash latency</div>
             </div>
-            <div style={{ width: 75, height: 32 }}>
+            <div style={{ width: 75, height: 32, flexShrink: 0 }}>
               <svg width="75" height="32" viewBox="0 0 75 32" fill="none">
                 <path d="M2 6 L 15 8 L 28 12 L 40 15 L 54 22 L 66 26 L 73 28" stroke="#a078ff" strokeWidth="2" strokeLinecap="round" />
               </svg>

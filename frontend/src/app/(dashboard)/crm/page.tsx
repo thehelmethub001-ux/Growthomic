@@ -334,20 +334,20 @@ export default function CRMPage() {
                           >
                             {getInitials(c.name)}
                           </div>
-                          <div>
+                          <div style={{ minWidth: 0 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e2e1" }}>{c.name || "Customer"}</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e2e1", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 140, display: "inline-block" }}>{c.name || "Customer"}</span>
                               {c.is_vip && (
-                                <span className="material-symbols-outlined" style={{ fontSize: 13, color: "#fbbf24", fontVariationSettings: "'FILL' 1" }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 13, color: "#fbbf24", fontVariationSettings: "'FILL' 1", flexShrink: 0 }}>
                                   star
                                 </span>
                               )}
                             </div>
-                            <span style={{ fontSize: 11, color: "#958ea0" }}>{c.platform_id}</span>
+                            <span style={{ fontSize: 11, color: "#958ea0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 150, display: "block" }}>{c.platform_id}</span>
                           </div>
                         </div>
 
-                        <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 500, background: plt.bg, color: plt.color, display: "flex", alignItems: "center", gap: 3 }}>
+                        <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 500, background: plt.bg, color: plt.color, display: "flex", alignItems: "center", gap: 3, whiteSpace: "nowrap", flexShrink: 0 }}>
                           <span className="material-symbols-outlined" style={{ fontSize: 11 }}>{plt.icon}</span>
                           {c.platform}
                         </span>

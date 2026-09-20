@@ -61,7 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "var(--sidebar-full) 1fr", width: "100vw", height: "100vh", overflow: "hidden", background: "#131313" }}>
+    <div className="dashboard-layout">
 
       {/* Mobile backdrop */}
       {mobileNavOpen && (
@@ -258,10 +258,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Stitch Search input with ⌘K badge */}
             <div style={{
               position: "relative", width: "100%", maxWidth: 300,
-              display: "flex", alignItems: "center",
+              display: "flex", alignItems: "center", flexShrink: 1,
             }}>
               <span className="material-symbols-outlined" style={{
-                position: "absolute", left: 10, fontSize: 16, color: "#958ea0", pointerEvents: "none",
+                position: "absolute", left: 10, fontSize: 16, color: "#958ea0", pointerEvents: "none", zIndex: 1,
               }}>search</span>
               <input
                 type="text"
@@ -269,7 +269,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 style={{
                   width: "100%", background: "#1c1b1b",
                   border: "1px solid rgba(73,68,84,0.35)", borderRadius: 6,
-                  padding: "6px 42px 6px 32px", fontSize: 12, color: "#e5e2e1",
+                  padding: "6px 42px 6px 34px", fontSize: 12, color: "#e5e2e1",
                   outline: "none", fontFamily: "inherit",
                 }}
               />
@@ -277,6 +277,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 position: "absolute", right: 8, fontSize: 10,
                 background: "#2a2a2a", border: "1px solid rgba(73,68,84,0.4)",
                 padding: "1px 5px", borderRadius: 4, color: "#958ea0", fontWeight: 500,
+                pointerEvents: "none",
               }}>⌘K</span>
             </div>
 
@@ -297,6 +298,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               display: "flex", alignItems: "center", gap: 6,
               background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)",
               padding: "4px 10px", borderRadius: 100, fontSize: 11, fontWeight: 500, color: "#e5e2e1",
+              whiteSpace: "nowrap", flexShrink: 0,
             }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", animation: "pulse 2s infinite" }} />
               <span>Live Status: Active</span>
@@ -315,6 +317,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 color: aiEnabled ? "#4ade80" : "#f87171",
                 fontSize: 11, fontWeight: 500, cursor: "pointer",
                 transition: "all 0.15s", fontFamily: "inherit",
+                whiteSpace: "nowrap", flexShrink: 0,
               }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
@@ -332,6 +335,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 padding: "5px 12px", borderRadius: 6,
                 fontSize: 12, fontWeight: 600, textDecoration: "none",
                 cursor: "pointer", transition: "opacity 0.15s",
+                whiteSpace: "nowrap", flexShrink: 0,
               }}
               onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
               onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
@@ -347,7 +351,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               href="/human-queue"
               title="Escalation alerts"
               style={{
-                width: 32, height: 32, borderRadius: 6,
+                width: 32, height: 32, minWidth: 32, borderRadius: 6, flexShrink: 0,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "#958ea0", background: "transparent", border: "none", textDecoration: "none",
               }}
@@ -362,7 +366,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               href="/ai-settings"
               title="AI Settings"
               style={{
-                width: 32, height: 32, borderRadius: 6,
+                width: 32, height: 32, minWidth: 32, borderRadius: 6, flexShrink: 0,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "#958ea0", background: "transparent", border: "none", textDecoration: "none",
               }}
@@ -374,7 +378,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {/* User Profile Initials Avatar */}
             <div style={{
-              width: 28, height: 28, borderRadius: "50%",
+              width: 28, height: 28, minWidth: 28, borderRadius: "50%", flexShrink: 0,
               background: "#513e7f", border: "1px solid rgba(160,120,255,0.3)",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 11, fontWeight: 700, color: "#e9ddff",

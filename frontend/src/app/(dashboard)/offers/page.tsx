@@ -209,7 +209,7 @@ export default function OffersPage() {
             }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
-            <span>+ Create Offer</span>
+            <span>Create Offer</span>
           </button>
         </div>
       </div>
@@ -218,45 +218,45 @@ export default function OffersPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
         <div style={{ background: "#161616", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 8, background: "#201f1f", border: "1px solid rgba(73,68,84,0.4)", display: "flex", alignItems: "center", justifyContent: "center", color: "#d0bcff" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 8, background: "#201f1f", border: "1px solid rgba(73,68,84,0.4)", display: "flex", alignItems: "center", justifyContent: "center", color: "#d0bcff", flexShrink: 0 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 20 }}>sell</span>
             </div>
             <div>
-              <div style={{ fontSize: 10, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Active Offers</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#e5e2e1", marginTop: 2 }}>{activeCount} Campaigns</div>
+              <div style={{ fontSize: 10, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>Total Active Offers</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#e5e2e1", marginTop: 2, whiteSpace: "nowrap" }}>{activeCount} Campaigns</div>
             </div>
           </div>
-          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)" }}>
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)", whiteSpace: "nowrap", flexShrink: 0 }}>
             Operational
           </span>
         </div>
 
         <div style={{ background: "#161616", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 8, background: "#201f1f", border: "1px solid rgba(73,68,84,0.4)", display: "flex", alignItems: "center", justifyContent: "center", color: "#60a5fa" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 8, background: "#201f1f", border: "1px solid rgba(73,68,84,0.4)", display: "flex", alignItems: "center", justifyContent: "center", color: "#60a5fa", flexShrink: 0 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 20 }}>payments</span>
             </div>
             <div>
-              <div style={{ fontSize: 10, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Promo Revenue</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#e5e2e1", marginTop: 2 }}>৳ 142,800</div>
+              <div style={{ fontSize: 10, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>Total Promo Revenue</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#e5e2e1", marginTop: 2, whiteSpace: "nowrap" }}>৳ 142,800</div>
             </div>
           </div>
-          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "rgba(160,120,255,0.12)", color: "#d0bcff", border: "1px solid rgba(160,120,255,0.3)" }}>
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "rgba(160,120,255,0.12)", color: "#d0bcff", border: "1px solid rgba(160,120,255,0.3)", whiteSpace: "nowrap", flexShrink: 0 }}>
             +14.2% MoM
           </span>
         </div>
 
         <div style={{ background: "#161616", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 8, background: "#201f1f", border: "1px solid rgba(73,68,84,0.4)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fbbf24" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 8, background: "#201f1f", border: "1px solid rgba(73,68,84,0.4)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fbbf24", flexShrink: 0 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 20 }}>loyalty</span>
             </div>
             <div>
-              <div style={{ fontSize: 10, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.05em" }}>Redemptions This Month</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#e5e2e1", marginTop: 2 }}>312 Orders</div>
+              <div style={{ fontSize: 10, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>Redemptions This Month</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#e5e2e1", marginTop: 2, whiteSpace: "nowrap" }}>312 Orders</div>
             </div>
           </div>
-          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "rgba(245,158,11,0.12)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.3)" }}>
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "rgba(245,158,11,0.12)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.3)", whiteSpace: "nowrap", flexShrink: 0 }}>
             92% Delivered
           </span>
         </div>

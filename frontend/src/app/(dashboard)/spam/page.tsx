@@ -217,7 +217,7 @@ export default function SpamPage() {
 
       {/* 2. Filter Tabs & Search Bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", gap: 4, background: "#0e0e0e", padding: 4, borderRadius: 6, border: "1px solid rgba(73,68,84,0.3)" }}>
+        <div style={{ display: "flex", gap: 4, background: "#0e0e0e", padding: 4, borderRadius: 6, border: "1px solid rgba(73,68,84,0.3)", overflowX: "auto", maxWidth: "100%" }}>
           <button
             onClick={() => setActiveTab("all")}
             style={{
@@ -229,6 +229,7 @@ export default function SpamPage() {
               background: activeTab === "all" ? "#201f1f" : "transparent",
               border: "none",
               color: activeTab === "all" ? "#e5e2e1" : "#958ea0",
+              whiteSpace: "nowrap",
             }}
           >
             All Flagged <span style={{ fontSize: 11, color: "#d0bcff", marginLeft: 4 }}>{custs.length}</span>
@@ -244,6 +245,7 @@ export default function SpamPage() {
               background: activeTab === "greeting" ? "#201f1f" : "transparent",
               border: "none",
               color: activeTab === "greeting" ? "#e5e2e1" : "#958ea0",
+              whiteSpace: "nowrap",
             }}
           >
             Repeated Greeting <span style={{ fontSize: 11, color: "#958ea0", marginLeft: 4 }}>({countGreeting})</span>
@@ -259,6 +261,7 @@ export default function SpamPage() {
               background: activeTab === "no_intent" ? "#201f1f" : "transparent",
               border: "none",
               color: activeTab === "no_intent" ? "#e5e2e1" : "#958ea0",
+              whiteSpace: "nowrap",
             }}
           >
             No Purchase Intent <span style={{ fontSize: 11, color: "#958ea0", marginLeft: 4 }}>({countNoIntent})</span>
@@ -274,6 +277,7 @@ export default function SpamPage() {
               background: activeTab === "profanity" ? "#201f1f" : "transparent",
               border: "none",
               color: activeTab === "profanity" ? "#e5e2e1" : "#958ea0",
+              whiteSpace: "nowrap",
             }}
           >
             Profanity / Abuse <span style={{ fontSize: 11, color: "#958ea0", marginLeft: 4 }}>({countProfanity})</span>
@@ -344,14 +348,14 @@ export default function SpamPage() {
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                   >
                     {/* Customer */}
-                    <td style={{ padding: "12px 16px" }}>
+                    <td style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#2a2a2a", border: "1px solid rgba(73,68,84,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: "#e5e2e1" }}>
+                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#2a2a2a", border: "1px solid rgba(73,68,84,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: "#e5e2e1", flexShrink: 0 }}>
                           {(c.name || "C").charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <div style={{ color: "#e5e2e1", fontWeight: 600 }}>{c.name || "Customer"}</div>
-                          <div style={{ fontSize: 11, color: "#958ea0" }}>{c.platform_id}</div>
+                          <div style={{ color: "#e5e2e1", fontWeight: 600, whiteSpace: "nowrap" }}>{c.name || "Customer"}</div>
+                          <div style={{ fontSize: 11, color: "#958ea0", whiteSpace: "nowrap" }}>{c.platform_id}</div>
                         </div>
                       </div>
                     </td>
@@ -364,19 +368,19 @@ export default function SpamPage() {
                     </td>
 
                     {/* Flag Reason */}
-                    <td style={{ padding: "12px 16px" }}>
-                      <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: reasonPill.bg, color: reasonPill.color, border: `1px solid ${reasonPill.border}`, textTransform: "capitalize" }}>
+                    <td style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
+                      <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: reasonPill.bg, color: reasonPill.color, border: `1px solid ${reasonPill.border}`, textTransform: "capitalize", whiteSpace: "nowrap", display: "inline-block" }}>
                         {c.flag_reason === "greeting" ? "Repeated Greeting" : c.flag_reason === "no_intent" ? "No Purchase Intent" : c.flag_reason === "profanity" ? "Profanity / Abuse" : "Spam"}
                       </span>
                     </td>
 
                     {/* AI Confidence */}
-                    <td style={{ padding: "12px 16px" }}>
+                    <td style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <div style={{ width: 56, height: 4, background: "#201f1f", borderRadius: 99, overflow: "hidden" }}>
+                        <div style={{ width: 56, height: 4, background: "#201f1f", borderRadius: 99, overflow: "hidden", flexShrink: 0 }}>
                           <div style={{ height: "100%", width: `${Math.min(c.spam_score || 75, 100)}%`, background: c.spam_score > 70 ? "#f87171" : "#fbbf24" }} />
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: c.spam_score > 70 ? "#f87171" : "#fbbf24" }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: c.spam_score > 70 ? "#f87171" : "#fbbf24", whiteSpace: "nowrap" }}>
                           {c.spam_score || 75}%
                         </span>
                       </div>
