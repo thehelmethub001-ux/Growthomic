@@ -86,13 +86,31 @@ export default function InboxPage() {
       .catch(err => console.error("Customer sync error:", err));
   }, [loadConvs]);
 
-  // Resolve pendingPid: once convs are loaded, find the conversation for this platform_id
+  // Resolve pendingPid: once convs are loaded, find the conversation for this customer
   useEffect(() => {
     if (!pendingPid || convs.length === 0) return;
-    const match = convs.find(c =>
-      c.customers.platform_id === pendingPid.pid &&
-      (pendingPid.platform === "" || c.platform === pendingPid.platform)
-    );
+    const target = pendingPid.pid.trim().toLowerCase();
+    const cleanTargetDigits = pendingPid.pid.replace(/[^0-9]/g, "");
+
+    const match = convs.find(c => {
+      const cPid = (c.customers?.platform_id || "").trim();
+      const cDigits = cPid.replace(/[^0-9]/g, "");
+      const cName = (c.customers?.name || "").toLowerCase();
+      const cId = c.customers?.id || "";
+
+      // Match platform_id exact
+      if (cPid.toLowerCase() === target) return true;
+      // Match phone digits if >= 7 digits
+      if (cleanTargetDigits.length >= 7 && cDigits.length >= 7) {
+        if (cDigits.includes(cleanTargetDigits) || cleanTargetDigits.includes(cDigits)) return true;
+      }
+      // Match customer UUID or name
+      if (cId === pendingPid.pid) return true;
+      if (cName && (cName.includes(target) || target.includes(cName))) return true;
+
+      return false;
+    });
+
     if (match) {
       setSelId(match.id);
       setPendingPid(null);
@@ -340,21 +358,22 @@ export default function InboxPage() {
         {sel ? (<>
           {/* Thread Header Bar */}
           <div style={{
-            height: 54, borderBottom: "1px solid rgba(73,68,84,0.3)",
-            padding: "0 20px", display: "flex", justifyContent: "space-between",
-            alignItems: "center", background: "#0e0e0e", flexShrink: 0,
+            minHeight: 56, height: "auto", borderBottom: "1px solid rgba(73,68,84,0.3)",
+            padding: "8px 20px", display: "flex", justifyContent: "space-between",
+            alignItems: "center", background: "#0e0e0e", flexShrink: 0, gap: 12,
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
               <div style={{
-                width: 32, height: 32, borderRadius: "50%", background: "#201f1f",
+                width: 34, height: 34, borderRadius: "50%", background: "#201f1f",
                 border: "1px solid rgba(160,120,255,0.3)", display: "flex", alignItems: "center",
                 justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#d0bcff",
+                flexShrink: 0,
               }}>
                 {(sel.customers.name || "C").charAt(0).toUpperCase()}
               </div>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: "#e5e2e1", fontFamily: "Geist, system-ui" }}>
+              <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#e5e2e1", fontFamily: "Geist, system-ui", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {getDisplayName(sel.customers.name, sel.customers.platform_id, sel.platform)}
                   </span>
                   <span style={{
@@ -363,19 +382,20 @@ export default function InboxPage() {
                     background: sel.is_locked_for_ai ? "rgba(239,68,68,0.15)" : "rgba(34,197,94,0.15)",
                     border: `1px solid ${sel.is_locked_for_ai ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)"}`,
                     fontSize: 10, fontWeight: 500, color: sel.is_locked_for_ai ? "#f87171" : "#4ade80",
+                    whiteSpace: "nowrap", flexShrink: 0,
                   }}>
                     <span style={{ width: 5, height: 5, borderRadius: "50%", background: sel.is_locked_for_ai ? "#ef4444" : "#22c55e" }} />
                     {sel.is_locked_for_ai ? "Human Mode" : "AI Active"}
                   </span>
                 </div>
-                <span style={{ fontSize: 11, color: "#958ea0" }}>
-                  via {sel.platform.charAt(0).toUpperCase() + sel.platform.slice(1)} • {sel.customers.platform_id} • Helmet Shop BD Workspace
+                <span style={{ fontSize: 11, color: "#958ea0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  via {sel.platform.charAt(0).toUpperCase() + sel.platform.slice(1)} • {sel.customers.platform_id}
                 </span>
               </div>
             </div>
 
             {/* Thread Actions */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               <button
                 onClick={() => toggleAI(sel.id, sel.is_locked_for_ai)}
                 style={{
@@ -383,6 +403,7 @@ export default function InboxPage() {
                   borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: "pointer",
                   background: sel.is_locked_for_ai ? "#201f1f" : "#1c1b1b",
                   border: "1px solid rgba(73,68,84,0.35)", color: "#e5e2e1", fontFamily: "inherit",
+                  whiteSpace: "nowrap",
                 }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 15, color: "#d0bcff" }}>

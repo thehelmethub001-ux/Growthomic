@@ -750,7 +750,7 @@ export default function ProductsPage() {
                 border: "1px solid rgba(73,68,84,0.4)",
                 borderRadius: 12,
                 width: "100%",
-                maxWidth: 680,
+                maxWidth: 820,
                 overflow: "hidden",
                 display: "flex",
                 flexDirection: "column",
@@ -903,85 +903,143 @@ export default function ProductsPage() {
                     </button>
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     {formData.variations?.map((v, idx) => {
                       const attrVal = Object.entries(v.attributes || {})
                         .map(([k, val]) => (k === "Variation" ? val : `${k}: ${val}`))
                         .join(", ");
                       return (
-                        <div key={v.id || idx} style={{ display: "flex", gap: 8, alignItems: "flex-start", background: "#0e0e0e", padding: 10, borderRadius: 6, border: "1px solid rgba(73,68,84,0.3)" }}>
-                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-                            <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr", gap: 6 }}>
+                        <div key={v.id || idx} style={{ background: "#0e0e0e", padding: "12px 14px", borderRadius: 8, border: "1px solid rgba(73,68,84,0.35)", display: "flex", flexDirection: "column", gap: 10 }}>
+                          {/* Variation Card Header */}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: "#d0bcff", background: "rgba(160,120,255,0.12)", border: "1px solid rgba(160,120,255,0.25)", padding: "2px 8px", borderRadius: 4 }}>
+                                Variation #{idx + 1}
+                              </span>
+                              {attrVal && (
+                                <span style={{ fontSize: 11, color: "#e5e2e1", fontWeight: 500, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {attrVal}
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => {
+                                const newVars = [...(formData.variations || [])];
+                                newVars.splice(idx, 1);
+                                setFormData({ ...formData, variations: newVars });
+                              }}
+                              title="Delete Variation"
+                              style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171", padding: "4px 8px", borderRadius: 4, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
+                              <span>Remove</span>
+                            </button>
+                          </div>
+
+                          {/* 4 Labeled Columns */}
+                          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8 }}>
+                            <div>
+                              <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 }}>
+                                Attributes / Specs
+                              </label>
                               <input
-                                placeholder="Color: Red, Size: L"
+                                placeholder="Color: Black, Size: L"
                                 value={attrVal}
                                 onChange={e => {
                                   const newVars = [...(formData.variations || [])];
                                   newVars[idx].attributes = { Variation: e.target.value };
                                   setFormData({ ...formData, variations: newVars });
                                 }}
-                                style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 4, padding: "5px 8px", color: "#e5e2e1", fontSize: 11 }}
+                                style={{ width: "100%", background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.35)", borderRadius: 4, padding: "6px 9px", color: "#e5e2e1", fontSize: 12, outline: "none" }}
                               />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 }}>
+                                Woo Var ID
+                              </label>
                               <input
                                 type="number"
-                                placeholder="Woo Var ID"
+                                placeholder="e.g. 25610"
                                 value={v.woo_variation_id || ""}
                                 onChange={e => {
                                   const newVars = [...(formData.variations || [])];
                                   newVars[idx].woo_variation_id = parseInt(e.target.value) || undefined;
                                   setFormData({ ...formData, variations: newVars });
                                 }}
-                                style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 4, padding: "5px 8px", color: "#e5e2e1", fontSize: 11 }}
+                                style={{ width: "100%", background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.35)", borderRadius: 4, padding: "6px 9px", color: "#e5e2e1", fontSize: 12, outline: "none" }}
                               />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 }}>
+                                Price (৳)
+                              </label>
                               <input
                                 type="number"
-                                placeholder="Price (৳)"
+                                placeholder="e.g. 2399"
                                 value={v.price}
                                 onChange={e => {
                                   const newVars = [...(formData.variations || [])];
                                   newVars[idx].price = parseFloat(e.target.value) || 0;
                                   setFormData({ ...formData, variations: newVars });
                                 }}
-                                style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 4, padding: "5px 8px", color: "#e5e2e1", fontSize: 11 }}
+                                style={{ width: "100%", background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.35)", borderRadius: 4, padding: "6px 9px", color: "#e5e2e1", fontSize: 12, outline: "none" }}
                               />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 }}>
+                                Stock
+                              </label>
                               <input
                                 type="number"
-                                placeholder="Stock"
+                                placeholder="e.g. 10"
                                 value={v.stock}
                                 onChange={e => {
                                   const newVars = [...(formData.variations || [])];
                                   newVars[idx].stock = parseInt(e.target.value) || 0;
                                   setFormData({ ...formData, variations: newVars });
                                 }}
-                                style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 4, padding: "5px 8px", color: "#e5e2e1", fontSize: 11 }}
+                                style={{ width: "100%", background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.35)", borderRadius: 4, padding: "6px 9px", color: "#e5e2e1", fontSize: 12, outline: "none" }}
                               />
                             </div>
-                            <input
-                              placeholder="Variation Image URL"
-                              value={v.image_url || ""}
-                              onChange={e => {
-                                const newVars = [...(formData.variations || [])];
-                                newVars[idx].image_url = e.target.value;
-                                setFormData({ ...formData, variations: newVars });
-                              }}
-                              style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 4, padding: "5px 8px", color: "#e5e2e1", fontSize: 11 }}
-                            />
                           </div>
-                          <button
-                            onClick={() => {
-                              const newVars = [...(formData.variations || [])];
-                              newVars.splice(idx, 1);
-                              setFormData({ ...formData, variations: newVars });
-                            }}
-                            style={{ background: "rgba(239,68,68,0.1)", border: "none", color: "#f87171", padding: 6, borderRadius: 4, cursor: "pointer" }}
-                          >
-                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
-                          </button>
+
+                          {/* Image URL with Preview Thumbnail */}
+                          <div>
+                            <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 }}>
+                              Variation Image URL
+                            </label>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              {v.image_url ? (
+                                <img
+                                  src={v.image_url}
+                                  alt=""
+                                  style={{ width: 34, height: 34, borderRadius: 4, objectFit: "cover", border: "1px solid rgba(73,68,84,0.4)", flexShrink: 0 }}
+                                  onError={e => { (e.currentTarget as HTMLElement).style.display = "none"; }}
+                                />
+                              ) : (
+                                <div style={{ width: 34, height: 34, borderRadius: 4, background: "#1c1b1b", border: "1px dashed rgba(73,68,84,0.4)", display: "flex", alignItems: "center", justifyContent: "center", color: "#958ea0", flexShrink: 0 }}>
+                                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>image</span>
+                                </div>
+                              )}
+                              <input
+                                placeholder="https://domain.com/image.jpg"
+                                value={v.image_url || ""}
+                                onChange={e => {
+                                  const newVars = [...(formData.variations || [])];
+                                  newVars[idx].image_url = e.target.value;
+                                  setFormData({ ...formData, variations: newVars });
+                                }}
+                                style={{ flex: 1, background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.35)", borderRadius: 4, padding: "6px 9px", color: "#e5e2e1", fontSize: 11, outline: "none" }}
+                              />
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
                     {(!formData.variations || formData.variations.length === 0) && (
-                      <div style={{ fontSize: 11, color: "#958ea0", textAlign: "center", padding: "8px 0" }}>No variations added.</div>
+                      <div style={{ fontSize: 12, color: "#958ea0", textAlign: "center", padding: "16px 0", background: "#0e0e0e", borderRadius: 6, border: "1px dashed rgba(73,68,84,0.3)" }}>
+                        No variations configured for this product. Click &quot;+ Add Variation&quot; above.
+                      </div>
                     )}
                   </div>
                 </div>
