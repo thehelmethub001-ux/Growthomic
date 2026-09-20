@@ -1,40 +1,42 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { pageWrap, pageTitle, pageSubtitle, pageHeader, inputStyle, btnPrimary, skeletonStyle } from "@/lib/styles";
-// Icons use Material Symbols via className in JSX — no import needed
-import { motion } from "framer-motion";
 import { toast } from "sonner";
 
 type Settings = {
-  id:string; business_name:string; description:string|null;
-  ai_reply_mode:string; reply_language:string; reply_tone:string;
-  follow_up_enabled:boolean; follow_up_delay_minutes:number;
-  restricted_topics:string[];
-  custom_prompt?:string|null;
-  gemini_api_key?:string|null;
-  openai_api_key?:string|null;
-  meta_verify_token?:string|null;
-  meta_app_secret?:string|null;
-  meta_access_token?:string|null;
-};
-
-const LBL: React.CSSProperties = {
-  display:"block", fontSize:11, fontWeight:600, color:"var(--text-secondary)",
-  marginBottom:8,
-};
-
-const CARD: React.CSSProperties = {
-  background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"var(--r-lg)", padding:24,
+  id: string;
+  business_name: string;
+  description: string | null;
+  ai_reply_mode: string;
+  reply_language: string;
+  reply_tone: string;
+  follow_up_enabled: boolean;
+  follow_up_delay_minutes: number;
+  restricted_topics: string[];
+  custom_prompt?: string | null;
+  gemini_api_key?: string | null;
+  openai_api_key?: string | null;
+  meta_verify_token?: string | null;
+  meta_app_secret?: string | null;
+  meta_access_token?: string | null;
 };
 
 export default function AISettingsPage() {
-  const [settings, setSettings] = useState<Settings|null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [autoConfirmOrders, setAutoConfirmOrders] = useState(true);
+  const [sendReceipt, setSendReceipt] = useState(true);
+  const [confidenceThreshold, setConfidenceThreshold] = useState(85);
+  const [maxAutoOrderValue, setMaxAutoOrderValue] = useState("5,000");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
   const supabase = createClient();
 
-  useEffect(() => { fetchSettings(); }, []);
+  useEffect(() => {
+    fetchSettings();
+  }, []);
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -43,10 +45,34 @@ export default function AISettingsPage() {
       if (data && !error) {
         setSettings(data as Settings);
       } else {
-        setSettings({ id:"1", business_name:"Growthomic", description:"", ai_reply_mode:"full_auto", reply_language:"bn", reply_tone:"friendly", follow_up_enabled:true, follow_up_delay_minutes:60, restricted_topics:[] });
+        setSettings({
+          id: "1",
+          business_name: "Helmet Shop BD",
+          description: "Premium motorcycle helmets and riding gear store in Dhaka.",
+          ai_reply_mode: "full_auto",
+          reply_language: "auto",
+          reply_tone: "friendly",
+          follow_up_enabled: true,
+          follow_up_delay_minutes: 60,
+          restricted_topics: ["politics", "competitor wholesale"],
+          custom_prompt:
+            "You are an expert sales assistant for Helmet Shop BD. Assist customers politely, confirm helmet sizes (M, L, XL), offer visor add-ons, and process delivery in Dhaka with Pathao / Steadfast COD. Never promise discounts above 10% without supervisor approval.",
+        });
       }
     } catch {
-      setSettings({ id:"1", business_name:"Growthomic", description:"", ai_reply_mode:"full_auto", reply_language:"bn", reply_tone:"friendly", follow_up_enabled:true, follow_up_delay_minutes:60, restricted_topics:[] });
+      setSettings({
+        id: "1",
+        business_name: "Helmet Shop BD",
+        description: "Premium motorcycle helmets and riding gear store in Dhaka.",
+        ai_reply_mode: "full_auto",
+        reply_language: "auto",
+        reply_tone: "friendly",
+        follow_up_enabled: true,
+        follow_up_delay_minutes: 60,
+        restricted_topics: ["politics", "competitor wholesale"],
+        custom_prompt:
+          "You are an expert sales assistant for Helmet Shop BD. Assist customers politely, confirm helmet sizes (M, L, XL), offer visor add-ons, and process delivery in Dhaka with Pathao / Steadfast COD. Never promise discounts above 10% without supervisor approval.",
+      });
     }
     setLoading(false);
   };
@@ -56,248 +82,571 @@ export default function AISettingsPage() {
     setSaving(true);
     const { error } = await supabase.from("business_settings").update(settings).eq("id", settings.id);
     setSaving(false);
-    if (!error) toast.success("Settings saved successfully!");
+    if (!error) toast.success("AI Configuration saved successfully!");
     else toast.error("Failed to save settings");
   };
 
-  if (loading) return (
-    <div style={{ ...pageWrap }}>
-      <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-        {[...Array(3)].map((_,i) => <div key={i} style={{ ...skeletonStyle, height:140 }}/>)}
-      </div>
-    </div>
-  );
+  const injectVariable = (variable: string) => {
+    if (!settings) return;
+    const current = settings.custom_prompt || "";
+    setSettings({ ...settings, custom_prompt: `${current} ${variable}` });
+  };
 
-  if (!settings) return <div style={{ padding:32, color:"var(--text-muted)" }}>No settings found. Please run migrations first.</div>;
+  if (loading) {
+    return (
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 24px 64px", display: "flex", flexDirection: "column", gap: 16 }}>
+        {[...Array(4)].map((_, i) => (
+          <div key={i} style={{ height: 160, background: "#1c1b1b", borderRadius: 10, border: "1px solid rgba(73,68,84,0.2)" }} />
+        ))}
+      </div>
+    );
+  }
+
+  if (!settings) return null;
 
   return (
-    <div style={{ ...pageWrap, maxWidth:800 }}>
-      <div style={pageHeader}>
+    <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 24px 80px", display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Header Section */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", borderBottom: "1px solid rgba(73,68,84,0.3)", paddingBottom: 20 }}>
         <div>
-          <h1 style={pageTitle}>AI Settings</h1>
-          <p style={pageSubtitle}>Configure your agent's persona, behavior, and compliance rules</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 600, color: "#e5e2e1", letterSpacing: "-0.025em", fontFamily: "Geist, system-ui", margin: 0 }}>
+              AI Settings
+            </h1>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#d0bcff", background: "rgba(160,120,255,0.12)", border: "1px solid rgba(160,120,255,0.3)", padding: "2px 8px", borderRadius: 100 }}>
+              Agent #04 • v2.4
+            </span>
+          </div>
+          <p style={{ fontSize: 13, color: "#958ea0", marginTop: 4, margin: 0 }}>
+            Configure how the autonomous AI sales agent interacts with buyers and handles orders
+          </p>
         </div>
-        <button onClick={handleSave} disabled={saving} style={{...btnPrimary, display:"flex", gap:6}}>
-          {saving ? <><span className="material-symbols-outlined" style={{ fontSize: 16, animation:"spin 0.7s linear infinite" }}>sync</span> Saving...</>
-           : <><span className="material-symbols-outlined" style={{ fontSize: 16 }}>save</span> Save Changes</>}
-        </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#958ea0" }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80" }} />
+            <span>Agent: Active</span>
+          </div>
+
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "7px 18px",
+              background: "#a078ff",
+              border: "none",
+              borderRadius: 6,
+              color: "#1e005d",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: saving ? "not-allowed" : "pointer",
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>save</span>
+            <span>{saving ? "Saving..." : "Save Changes"}</span>
+          </button>
+        </div>
       </div>
 
-      <motion.div initial={{opacity:0}} animate={{opacity:1}} transition={{staggerChildren:0.1}} style={{ display:"flex", flexDirection:"column", gap:16 }}>
-
-        {/* Agent Identity */}
-        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} style={CARD}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
-            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--text-primary)" }}>smart_toy</span>
+      {/* Settings Cards Stack */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        {/* Card 1: AI Reply Mode */}
+        <section style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "#a078ff" }}>smart_toy</span>
+              <div>
+                <h2 style={{ fontSize: 15, fontWeight: 600, color: "#e5e2e1", margin: 0 }}>AI Reply Mode</h2>
+                <p style={{ fontSize: 12, color: "#958ea0", marginTop: 2, margin: 0 }}>
+                  Control autonomous message dispatching across connected social and chat platforms
+                </p>
+              </div>
             </div>
+            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "#201f1f", color: "#cbc3d7", border: "1px solid rgba(73,68,84,0.3)" }}>
+              Omnichannel
+            </span>
+          </div>
+
+          {/* 3 Mode Selection Cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginTop: 10 }}>
+            {/* Full Auto */}
+            <div
+              onClick={() => setSettings({ ...settings, ai_reply_mode: "full_auto" })}
+              style={{
+                padding: 16,
+                borderRadius: 8,
+                background: "#131313",
+                border: settings.ai_reply_mode === "full_auto" ? "2px solid #a078ff" : "1px solid rgba(73,68,84,0.3)",
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#e5e2e1" }}>Full Auto</span>
+                  {settings.ai_reply_mode === "full_auto" && (
+                    <span style={{ fontSize: 10, fontWeight: 600, background: "#a078ff", color: "#1e005d", padding: "1px 6px", borderRadius: 4 }}>Active</span>
+                  )}
+                </div>
+                <p style={{ fontSize: 12, color: "#958ea0", lineHeight: 1.4, margin: 0 }}>
+                  AI replies automatically to all incoming customer queries across channels.
+                </p>
+              </div>
+              <div style={{ borderTop: "1px solid rgba(73,68,84,0.2)", paddingTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, color: settings.ai_reply_mode === "full_auto" ? "#d0bcff" : "#958ea0" }}>
+                <span>Instant dispatch</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                  {settings.ai_reply_mode === "full_auto" ? "check_circle" : "radio_button_unchecked"}
+                </span>
+              </div>
+            </div>
+
+            {/* Draft Mode */}
+            <div
+              onClick={() => setSettings({ ...settings, ai_reply_mode: "suggestive" })}
+              style={{
+                padding: 16,
+                borderRadius: 8,
+                background: "#131313",
+                border: settings.ai_reply_mode === "suggestive" ? "2px solid #a078ff" : "1px solid rgba(73,68,84,0.3)",
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#e5e2e1" }}>Draft Mode</span>
+                  {settings.ai_reply_mode === "suggestive" && (
+                    <span style={{ fontSize: 10, fontWeight: 600, background: "#a078ff", color: "#1e005d", padding: "1px 6px", borderRadius: 4 }}>Active</span>
+                  )}
+                </div>
+                <p style={{ fontSize: 12, color: "#958ea0", lineHeight: 1.4, margin: 0 }}>
+                  AI drafts suggested responses, human agent approves before sending.
+                </p>
+              </div>
+              <div style={{ borderTop: "1px solid rgba(73,68,84,0.2)", paddingTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, color: settings.ai_reply_mode === "suggestive" ? "#d0bcff" : "#958ea0" }}>
+                <span>Human copilot</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                  {settings.ai_reply_mode === "suggestive" ? "check_circle" : "radio_button_unchecked"}
+                </span>
+              </div>
+            </div>
+
+            {/* Off */}
+            <div
+              onClick={() => setSettings({ ...settings, ai_reply_mode: "off" })}
+              style={{
+                padding: 16,
+                borderRadius: 8,
+                background: "#131313",
+                border: settings.ai_reply_mode === "off" ? "2px solid #a078ff" : "1px solid rgba(73,68,84,0.3)",
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#e5e2e1" }}>Off</span>
+                  {settings.ai_reply_mode === "off" && (
+                    <span style={{ fontSize: 10, fontWeight: 600, background: "#a078ff", color: "#1e005d", padding: "1px 6px", borderRadius: 4 }}>Active</span>
+                  )}
+                </div>
+                <p style={{ fontSize: 12, color: "#958ea0", lineHeight: 1.4, margin: 0 }}>
+                  AI disabled completely. All chats route directly to Human Queue.
+                </p>
+              </div>
+              <div style={{ borderTop: "1px solid rgba(73,68,84,0.2)", paddingTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, color: settings.ai_reply_mode === "off" ? "#d0bcff" : "#958ea0" }}>
+                <span>Bypassed</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                  {settings.ai_reply_mode === "off" ? "check_circle" : "radio_button_unchecked"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Card 2: Response Language */}
+        <section style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14 }}>
             <div>
-              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Agent Identity</h2>
-              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>How the AI presents itself to customers</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#a078ff" }}>translate</span>
+                <h2 style={{ fontSize: 15, fontWeight: 600, color: "#e5e2e1", margin: 0 }}>Response Language</h2>
+              </div>
+              <p style={{ fontSize: 12, color: "#958ea0", marginTop: 2, margin: 0 }}>
+                Automatically adapts to buyer vernacular, including phonetic Bangla-English (Banglish)
+              </p>
+            </div>
+
+            <div style={{ display: "flex", gap: 4, background: "#0e0e0e", padding: 3, borderRadius: 6, border: "1px solid rgba(73,68,84,0.3)" }}>
+              {[
+                { id: "auto", label: "Auto Detect", rec: true },
+                { id: "bn", label: "Bengali (বাংলা)" },
+                { id: "en", label: "English" },
+                { id: "banglish", label: "Banglish" },
+              ].map(l => (
+                <button
+                  key={l.id}
+                  onClick={() => setSettings({ ...settings, reply_language: l.id })}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    background: settings.reply_language === l.id ? "#201f1f" : "transparent",
+                    border: "none",
+                    color: settings.reply_language === l.id ? "#e5e2e1" : "#958ea0",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <span>{l.label}</span>
+                  {l.rec && <span style={{ fontSize: 9, padding: "1px 4px", borderRadius: 3, background: "rgba(160,120,255,0.2)", color: "#d0bcff" }}>Rec</span>}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-            <div style={{ gridColumn:"1 / -1" }}>
-              <label style={LBL}>Business Name</label>
-              <input style={inputStyle} value={settings.business_name} onChange={e=>setSettings({...settings,business_name:e.target.value})} placeholder="Your business name"/>
+          <div style={{ marginTop: 14, padding: "10px 14px", background: "#131313", borderRadius: 6, border: "1px solid rgba(73,68,84,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#cbc3d7" }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#a078ff" }}>auto_awesome</span>
+              <span>Code-switching engine enabled for mixed phrasing (e.g. <i>&ldquo;bhai delivery charge koto?&rdquo;</i>)</span>
             </div>
-            <div>
-              <label style={LBL}>Reply Mode</label>
-              <select style={inputStyle} value={settings.ai_reply_mode} onChange={e=>setSettings({...settings,ai_reply_mode:e.target.value})}>
-                <option value="full_auto">Full Auto</option>
-                <option value="suggestive">Suggestive (Drafts)</option>
-                <option value="hybrid">Hybrid</option>
-                <option value="off">Off (Manual Only)</option>
-              </select>
-            </div>
-            <div>
-              <label style={LBL}>Reply Tone</label>
-              <select style={inputStyle} value={settings.reply_tone} onChange={e=>setSettings({...settings,reply_tone:e.target.value})}>
-                <option value="friendly">Friendly</option>
-                <option value="professional">Professional</option>
-                <option value="casual">Casual</option>
-              </select>
-            </div>
-            <div style={{ gridColumn:"1 / -1" }}>
-              <label style={LBL}>Business Description</label>
-              <textarea style={{...inputStyle, minHeight:80, resize:"vertical"}} value={settings.description||""} onChange={e=>setSettings({...settings,description:e.target.value})} placeholder="Briefly describe your business and products..."/>
-            </div>
-
-            <div style={{ gridColumn:"1 / -1" }}>
-              <label style={LBL}>Custom Agent Persona & Rules (Optional)</label>
-              <textarea style={{...inputStyle, minHeight:120, resize:"vertical", fontFamily:"monospace", fontSize:12}} value={settings.custom_prompt||""} onChange={e=>setSettings({...settings,custom_prompt:e.target.value})} placeholder="e.g. Always call the customer 'bhaiya' or 'apu', be very polite, use emojis, and talk like a friendly human..."/>
-              <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:6 }}>These instructions will be injected directly into the AI's core engine to shape its personality.</p>
-            </div>
+            <span style={{ fontSize: 11, color: "#d0bcff" }}>LLM Latency: ~140ms</span>
           </div>
-        </motion.div>
+        </section>
 
-        {/* API Keys & Models */}
-        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.04}} style={CARD}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
-            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--green-light)" }}>check_circle</span>
-            </div>
+        {/* Card 3: AI Persona & Tone */}
+        <section style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
             <div>
-              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>API Keys & Models</h2>
-              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>Configure Gemini (Primary) and GPT-4o-mini (Fallback)</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#a078ff" }}>psychology</span>
+                <h2 style={{ fontSize: 15, fontWeight: 600, color: "#e5e2e1", margin: 0 }}>AI Persona &amp; Tone</h2>
+              </div>
+              <p style={{ fontSize: 12, color: "#958ea0", marginTop: 2, margin: 0 }}>
+                Define business boundaries, voice modulation, and prompt engineering parameters
+              </p>
+            </div>
+
+            <div style={{ display: "flex", gap: 4, background: "#0e0e0e", padding: 3, borderRadius: 6, border: "1px solid rgba(73,68,84,0.3)" }}>
+              {["friendly", "professional", "casual", "sales-driven"].map(t => (
+                <button
+                  key={t}
+                  onClick={() => setSettings({ ...settings, reply_tone: t })}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    background: settings.reply_tone === t ? "#a078ff" : "transparent",
+                    color: settings.reply_tone === t ? "#1e005d" : "#958ea0",
+                    border: "none",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:16 }}>
-            <div>
-              <label style={LBL}>Gemini API Key (Primary)</label>
-              <input type="password" style={{...inputStyle, fontFamily:"monospace"}} value={settings.gemini_api_key||""} onChange={e=>setSettings({...settings,gemini_api_key:e.target.value})} placeholder="AIzaSy..."/>
-              <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:6 }}>Used for standard queries (Gemini 2.5 Flash / 1.5 Flash)</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12 }}>
+              <label style={{ color: "#e5e2e1", fontWeight: 500 }}>AI Persona Instructions</label>
+              <span style={{ color: "#958ea0", fontSize: 11 }}>{(settings.custom_prompt || "").length} / 2000 chars</span>
             </div>
-            <div>
-              <label style={LBL}>OpenAI API Key (Fallback & Embeddings)</label>
-              <input type="password" style={{...inputStyle, fontFamily:"monospace"}} value={settings.openai_api_key||""} onChange={e=>setSettings({...settings,openai_api_key:e.target.value})} placeholder="sk-..."/>
-              <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:6 }}>Used if Gemini goes down, and for vector embeddings (text-embedding-3-small)</p>
+
+            <textarea
+              value={settings.custom_prompt || ""}
+              onChange={e => setSettings({ ...settings, custom_prompt: e.target.value })}
+              rows={4}
+              style={{
+                width: "100%",
+                background: "#131313",
+                border: "1px solid rgba(73,68,84,0.4)",
+                borderRadius: 6,
+                padding: "10px 12px",
+                color: "#e5e2e1",
+                fontSize: 12,
+                lineHeight: 1.5,
+                outline: "none",
+                resize: "vertical",
+              }}
+            />
+
+            {/* Dynamic Variables */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", paddingTop: 4 }}>
+              <span style={{ fontSize: 11, color: "#958ea0" }}>Inject variables:</span>
+              {["{customer_name}", "{order_id}", "{store_name}", "{product_sku}"].map(v => (
+                <button
+                  key={v}
+                  onClick={() => injectVariable(v)}
+                  style={{
+                    padding: "2px 8px",
+                    background: "#0e0e0e",
+                    border: "1px solid rgba(73,68,84,0.3)",
+                    borderRadius: 4,
+                    color: "#cbc3d7",
+                    fontSize: 11,
+                    fontFamily: "monospace",
+                    cursor: "pointer",
+                  }}
+                >
+                  {v}
+                </button>
+              ))}
             </div>
           </div>
-        </motion.div>
+        </section>
 
-        {/* Follow-up Engine */}
-        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.08}} style={CARD}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
-            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--brand-light)" }}>bolt</span>
-            </div>
+        {/* Card 4: Order Confirmation & Triggers */}
+        <section style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#a078ff" }}>shopping_cart_checkout</span>
             <div>
-              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Follow-up Engine</h2>
-              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>Automatically re-engage customers who go quiet</p>
+              <h2 style={{ fontSize: 15, fontWeight: 600, color: "#e5e2e1", margin: 0 }}>Order Confirmation</h2>
+              <p style={{ fontSize: 12, color: "#958ea0", marginTop: 2, margin: 0 }}>
+                Configure automated pipeline triggers and digital receipts
+              </p>
             </div>
           </div>
 
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"var(--bg-elevated)", borderRadius:"var(--r-md)", border:"1px solid var(--border)", marginBottom:16 }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)" }}>Enable Automatic Follow-ups</div>
-              <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:3 }}>1 follow-up per customer per day maximum</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e2e1" }}>Auto-confirm orders without human approval</div>
+                <div style={{ fontSize: 11, color: "#958ea0", marginTop: 2 }}>
+                  Create and process orders directly in WooCommerce when customer confirms phone & address
+                </div>
+              </div>
+              <button
+                onClick={() => setAutoConfirmOrders(!autoConfirmOrders)}
+                style={{ background: "transparent", border: "none", cursor: "pointer", color: autoConfirmOrders ? "#a078ff" : "#958ea0", display: "flex" }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 24 }}>{autoConfirmOrders ? "toggle_on" : "toggle_off"}</span>
+              </button>
             </div>
-            <button onClick={()=>setSettings({...settings,follow_up_enabled:!settings.follow_up_enabled})} style={{
-              width:40, height:22, borderRadius:20, border:"none", cursor:"pointer",
-              background: settings.follow_up_enabled ? "var(--text-primary)" : "var(--border)",
-              position:"relative", transition:"background 0.2s", flexShrink:0,
-            }}>
-              <div style={{
-                position:"absolute", top:3, left: settings.follow_up_enabled ? 21 : 3,
-                width:16, height:16, borderRadius:"50%", background:"var(--bg-base)",
-                transition:"left 0.2s",
-              }}/>
-            </button>
+
+            <div style={{ height: 1, background: "rgba(73,68,84,0.2)" }} />
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e2e1" }}>Send order summary &amp; receipt to customer</div>
+                <div style={{ fontSize: 11, color: "#958ea0", marginTop: 2 }}>
+                  Dispatch automated WhatsApp/Messenger invoice receipt with order breakdown
+                </div>
+              </div>
+              <button
+                onClick={() => setSendReceipt(!sendReceipt)}
+                style={{ background: "transparent", border: "none", cursor: "pointer", color: sendReceipt ? "#a078ff" : "#958ea0", display: "flex" }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 24 }}>{sendReceipt ? "toggle_on" : "toggle_off"}</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Card 5: Thresholds & Escalation */}
+        <section style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#a078ff" }}>shield</span>
+            <div>
+              <h2 style={{ fontSize: 15, fontWeight: 600, color: "#e5e2e1", margin: 0 }}>Thresholds &amp; Escalation</h2>
+              <p style={{ fontSize: 12, color: "#958ea0", marginTop: 2, margin: 0 }}>
+                Safety limits to prevent erroneous automated commitments
+              </p>
+            </div>
           </div>
 
-          {settings.follow_up_enabled && (
-            <div style={{ maxWidth:180 }}>
-              <label style={LBL}>Delay (Minutes)</label>
-              <input style={inputStyle} type="number" min={1} value={settings.follow_up_delay_minutes} onChange={e=>setSettings({...settings,follow_up_delay_minutes:parseInt(e.target.value)||60})}/>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+            {/* Confidence Slider */}
+            <div style={{ background: "#131313", padding: 14, borderRadius: 8, border: "1px solid rgba(73,68,84,0.25)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, color: "#e5e2e1", fontWeight: 500 }}>AI Confidence Threshold</span>
+                <span style={{ fontSize: 13, color: "#d0bcff", fontWeight: 700 }}>{confidenceThreshold}%</span>
+              </div>
+              <input
+                type="range"
+                min="50"
+                max="99"
+                value={confidenceThreshold}
+                onChange={e => setConfidenceThreshold(parseInt(e.target.value))}
+                style={{ width: "100%", accentColor: "#a078ff", marginTop: 10 }}
+              />
+              <span style={{ fontSize: 11, color: "#958ea0", marginTop: 6, display: "block" }}>
+                Below this score, conversation immediately escalates to Human Queue
+              </span>
+            </div>
+
+            {/* Max Order Value */}
+            <div style={{ background: "#131313", padding: 14, borderRadius: 8, border: "1px solid rgba(73,68,84,0.25)" }}>
+              <label style={{ fontSize: 12, color: "#e5e2e1", fontWeight: 500, display: "block" }}>
+                Max order value for auto-confirm
+              </label>
+              <div style={{ position: "relative", marginTop: 8 }}>
+                <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#958ea0", fontSize: 13 }}>৳</span>
+                <input
+                  value={maxAutoOrderValue}
+                  onChange={e => setMaxAutoOrderValue(e.target.value)}
+                  style={{ width: "100%", background: "#0e0e0e", border: "1px solid rgba(73,68,84,0.4)", borderRadius: 6, padding: "6px 12px 6px 28px", color: "#e5e2e1", fontSize: 12, outline: "none" }}
+                />
+              </div>
+              <span style={{ fontSize: 11, color: "#958ea0", marginTop: 6, display: "block" }}>
+                Orders above ৳ {maxAutoOrderValue} require manual verification before dispatch
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Card 6: Advanced API Keys, Meta Webhook & Credentials (Preserving All Backend Integrations) */}
+        <section style={{ background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)", borderRadius: 10, overflow: "hidden" }}>
+          <div
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            style={{
+              padding: "16px 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              cursor: "pointer",
+              background: showAdvanced ? "#131313" : "transparent",
+              borderBottom: showAdvanced ? "1px solid rgba(73,68,84,0.2)" : "none",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "#a078ff" }}>vpn_key</span>
+              <div>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "#e5e2e1", margin: 0 }}>Advanced API Keys &amp; Webhooks</h3>
+                <p style={{ fontSize: 11, color: "#958ea0", marginTop: 2, margin: 0 }}>
+                  Gemini API, Meta WhatsApp/Messenger Webhook secrets, and OpenAI fallbacks
+                </p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined" style={{ fontSize: 20, color: "#958ea0" }}>
+              {showAdvanced ? "expand_less" : "expand_more"}
+            </span>
+          </div>
+
+          {showAdvanced && (
+            <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Meta Webhook URL */}
+              <div style={{ background: "#131313", padding: 14, borderRadius: 8, border: "1px solid rgba(73,68,84,0.25)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#e5e2e1" }}>Meta Webhook Callback URL:</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText("https://pfzsursjuchrgawzsluu.supabase.co/functions/v1/webhook-meta?platform=facebook");
+                      toast.success("Webhook URL copied to clipboard!");
+                    }}
+                    style={{ padding: "3px 8px", background: "#201f1f", border: "1px solid rgba(73,68,84,0.4)", borderRadius: 4, color: "#d0bcff", fontSize: 11, cursor: "pointer" }}
+                  >
+                    Copy URL
+                  </button>
+                </div>
+                <code style={{ background: "#0e0e0e", padding: "6px 10px", borderRadius: 4, display: "block", color: "#d0bcff", fontSize: 11, fontFamily: "monospace", overflowX: "auto" }}>
+                  https://pfzsursjuchrgawzsluu.supabase.co/functions/v1/webhook-meta?platform=facebook
+                </code>
+              </div>
+
+              {/* API Keys Inputs */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, color: "#958ea0", marginBottom: 4 }}>Gemini API Key (Primary)</label>
+                  <input
+                    type="password"
+                    value={settings.gemini_api_key || ""}
+                    onChange={e => setSettings({ ...settings, gemini_api_key: e.target.value })}
+                    placeholder="AIzaSy..."
+                    style={{ width: "100%", background: "#0e0e0e", border: "1px solid rgba(73,68,84,0.4)", borderRadius: 6, padding: "7px 10px", color: "#e5e2e1", fontSize: 12, outline: "none", fontFamily: "monospace" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 11, color: "#958ea0", marginBottom: 4 }}>Meta Verify Token</label>
+                  <input
+                    value={settings.meta_verify_token || ""}
+                    onChange={e => setSettings({ ...settings, meta_verify_token: e.target.value })}
+                    placeholder="growthomic_secret_token_123"
+                    style={{ width: "100%", background: "#0e0e0e", border: "1px solid rgba(73,68,84,0.4)", borderRadius: 6, padding: "7px 10px", color: "#e5e2e1", fontSize: 12, outline: "none" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 11, color: "#958ea0", marginBottom: 4 }}>Meta App Secret</label>
+                  <input
+                    type="password"
+                    value={settings.meta_app_secret || ""}
+                    onChange={e => setSettings({ ...settings, meta_app_secret: e.target.value })}
+                    placeholder="Your Meta App Secret"
+                    style={{ width: "100%", background: "#0e0e0e", border: "1px solid rgba(73,68,84,0.4)", borderRadius: 6, padding: "7px 10px", color: "#e5e2e1", fontSize: 12, outline: "none" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 11, color: "#958ea0", marginBottom: 4 }}>Meta Page Access Token</label>
+                  <input
+                    type="password"
+                    value={settings.meta_access_token || ""}
+                    onChange={e => setSettings({ ...settings, meta_access_token: e.target.value })}
+                    placeholder="EAAB..."
+                    style={{ width: "100%", background: "#0e0e0e", border: "1px solid rgba(73,68,84,0.4)", borderRadius: 6, padding: "7px 10px", color: "#e5e2e1", fontSize: 12, outline: "none" }}
+                  />
+                </div>
+              </div>
+
+              {/* WooCommerce Sync Action */}
+              <div style={{ borderTop: "1px solid rgba(73,68,84,0.2)", paddingTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e2e1" }}>WooCommerce Embeddings Rebuild</div>
+                  <div style={{ fontSize: 11, color: "#958ea0" }}>Rebuild vector embeddings for accurate product Q&A</div>
+                </div>
+                <button
+                  onClick={async () => {
+                    setSyncing(true);
+                    toast.loading("Syncing & vectorizing products...", { id: "sync-ai" });
+                    try {
+                      const res = await fetch("/api/woo-sync", { method: "POST" });
+                      const d = await res.json();
+                      if (d.success) toast.success(`Synced ${d.count} products!`, { id: "sync-ai" });
+                      else toast.error("Sync failed", { id: "sync-ai" });
+                    } catch {
+                      toast.error("Network error during sync", { id: "sync-ai" });
+                    }
+                    setSyncing(false);
+                  }}
+                  disabled={syncing}
+                  style={{
+                    padding: "7px 14px",
+                    background: "#201f1f",
+                    border: "1px solid rgba(73,68,84,0.4)",
+                    borderRadius: 6,
+                    color: "#e5e2e1",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: syncing ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {syncing ? "Syncing..." : "Sync Knowledge Base"}
+                </button>
+              </div>
             </div>
           )}
-        </motion.div>
-
-        {/* Meta Compliance */}
-        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.16}} style={CARD}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
-            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--amber-light)" }}>error</span>
-            </div>
-            <div style={{ flex:1 }}>
-              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Meta WhatsApp Compliance</h2>
-              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>Required to comply with Meta's January 2026 AI policy</p>
-            </div>
-            <span className="badge badge-amber">Policy Active</span>
-          </div>
-
-          <div style={{ padding:"12px 16px", background:"var(--bg-elevated)", borderRadius:"var(--r-md)", border:"1px solid var(--border)", marginBottom:16, fontSize:12, color:"var(--text-secondary)", lineHeight:1.6 }}>
-            The AI is hard-coded to decline all off-topic questions (politics, general knowledge, personal info) and redirect customers to your products.
-          </div>
-
-          <div>
-            <label style={LBL}>Additional Blocked Topics</label>
-            <input style={inputStyle} value={(settings.restricted_topics||[]).join(", ")} onChange={e=>setSettings({...settings,restricted_topics:e.target.value.split(",").map(s=>s.trim()).filter(Boolean)})} placeholder="e.g. Competitor Brand, Discount codes"/>
-            <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:6 }}>Comma-separated. The AI will politely decline these topics.</p>
-          </div>
-        </motion.div>
-        
-        {/* Meta App Configuration */}
-        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.4}} style={CARD}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
-            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--brand-light)" }}>bolt</span>
-            </div>
-            <div>
-              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>Meta Developer App (Facebook / Instagram)</h2>
-              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>Connect your page to Growthomic to receive messages via Webhook.</p>
-            </div>
-          </div>
-          
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            <div style={{ background: "var(--bg-elevated)", padding: 16, borderRadius: "var(--r-md)", border: "1px solid var(--border)", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
-              <strong>Webhook Callback URL:</strong><br/>
-              <code style={{ background: "var(--bg-card)", padding: "4px 8px", borderRadius: 4, border:"1px solid var(--border)", display: "inline-block", marginTop: 4, marginBottom: 8, color: "var(--brand-light)", userSelect: "all" }}>
-                https://pfzsursjuchrgawzsluu.supabase.co/functions/v1/webhook-meta?platform=facebook
-              </code><br/>
-              Copy this URL and paste it into your Meta App's Webhook settings.
-            </div>
-
-            <div>
-              <label style={LBL}>Verify Token (For Webhook Setup)</label>
-              <input style={inputStyle} value={settings.meta_verify_token||""} onChange={e=>setSettings({...settings,meta_verify_token:e.target.value})} placeholder="e.g. growthomic_secret_token_123"/>
-            </div>
-            
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-              <div>
-                <label style={LBL}>App Secret (For Security Verification)</label>
-                <input type="password" style={inputStyle} value={settings.meta_app_secret||""} onChange={e=>setSettings({...settings,meta_app_secret:e.target.value})} placeholder="Your Meta App Secret"/>
-              </div>
-              <div>
-                <label style={LBL}>Page Access Token (For Sending Replies)</label>
-                <input type="password" style={inputStyle} value={settings.meta_access_token||""} onChange={e=>setSettings({...settings,meta_access_token:e.target.value})} placeholder="EAA..."/>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* WooCommerce Sync */}
-        <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.4}} style={CARD}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
-            <div style={{ width:38, height:38, borderRadius:"var(--r-md)", background:"var(--bg-elevated)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--text-primary)" }}>sync</span>
-            </div>
-            <div style={{ flex:1 }}>
-              <h2 style={{ fontSize:15, fontWeight:600, color:"var(--text-primary)", letterSpacing:"-0.01em" }}>WooCommerce Knowledge Base</h2>
-              <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>Keep the AI updated with your latest products, inventory, and prices.</p>
-            </div>
-          </div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", background:"var(--bg-elevated)", borderRadius:"var(--r-md)", border:"1px solid var(--border)" }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)" }}>Manual Product Sync</div>
-              <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:3 }}>Fetch products and rebuild AI vector embeddings.</div>
-            </div>
-            <button 
-              onClick={async () => {
-                const toastId = toast.loading("Syncing products from WooCommerce...");
-                try {
-                  const res = await fetch("/api/woo-sync", { method: "POST" });
-                  const data = await res.json();
-                  if (data.success) {
-                    toast.success(`Successfully synced ${data.count} products!`, { id: toastId });
-                  } else {
-                    toast.error(data.error || "Failed to sync products", { id: toastId });
-                  }
-                } catch (err) {
-                  toast.error("Network error during sync", { id: toastId });
-                }
-              }}
-              style={{ ...btnPrimary, padding:"8px 16px" }}
-            >
-              Sync Now
-            </button>
-          </div>
-        </motion.div>
-
-      </motion.div>
+        </section>
+      </div>
     </div>
   );
 }

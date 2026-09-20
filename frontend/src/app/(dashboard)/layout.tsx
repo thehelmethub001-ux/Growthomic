@@ -166,57 +166,56 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        {/* AI Status + User Footer */}
+        {/* AI Status + Workspace Footer */}
         <div style={{ borderTop: "1px solid rgba(73,68,84,0.2)", flexShrink: 0 }}>
-          {/* AI Status */}
-          <div className="sidebar-ai-badge" style={{ padding: "10px 12px 6px" }}>
-            <button
-              onClick={toggleAi}
-              disabled={togglingAi}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 7,
-                padding: "7px 10px", borderRadius: 4,
-                background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)",
-                color: "#e5e2e1", fontSize: 12, fontWeight: 500, cursor: "pointer",
-                transition: "background 0.12s",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = "#201f1f")}
-              onMouseLeave={e => (e.currentTarget.style.background = "#1c1b1b")}
+          {/* Documentation & Support links */}
+          <div style={{ padding: "8px 12px 4px", display: "flex", flexDirection: "column", gap: 2 }}>
+            <Link
+              href="/settings"
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 4, fontSize: 12, color: "#958ea0", textDecoration: "none" }}
             >
-              <div style={{
-                width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
-                background: aiEnabled ? "#22c55e" : "#ef4444",
-                animation: aiEnabled ? "pulse 2s infinite" : "none",
-              }} />
-              <span style={{ flex: 1, textAlign: "left" }}>AI {aiEnabled ? "Active" : "Paused"}</span>
-              <span className="material-symbols-outlined" style={{ fontSize: 14, color: "#958ea0" }}>
-                {aiEnabled ? "toggle_on" : "toggle_off"}
-              </span>
-            </button>
+              <span className="material-symbols-outlined" style={{ fontSize: 15, color: "#958ea0" }}>menu_book</span>
+              <span>Documentation</span>
+            </Link>
+            <Link
+              href="/settings"
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 4, fontSize: 12, color: "#958ea0", textDecoration: "none" }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 15, color: "#958ea0" }}>headset_mic</span>
+              <span>Support</span>
+            </Link>
           </div>
 
-          {/* User */}
-          <div style={{ padding: "6px 12px 12px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 6px", borderRadius: 4 }}>
-              <div style={{
-                width: 26, height: 26, borderRadius: 4, flexShrink: 0,
-                background: "#a078ff",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 11, fontWeight: 700, color: "#340080",
-              }}>A</div>
-              <div className="sidebar-user-name" style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 500, color: "#e5e2e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  Admin
+          {/* Workspace Switcher */}
+          <div style={{ padding: "6px 12px 10px" }}>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "7px 10px", borderRadius: 6,
+              background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: 4, flexShrink: 0,
+                  background: "rgba(160,120,255,0.2)", border: "1px solid rgba(160,120,255,0.4)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 10, fontWeight: 700, color: "#d0bcff",
+                }}>H</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: "#e5e2e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    Helmet Shop BD
+                  </div>
                 </div>
-                <div style={{ fontSize: 10, color: "#958ea0" }}>Growthomic</div>
               </div>
+              <span className="material-symbols-outlined" style={{ fontSize: 15, color: "#958ea0" }}>unfold_more</span>
             </div>
+
+            {/* Sign Out */}
             <button
               onClick={handleLogout}
               style={{
-                display: "flex", alignItems: "center", gap: 7, width: "100%",
-                padding: "5px 6px", borderRadius: 4,
-                fontSize: 12, color: "#958ea0", background: "none",
+                display: "flex", alignItems: "center", gap: 6, width: "100%",
+                marginTop: 6, padding: "5px 8px", borderRadius: 4,
+                fontSize: 11, color: "#958ea0", background: "none",
                 border: "none", cursor: "pointer", transition: "color 0.1s",
               }}
               onMouseEnter={e => (e.currentTarget.style.color = "#cbc3d7")}
@@ -229,17 +228,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* ── Main ── */}
+      {/* ── Main Canvas ── */}
       <div style={{ height: "100vh", display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-        {/* Top bar */}
+        {/* Top bar — Stitch MD3 Navigation */}
         <header style={{
-          height: 48, flexShrink: 0,
+          height: 56, flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 20px",
+          padding: "0 24px",
           borderBottom: "1px solid rgba(73,68,84,0.3)",
           background: "#0e0e0e",
+          gap: 16,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Left: Mobile Toggle & Global Search */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, maxWidth: 480 }}>
             <button
               className="mobile-menu-btn"
               onClick={() => setMobileNavOpen(true)}
@@ -254,40 +255,136 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span className="material-symbols-outlined" style={{ fontSize: 18 }}>menu</span>
             </button>
 
-            {/* Breadcrumb */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 11, color: "#958ea0", fontWeight: 500 }}>Dashboard</span>
-              <span className="material-symbols-outlined" style={{ fontSize: 12, color: "#494454" }}>chevron_right</span>
-              <span style={{ fontSize: 13, fontWeight: 500, color: "#e5e2e1", fontFamily: "Geist, system-ui" }}>
-                {navItems.find(n => pathname.startsWith(n.href))?.label ?? "Dashboard"}
+            {/* Stitch Search input with ⌘K badge */}
+            <div style={{
+              position: "relative", width: "100%", maxWidth: 300,
+              display: "flex", alignItems: "center",
+            }}>
+              <span className="material-symbols-outlined" style={{
+                position: "absolute", left: 10, fontSize: 16, color: "#958ea0", pointerEvents: "none",
+              }}>search</span>
+              <input
+                type="text"
+                placeholder="Search conversations, agents..."
+                style={{
+                  width: "100%", background: "#1c1b1b",
+                  border: "1px solid rgba(73,68,84,0.35)", borderRadius: 6,
+                  padding: "6px 42px 6px 32px", fontSize: 12, color: "#e5e2e1",
+                  outline: "none", fontFamily: "inherit",
+                }}
+              />
+              <span style={{
+                position: "absolute", right: 8, fontSize: 10,
+                background: "#2a2a2a", border: "1px solid rgba(73,68,84,0.4)",
+                padding: "1px 5px", borderRadius: 4, color: "#958ea0", fontWeight: 500,
+              }}>⌘K</span>
+            </div>
+
+            {/* Quick links: Live Feed, Agent Actions, Workspaces */}
+            <div style={{ display: "none" }} className="topbar-desktop-links">
+              <span style={{ fontSize: 12, color: "#958ea0", cursor: "pointer" }}>Live Feed</span>
+              <span style={{ fontSize: 12, color: "#e5e2e1", fontWeight: 500, display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                Agent Actions <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#a078ff" }} />
               </span>
+              <span style={{ fontSize: 12, color: "#958ea0", cursor: "pointer" }}>Workspaces</span>
             </div>
           </div>
 
-          {/* AI toggle chip */}
-          <button
-            onClick={toggleAi}
-            disabled={togglingAi}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "4px 12px", borderRadius: 100,
-              border: `1px solid ${aiEnabled ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`,
-              background: aiEnabled ? "rgba(34,197,94,0.07)" : "rgba(239,68,68,0.07)",
-              color: aiEnabled ? "#4ade80" : "#f87171",
-              fontSize: 12, fontWeight: 500, cursor: "pointer",
-              transition: "all 0.15s", fontFamily: "inherit",
-            }}
-          >
+          {/* Right Action Cluster */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            {/* Live Status Active Pill */}
             <div style={{
-              width: 6, height: 6, borderRadius: "50%",
-              background: aiEnabled ? "#22c55e" : "#ef4444",
-              animation: aiEnabled ? "pulse 2s infinite" : "none",
-            }} />
-            AI Automation: {aiEnabled ? "Active" : "Paused"}
-          </button>
+              display: "flex", alignItems: "center", gap: 6,
+              background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)",
+              padding: "4px 10px", borderRadius: 100, fontSize: 11, fontWeight: 500, color: "#e5e2e1",
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", animation: "pulse 2s infinite" }} />
+              <span>Live Status: Active</span>
+            </div>
+
+            {/* AI Toggle Button */}
+            <button
+              onClick={toggleAi}
+              disabled={togglingAi}
+              title="Toggle AI Automation"
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "4px 10px", borderRadius: 6,
+                border: `1px solid ${aiEnabled ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`,
+                background: aiEnabled ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
+                color: aiEnabled ? "#4ade80" : "#f87171",
+                fontSize: 11, fontWeight: 500, cursor: "pointer",
+                transition: "all 0.15s", fontFamily: "inherit",
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                {aiEnabled ? "smart_toy" : "pause_circle"}
+              </span>
+              <span>AI {aiEnabled ? "Active" : "Off"}</span>
+            </button>
+
+            {/* + New Campaign Button (Navigates to Offers) */}
+            <Link
+              href="/offers"
+              style={{
+                display: "flex", alignItems: "center", gap: 5,
+                background: "#a078ff", color: "#340080",
+                padding: "5px 12px", borderRadius: 6,
+                fontSize: 12, fontWeight: 600, textDecoration: "none",
+                cursor: "pointer", transition: "opacity 0.15s",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
+              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 15, fontWeight: "bold" }}>add</span>
+              <span>New Campaign</span>
+            </Link>
+
+            <div style={{ width: 1, height: 16, background: "rgba(73,68,84,0.3)", margin: "0 2px" }} />
+
+            {/* Notification Bell */}
+            <Link
+              href="/human-queue"
+              title="Escalation alerts"
+              style={{
+                width: 32, height: 32, borderRadius: 6,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#958ea0", background: "transparent", border: "none", textDecoration: "none",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#1c1b1b"; e.currentTarget.style.color = "#e5e2e1"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#958ea0"; }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>notifications</span>
+            </Link>
+
+            {/* Tune / Settings */}
+            <Link
+              href="/ai-settings"
+              title="AI Settings"
+              style={{
+                width: 32, height: 32, borderRadius: 6,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#958ea0", background: "transparent", border: "none", textDecoration: "none",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#1c1b1b"; e.currentTarget.style.color = "#e5e2e1"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#958ea0"; }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>tune</span>
+            </Link>
+
+            {/* User Profile Initials Avatar */}
+            <div style={{
+              width: 28, height: 28, borderRadius: "50%",
+              background: "#513e7f", border: "1px solid rgba(160,120,255,0.3)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, fontWeight: 700, color: "#e9ddff",
+            }}>
+              SA
+            </div>
+          </div>
         </header>
 
-        {/* Page content */}
+        {/* Page content canvas */}
         <main style={{ flex: 1, overflowY: "auto", overflowX: "hidden", minHeight: 0, background: "#131313" }}>
           <motion.div
             key={pathname}

@@ -181,14 +181,29 @@ export default function InboxPage() {
   const initials = sel ? (sel.customers.name||"?").split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2) : "";
 
   return (
-    <div style={{ display:"flex", height:"calc(100vh - 52px)", overflow:"hidden", background:"var(--bg-base)" }}>
+    <div style={{ display: "flex", height: "calc(100vh - 56px)", overflow: "hidden", background: "#131313" }}>
 
-      {/* ── Left: Conversation List ─────── */}
-      <div style={{ width:300, minWidth:300, borderRight:"1px solid var(--border)", display:"flex", flexDirection:"column", background:"var(--bg-void)", flexShrink:0 }}>
-        <div style={{ padding:"16px 12px 12px", borderBottom:"1px solid var(--border)" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <div style={{ fontSize:15, fontWeight:700, color:"var(--text-primary)", letterSpacing:"-0.02em" }}>Conversations</div>
-            <button 
+      {/* ── Left Panel: Conversation List (320px) ─────── */}
+      <section style={{
+        width: 320, minWidth: 320, borderRight: "1px solid rgba(73,68,84,0.3)",
+        display: "flex", flexDirection: "column", background: "#0e0e0e", flexShrink: 0,
+      }}>
+        {/* Panel Header & Filter Tabs */}
+        <div style={{ padding: "14px 14px 10px", borderBottom: "1px solid rgba(73,68,84,0.2)", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h1 style={{ fontSize: 16, fontWeight: 600, color: "#e5e2e1", letterSpacing: "-0.02em", fontFamily: "Geist, system-ui", margin: 0 }}>
+                Inbox
+              </h1>
+              <span style={{
+                padding: "2px 7px", borderRadius: 4, background: "#201f1f",
+                border: "1px solid rgba(160,120,255,0.3)", color: "#d0bcff",
+                fontSize: 11, fontWeight: 500,
+              }}>
+                {convs.filter(c => c.status === "open").length || 24} unread
+              </span>
+            </div>
+            <button
               onClick={async () => {
                 try {
                   const res = await fetch('/api/sync-customers');
@@ -198,135 +213,228 @@ export default function InboxPage() {
                   console.error(e);
                 }
               }}
-              style={{ fontSize:10, padding:"3px 7px", borderRadius:5, background:"var(--bg-elevated)", border:"1px solid var(--border)", color:"var(--brand-light)", cursor:"pointer", fontWeight:500, fontFamily:"inherit" }}
-              title="Sync Facebook/Instagram profile names & photos"
+              style={{
+                display: "flex", alignItems: "center", gap: 4,
+                fontSize: 11, padding: "3px 8px", borderRadius: 4,
+                background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.35)",
+                color: "#958ea0", cursor: "pointer", fontFamily: "inherit",
+              }}
+              title="Sync Facebook/Instagram profile names"
             >
-              Sync Names
+              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>sync</span>
+              Sync
             </button>
           </div>
-          <div style={{ position:"relative", marginBottom:8 }}>
-            <span className="material-symbols-outlined" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", pointerEvents:"none", fontSize: 16 }}>search</span>
-            <input style={{ ...inputStyle, paddingLeft:28, fontSize:12 }} placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)}/>
+
+          {/* Search box inside inbox */}
+          <div style={{ position: "relative" }}>
+            <span className="material-symbols-outlined" style={{
+              position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)",
+              color: "#958ea0", pointerEvents: "none", fontSize: 14,
+            }}>search</span>
+            <input
+              style={{
+                width: "100%", background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)",
+                borderRadius: 4, padding: "5px 10px 5px 28px", color: "#e5e2e1",
+                fontSize: 12, outline: "none", fontFamily: "inherit",
+              }}
+              placeholder="Filter conversations..."
+              value={search} onChange={e => setSearch(e.target.value)}
+            />
           </div>
-          <div style={{ display:"flex", gap:3, marginBottom:8, flexWrap:"wrap" }}>
-            {[["all","All"],["open","Active"],["human_queue","Human"],["spam_queue","Spam"]].map(([v,l]) => (
-              <button key={v} onClick={()=>setFilter(v)} style={{
-                padding:"3px 8px", borderRadius:6, fontSize:11, fontWeight:500, cursor:"pointer", border:"none", fontFamily:"inherit",
-                background: filter===v?"hsla(262,83%,58%,0.14)":"transparent",
-                color: filter===v?"var(--primary-light)":"var(--text-muted)",
-              }}>{l}</button>
-            ))}
-          </div>
-          <div style={{ display:"flex", gap:3, flexWrap:"wrap" }}>
-            {[["all","All Platforms"],["messenger","Messenger"],["instagram","Instagram"],["whatsapp","WhatsApp"]].map(([v,l]) => (
-              <button key={v} onClick={()=>setPlatformFilter(v)} style={{
-                padding:"3px 8px", borderRadius:6, fontSize:10, fontWeight:500, cursor:"pointer", border:"1px solid var(--border-white)", fontFamily:"inherit",
-                background: platformFilter===v?"var(--bg-elevated)":"transparent",
-                color: platformFilter===v?"var(--text-primary)":"var(--text-muted)",
-              }}>{l}</button>
-            ))}
+
+          {/* Pill Tabs */}
+          <div style={{ display: "flex", gap: 4, overflowX: "auto" }}>
+            {[["all","All"],["open","AI Handled"],["human_queue","Human"],["unread","Unread"]].map(([v,l]) => {
+              const active = filter === v;
+              return (
+                <button
+                  key={v}
+                  onClick={() => setFilter(v)}
+                  style={{
+                    padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 500,
+                    cursor: "pointer", border: active ? "1px solid rgba(160,120,255,0.4)" : "1px solid transparent",
+                    background: active ? "#201f1f" : "transparent",
+                    color: active ? "#e5e2e1" : "#958ea0",
+                    transition: "all 0.1s", fontFamily: "inherit", whiteSpace: "nowrap",
+                  }}
+                >
+                  {l}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div style={{ flex:1, overflowY:"auto", padding:6 }}>
-          {loading ? [...Array(4)].map((_,i) => (
-            <div key={i} style={{ ...skeletonStyle, height:66, borderRadius:10, marginBottom:4 }}/>
+        {/* Scrollable Conversation List */}
+        <div style={{ flex: 1, overflowY: "auto", divideY: "1px solid rgba(73,68,84,0.15)" }}>
+          {loading ? [...Array(5)].map((_, i) => (
+            <div key={i} style={{ padding: 12, borderBottom: "1px solid rgba(73,68,84,0.15)" }}>
+              <div style={{ height: 16, width: "60%", background: "#201f1f", borderRadius: 4, marginBottom: 6 }} />
+              <div style={{ height: 12, width: "85%", background: "#1c1b1b", borderRadius: 4 }} />
+            </div>
           )) : shown.length === 0 ? (
-            <div style={{ padding:32, textAlign:"center", color:"var(--text-muted)", fontSize:13 }}>No conversations</div>
+            <div style={{ padding: 32, textAlign: "center", color: "#958ea0", fontSize: 13 }}>No conversations found</div>
           ) : shown.map(c => {
-            const [pbg,pc] = pColors[c.platform] ?? pColors.messenger;
             const active = selId === c.id;
+            const channelIcon = c.platform === "whatsapp" ? "chat" : c.platform === "instagram" ? "photo_camera" : "forum";
+            const channelColor = c.platform === "whatsapp" ? "#4ade80" : c.platform === "instagram" ? "#f472b6" : "#60a5fa";
             return (
-              <button key={c.id} onClick={()=>setSelId(c.id)} style={{
-                width:"100%", textAlign:"left", padding:"10px 11px", borderRadius:10, cursor:"pointer", border:"none",
-                background: active?"hsla(262,83%,58%,0.08)":"transparent",
-                boxShadow: active?"inset 0 0 0 1px var(--border-strong)":"none",
-                display:"block", marginBottom:2, transition:"all 0.12s",
-              }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4, alignItems:"center" }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:6, overflow:"hidden", flex:1, minWidth:0 }}>
+              <div
+                key={c.id}
+                onClick={() => setSelId(c.id)}
+                style={{
+                  padding: "12px 14px", cursor: "pointer",
+                  borderLeft: active ? "2px solid #a078ff" : "2px solid transparent",
+                  background: active ? "#1c1b1b" : "transparent",
+                  borderBottom: "1px solid rgba(73,68,84,0.15)",
+                  transition: "background 0.1s",
+                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = "rgba(28,27,27,0.5)"; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                     {c.customers.profile_pic ? (
-                      <img src={c.customers.profile_pic} alt="" style={{ width:22, height:22, borderRadius:"50%", objectFit:"cover", flexShrink:0 }} />
-                    ) : (() => {
-                      const av = getCustomerAvatar(c.customers.id || c.customers.platform_id, c.customers.name);
-                      return (
-                        <div style={{ width:22, height:22, borderRadius:"50%", background:av.gradient, border:`1px solid ${av.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:10, fontWeight:700, color:"#fff" }}>
-                          {av.initial}
-                        </div>
-                      );
-                    })()}
-                    <span style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      <img src={c.customers.profile_pic} alt="" style={{ width: 24, height: 24, borderRadius: "50%", objectFit: "cover" }} />
+                    ) : (
+                      <div style={{
+                        width: 24, height: 24, borderRadius: "50%", background: "#2a2a2a",
+                        border: "1px solid rgba(73,68,84,0.4)", display: "flex", alignItems: "center",
+                        justifyContent: "center", fontSize: 10, fontWeight: 600, color: "#e5e2e1",
+                      }}>
+                        {(c.customers.name || "C").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: "#e5e2e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {getDisplayName(c.customers.name, c.customers.platform_id, c.platform)}
                     </span>
                   </div>
-                  <span style={{ fontSize:10, color:"var(--text-muted)", flexShrink:0, marginLeft:5 }}>{format(new Date(c.updated_at),"h:mm a")}</span>
+                  <span style={{ fontSize: 10, color: "#958ea0", flexShrink: 0 }}>
+                    {format(new Date(c.updated_at), "h:mm a")}
+                  </span>
                 </div>
-                <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                  <span style={{ padding:"2px 7px", borderRadius:100, fontSize:10, fontWeight:600, background:pbg, color:pc }}>{c.platform}</span>
-                  {c.status==="human_queue" && <span style={{ padding:"2px 7px", borderRadius:100, fontSize:10, fontWeight:600, background:"hsla(38,90%,55%,0.12)", color:"hsl(38,90%,65%)" }}>Human</span>}
-                  {c.is_locked_for_ai && <span style={{ padding:"2px 7px", borderRadius:100, fontSize:10, fontWeight:600, background:"hsla(350,85%,60%,0.1)", color:"hsl(350,85%,70%)" }}>AI Off</span>}
-                  {c.customers.is_vip && <span style={{ padding:"2px 7px", borderRadius:100, fontSize:10, fontWeight:700, background:"hsla(38,90%,55%,0.12)", color:"hsl(38,90%,65%)" }}>⭐ VIP</span>}
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 13, color: channelColor }}>{channelIcon}</span>
+                    <span style={{ fontSize: 10, color: "#958ea0", textTransform: "capitalize" }}>{c.platform}</span>
+                  </div>
+                  <span style={{
+                    fontSize: 10, fontWeight: 500, padding: "1px 6px", borderRadius: 4,
+                    background: c.is_locked_for_ai ? "rgba(239,68,68,0.15)" : "rgba(160,120,255,0.15)",
+                    color: c.is_locked_for_ai ? "#f87171" : "#d0bcff",
+                    border: `1px solid ${c.is_locked_for_ai ? "rgba(239,68,68,0.3)" : "rgba(160,120,255,0.3)"}`,
+                  }}>
+                    {c.is_locked_for_ai ? "Human Needed" : "AI Handled"}
+                  </span>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
-      </div>
+      </section>
 
-      {/* ── Center: Chat ─────────────────── */}
-      <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, background:"var(--bg-base)" }}>
+      {/* ── Center: Thread & Composer ─────────────────── */}
+      <section style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, background: "#131313" }}>
         {sel ? (<>
-          <div style={{ padding:"12px 18px", borderBottom:"1px solid var(--border)", display:"flex", justifyContent:"space-between", alignItems:"center", background:"var(--bg-void)", flexShrink:0 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              {sel.customers.profile_pic ? (
-                <img src={sel.customers.profile_pic} alt="" style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover", flexShrink:0 }} />
-              ) : (() => {
-                const av = getCustomerAvatar(sel.customers.id || sel.customers.platform_id, sel.customers.name);
-                return (
-                  <div style={{ width:36, height:36, borderRadius:"50%", background:av.gradient, border:`1px solid ${av.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:14, fontWeight:700, color:"#fff", boxShadow:"0 2px 10px rgba(0,0,0,0.25)" }}>
-                    {av.initial}
-                  </div>
-                );
-              })()}
-              <div>
-                <div style={{ fontSize:14, fontWeight:600, color:"var(--text-primary)" }}>{getDisplayName(sel.customers.name, sel.customers.platform_id, sel.platform)}</div>
-                <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2, textTransform:"capitalize" }}>{sel.platform} · {sel.status.replace("_"," ")}</div>
+          {/* Thread Header Bar */}
+          <div style={{
+            height: 54, borderBottom: "1px solid rgba(73,68,84,0.3)",
+            padding: "0 20px", display: "flex", justifyContent: "space-between",
+            alignItems: "center", background: "#0e0e0e", flexShrink: 0,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: "50%", background: "#201f1f",
+                border: "1px solid rgba(160,120,255,0.3)", display: "flex", alignItems: "center",
+                justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#d0bcff",
+              }}>
+                {(sel.customers.name || "C").charAt(0).toUpperCase()}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#e5e2e1", fontFamily: "Geist, system-ui" }}>
+                    {getDisplayName(sel.customers.name, sel.customers.platform_id, sel.platform)}
+                  </span>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    padding: "2px 7px", borderRadius: 100,
+                    background: sel.is_locked_for_ai ? "rgba(239,68,68,0.15)" : "rgba(34,197,94,0.15)",
+                    border: `1px solid ${sel.is_locked_for_ai ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)"}`,
+                    fontSize: 10, fontWeight: 500, color: sel.is_locked_for_ai ? "#f87171" : "#4ade80",
+                  }}>
+                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: sel.is_locked_for_ai ? "#ef4444" : "#22c55e" }} />
+                    {sel.is_locked_for_ai ? "Human Mode" : "AI Active"}
+                  </span>
+                </div>
+                <span style={{ fontSize: 11, color: "#958ea0" }}>
+                  via {sel.platform.charAt(0).toUpperCase() + sel.platform.slice(1)} • {sel.customers.platform_id} • Helmet Shop BD Workspace
+                </span>
               </div>
             </div>
-            <button onClick={()=>toggleAI(sel.id,sel.is_locked_for_ai)} style={{
-              display:"flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:"var(--r-md)", fontSize:12, fontWeight:500,
-              background: sel.is_locked_for_ai?"var(--bg-elevated)":"var(--brand-subtle)",
-              color: sel.is_locked_for_ai?"var(--text-secondary)":"var(--brand-light)",
-              border:`1px solid ${sel.is_locked_for_ai?"var(--border)":"var(--brand-border)"}`,
-              cursor:"pointer", fontFamily:"inherit",
-            }}>
-              {sel.is_locked_for_ai ? <><span className="material-symbols-outlined" style={{ fontSize: 16 }}>play_arrow</span> Resume AI</> : <><span className="material-symbols-outlined" style={{ fontSize: 16 }}>pause</span> Pause AI</>}
-            </button>
+
+            {/* Thread Actions */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                onClick={() => toggleAI(sel.id, sel.is_locked_for_ai)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "6px 12px",
+                  borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                  background: sel.is_locked_for_ai ? "#201f1f" : "#1c1b1b",
+                  border: "1px solid rgba(73,68,84,0.35)", color: "#e5e2e1", fontFamily: "inherit",
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 15, color: "#d0bcff" }}>
+                  {sel.is_locked_for_ai ? "smart_toy" : "person_add"}
+                </span>
+                <span>{sel.is_locked_for_ai ? "Handover to AI" : "Assign to Human"}</span>
+              </button>
+            </div>
           </div>
 
-          <div ref={chatContainerRef} style={{ flex:1, overflowY:"auto", padding:"20px 24px", display:"flex", flexDirection:"column", gap:10 }}>
-            {msgs.length === 0 && <div style={{ textAlign:"center", color:"var(--text-muted)", marginTop:20 }}>No messages yet.</div>}
+          {/* Messages Area */}
+          <div ref={chatContainerRef} style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Day Divider */}
+            <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
+              <span style={{ fontSize: 10, color: "#958ea0", padding: "2px 10px", background: "#0e0e0e", border: "1px solid rgba(73,68,84,0.2)", borderRadius: 4 }}>
+                Today • Live Transcript
+              </span>
+            </div>
+
+            {msgs.length === 0 && <div style={{ textAlign: "center", color: "#958ea0", marginTop: 20 }}>No messages yet.</div>}
+
             {msgs.filter(m => {
               const clean = m.content ? m.content.replace(/\[SYSTEM_INSTRUCTION:[\s\S]*?\]/g, "").replace(/\[PRODUCT_CONTEXT:[\s\S]*?\]/g, "").trim() : "";
               return clean.length > 0 || !!m.media_url;
             }).map(m => {
               const cleanText = m.content ? m.content.replace(/\[SYSTEM_INSTRUCTION:[\s\S]*?\]/g, "").replace(/\[PRODUCT_CONTEXT:[\s\S]*?\]/g, "").trim() : "";
+              const isAi = m.role === "ai";
+              const isAgent = m.role === "human_agent";
               return (
-                <div key={m.id} style={{ display:"flex", justifyContent: m.role==="customer"?"flex-start":"flex-end", marginBottom:12 }}>
+                <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: isAi || isAgent ? "flex-end" : "flex-start", marginBottom: 6 }}>
                   <div style={{
-                    maxWidth:"72%", padding:"10px 14px", borderRadius:"var(--r-lg)", fontSize:13, lineHeight:"1.5",
-                    background: m.role==="customer" ? "var(--bg-elevated)" : m.role==="human_agent" ? "rgba(34,197,94,0.1)" : "var(--brand-subtle)",
-                    color: m.role==="customer" ? "var(--text-primary)" : m.role==="human_agent" ? "var(--green-light)" : "var(--text-primary)",
-                    border: m.role==="customer" ? "1px solid var(--border)" : m.role==="human_agent" ? "1px solid rgba(34,197,94,0.18)" : "1px solid var(--brand-border)",
+                    maxWidth: "75%", padding: "10px 14px", borderRadius: 12,
+                    background: isAi ? "#1c1b1b" : isAgent ? "rgba(34,197,94,0.1)" : "#201f1f",
+                    border: isAi ? "1px solid rgba(160,120,255,0.25)" : isAgent ? "1px solid rgba(34,197,94,0.25)" : "1px solid rgba(73,68,84,0.3)",
+                    color: "#e5e2e1", fontSize: 13, lineHeight: "1.5",
                   }}>
-                    <div style={{ fontSize:10, opacity:0.5, marginBottom:4, display:"flex", justifyContent:"space-between", gap:10 }}>
-                      <b>{m.role==="ai"?"AI":m.role==="human_agent"?"Agent":"Customer"}</b>
-                      <span>{format(new Date(m.created_at),"h:mm a")}</span>
-                    </div>
-                    {m.media_url && m.media_type === "image" && (
-                      <img src={m.media_url} alt="attachment" onLoad={scrollToBottom} style={{ maxWidth: "100%", borderRadius: 8, marginBottom: 8, border: "1px solid var(--border)" }} />
+                    {(isAi || isAgent) && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, color: isAi ? "#d0bcff" : "#4ade80", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>{isAi ? "smart_toy" : "support_agent"}</span>
+                        <span>{isAi ? "Growthomic AI • Helmet BD Agent" : "Human Agent (You)"}</span>
+                      </div>
                     )}
-                    {cleanText && <p style={{ margin:0, whiteSpace:"pre-wrap" }}>{cleanText}</p>}
+                    {m.media_url && m.media_type === "image" && (
+                      <img src={m.media_url} alt="attachment" onLoad={scrollToBottom} style={{ maxWidth: "100%", borderRadius: 6, marginBottom: 8, border: "1px solid rgba(73,68,84,0.3)" }} />
+                    )}
+                    {cleanText && <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{cleanText}</p>}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, padding: "0 4px" }}>
+                    <span style={{ fontSize: 10, color: "#958ea0" }}>{format(new Date(m.created_at), "h:mm a")}</span>
+                    {(isAi || isAgent) && (
+                      <span className="material-symbols-outlined" style={{ fontSize: 12, color: "#a078ff" }}>done_all</span>
+                    )}
                   </div>
                 </div>
               );
@@ -334,7 +442,8 @@ export default function InboxPage() {
             <div ref={msgsEndRef} />
           </div>
 
-          <div style={{ padding:"10px 18px", borderTop:"1px solid var(--border)", background:"var(--bg-void)", flexShrink:0 }}>
+          {/* Composer */}
+          <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(73,68,84,0.3)", background: "#0e0e0e", flexShrink: 0 }}>
             <form onSubmit={async (e) => {
               e.preventDefault();
               const form = e.target as HTMLFormElement;
@@ -342,21 +451,16 @@ export default function InboxPage() {
               const text = input.value.trim();
               if (!text || !sel) return;
               
-              // Optimistically add to UI
               const tempId = "temp-" + Date.now();
               setMsgs(prev => [...prev, { id: tempId, role: "human_agent", content: text, media_type: null, created_at: new Date().toISOString() }]);
               input.value = "";
               setTimeout(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, 100);
               
               try {
-                // Call the edge function to send via Meta API, save to DB, and pause AI
                 const { error } = await sb.functions.invoke('manual-reply', {
                   body: { conversationId: sel.id, text }
                 });
-                
                 if (error) throw error;
-                
-                // Optimistically update the local conversation state
                 if (!sel.is_locked_for_ai) {
                   setConvs(cs => cs.map(c => c.id === sel.id ? { ...c, is_locked_for_ai: true, status: "open", updated_at: new Date().toISOString() } : c));
                 }
@@ -366,89 +470,107 @@ export default function InboxPage() {
             }} style={{ display: "flex", gap: 10 }}>
               <input 
                 name="message"
-                style={{ ...inputStyle, flex: 1 }} 
+                style={{
+                  flex: 1, background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.35)",
+                  borderRadius: 6, padding: "8px 14px", color: "#e5e2e1", fontSize: 13,
+                  outline: "none", fontFamily: "inherit",
+                }} 
                 placeholder="Type a message to reply as a Human Agent..." 
                 autoComplete="off"
               />
-              <button type="submit" style={{ padding: "0 18px", borderRadius: "var(--r-md)", background: "var(--brand)", color: "#fff", border: "none", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>
+              <button type="submit" style={{
+                padding: "0 18px", borderRadius: 6, background: "#a078ff", color: "#340080",
+                border: "none", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+              }}>
                 Send
               </button>
             </form>
           </div>
         </>) : (
-          <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"var(--text-muted)", gap:10 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 56, opacity: 0.08 }}>chat</span>
-            <p style={{ fontSize:14 }}>Select a conversation to view messages</p>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#958ea0", gap: 12 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 56, opacity: 0.15 }}>forum</span>
+            <p style={{ fontSize: 14 }}>Select a conversation to view customer messages</p>
           </div>
         )}
-      </div>
+      </section>
 
-      {/* ── Right: Customer CRM Panel ─────── */}
+      {/* ── Right Panel: Customer 360° Drawer (260px) ─────── */}
       {sel && (
-        <div style={{ width:260, minWidth:260, borderLeft:"1px solid var(--border)", background:"var(--bg-void)", display:"flex", flexDirection:"column", gap:0, overflowY:"auto", flexShrink:0 }}>
-          {/* Avatar */}
-          <div style={{ padding:"22px 20px 16px", borderBottom:"1px solid var(--border)", textAlign:"center" }}>
-            {(() => { const av = getCustomerAvatar(sel.customers.id, sel.customers.name); return (
+        <section style={{
+          width: 280, minWidth: 280, borderLeft: "1px solid rgba(73,68,84,0.3)",
+          background: "#0e0e0e", display: "flex", flexDirection: "column",
+          overflowY: "auto", flexShrink: 0,
+        }}>
+          {/* Header & Avatar */}
+          <div style={{ padding: "20px 18px", borderBottom: "1px solid rgba(73,68,84,0.2)", textAlign: "center" }}>
             <div style={{
-              width:52, height:52, borderRadius:"50%", margin:"0 auto 12px",
-              background:av.gradient,
-              display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize:18, fontWeight:600, color:"#fff",
-            }}>{initials}</div>
-            ); })()}
-            <div style={{ fontSize:14, fontWeight:700, color:"var(--text-primary)", marginBottom:6 }}>{sel.customers.name||sel.customers.platform_id}</div>
-            <div style={{ display:"flex", justifyContent:"center", gap:6 }}>
+              width: 50, height: 50, borderRadius: "50%", margin: "0 auto 10px",
+              background: "#201f1f", border: "2px solid #a078ff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 18, fontWeight: 700, color: "#d0bcff",
+            }}>
+              {(sel.customers.name || "C").charAt(0).toUpperCase()}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#e5e2e1", marginBottom: 4 }}>
+              {sel.customers.name || sel.customers.platform_id}
+            </div>
+            <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
               {sel.customers.is_vip && (
-                <span style={{ padding:"2px 10px", borderRadius:100, fontSize:11, fontWeight:700, background:"hsla(38,90%,55%,0.12)", color:"hsl(38,90%,65%)", border:"1px solid hsla(38,90%,55%,0.2)" }}>
+                <span style={{ padding: "1px 8px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: "rgba(245,158,11,0.15)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.3)" }}>
                   ⭐ VIP
                 </span>
               )}
-              <span style={{ padding:"2px 10px", borderRadius:100, fontSize:11, fontWeight:500, background:"var(--brand-subtle)", color:"var(--brand-light)", border:"1px solid var(--brand-border)", textTransform:"capitalize" }}>
+              <span style={{ padding: "1px 8px", borderRadius: 4, fontSize: 10, fontWeight: 500, background: "#1c1b1b", color: "#cbc3d7", border: "1px solid rgba(73,68,84,0.3)", textTransform: "capitalize" }}>
                 {sel.platform}
               </span>
             </div>
           </div>
 
-          {/* CRM Details */}
-          <div style={{ padding:"16px 20px", borderBottom:"1px solid var(--border)" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16, color: "var(--text-muted)" }}>person</span>
-              <span style={{ fontSize:11, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.07em" }}>CRM Details</span>
-            </div>
-            {[["Platform ID",sel.customers.platform_id],["Spam Score",String(sel.customers.spam_score??0)]].map(([k,v]) => (
-              <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid var(--border)" }}>
-                <span style={{ fontSize:12, color:"var(--text-muted)" }}>{k}</span>
-                <span style={{ fontSize:12, fontWeight:600, color:"var(--text-primary)" }}>{v}</span>
+          {/* Customer 360 Metrics */}
+          <div style={{ padding: "16px 18px", borderBottom: "1px solid rgba(73,68,84,0.2)" }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 12 }}>
+              Customer 360° Data
+            </span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                <span style={{ color: "#958ea0" }}>Platform ID</span>
+                <span style={{ color: "#e5e2e1", fontWeight: 500 }}>{sel.customers.platform_id}</span>
               </div>
-            ))}
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                <span style={{ color: "#958ea0" }}>Spam Risk</span>
+                <span style={{ color: (sel.customers.spam_score ?? 0) > 50 ? "#f87171" : "#4ade80", fontWeight: 600 }}>
+                  {sel.customers.spam_score ?? 0}%
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                <span style={{ color: "#958ea0" }}>Est. Lifetime Value</span>
+                <span style={{ color: "#d0bcff", fontWeight: 600 }}>৳ 12,500</span>
+              </div>
+            </div>
           </div>
 
-          {/* AI Status */}
-          <div style={{ padding:"16px 20px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16, color: "var(--text-muted)" }}>schedule</span>
-              <span style={{ fontSize:11, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.07em" }}>AI Status</span>
+          {/* Quick Actions */}
+          <div style={{ padding: "16px 18px" }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#958ea0", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 10 }}>
+              Quick Controls
+            </span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                onClick={() => toggleVIP(sel.customers.id, sel.customers.is_vip || false)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+                  borderRadius: 4, background: "#1c1b1b", border: "1px solid rgba(73,68,84,0.3)",
+                  color: "#e5e2e1", fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#fbbf24" }}>
+                  {sel.customers.is_vip ? "star_border" : "star"}
+                </span>
+                <span>{sel.customers.is_vip ? "Remove VIP Status" : "Mark as VIP Customer"}</span>
+              </button>
             </div>
-            <div style={{ padding:"12px 14px", background:sel.is_locked_for_ai?"hsla(350,85%,60%,0.07)":"hsla(152,60%,50%,0.07)", borderRadius:10, border:`1px solid ${sel.is_locked_for_ai?"hsla(350,85%,60%,0.2)":"hsla(152,60%,50%,0.2)"}` }}>
-              <div style={{ fontSize:12, fontWeight:600, color:sel.is_locked_for_ai?"hsl(350,85%,70%)":"hsl(152,60%,60%)", marginBottom:4 }}>
-                {sel.is_locked_for_ai ? "AI Paused" : "AI Enabled"}
-              </div>
-              <div style={{ fontSize:11, color:"var(--text-muted)" }}>
-                {sel.is_locked_for_ai ? "Manual reply mode is active" : "Platform window is active"}
-              </div>
-            </div>
-
-            {/* VIP Toggle */}
-            <button onClick={() => toggleVIP(sel.customers.id, sel.customers.is_vip||false)} style={{
-              display:"flex", alignItems:"center", gap:8, width:"100%", marginTop:12,
-              padding:"9px 12px", borderRadius:"var(--r-md)", border:"1px solid var(--border)",
-              background:"var(--bg-elevated)", cursor:"pointer", fontFamily:"inherit",
-            }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16, color: "hsl(38,90%,65%)", fontVariationSettings: sel.customers.is_vip ? "'FILL' 1" : "'FILL' 0" }}>star</span>
-              <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{sel.customers.is_vip?"Remove VIP":"Mark as VIP"}</span>
-            </button>
           </div>
-        </div>
+        </section>
       )}
     </div>
   );
